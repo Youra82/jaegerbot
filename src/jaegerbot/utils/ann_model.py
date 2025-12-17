@@ -56,8 +56,9 @@ def create_ann_features(df):
     df['ema20'] = ta.trend.ema_indicator(df['close'], window=20)
     df['ema50'] = ta.trend.ema_indicator(df['close'], window=50)
     df['ema200'] = ta.trend.ema_indicator(df['close'], window=200)
-    df['ema_cross_20_50'] = ((df['ema20'] > df['ema50']).astype(int) - 
-                              (df['ema20'] > df['ema50']).shift(1).astype(int))
+    # EMA Cross mit NaN-Handling
+    ema_cross = (df['ema20'] > df['ema50']).fillna(False).astype(int) - (df['ema20'] > df['ema50']).shift(1).fillna(False).astype(int)
+    df['ema_cross_20_50'] = ema_cross
     df['price_to_ema20'] = (df['close'] - df['ema20']) / df['ema20']
     df['price_to_ema50'] = (df['close'] - df['ema50']) / df['ema50']
     
