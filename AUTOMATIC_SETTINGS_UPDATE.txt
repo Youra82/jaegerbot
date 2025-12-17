@@ -1,0 +1,237 @@
+================================================================================
+                    AUTOMATISCHE SETTINGS-ÜBERNAHME
+================================================================================
+Datum: 17. Dezember 2025
+
+FEATURE: Nach Option 3 (Automatische Portfolio-Optimierung) wird automatisch
+         gefragt, ob die optimierten Strategien in settings.json übernommen
+         werden sollen.
+
+
+================================================================================
+📋 FUNKTIONSWEISE
+================================================================================
+
+WORKFLOW:
+
+1. User führt aus: bash show_results.sh
+
+2. User wählt Option 3: Automatische Portfolio-Optimierung
+
+3. Bot analysiert und findet optimales Portfolio (z.B. 3 Strategien)
+
+4. NACH der Analyse erscheint:
+   
+   ========================================
+     SETTINGS AUTOMATISCH AKTUALISIEREN?
+   ========================================
+   
+   Die optimierten Strategien können jetzt automatisch
+   in die settings.json übernommen werden.
+   
+   ACHTUNG: Dies ersetzt alle aktuellen Strategien!
+   Es wird automatisch ein Backup erstellt (settings.json.backup).
+   
+   Sollen die optimierten Strategien übernommen werden? (j/n):
+
+5. User Eingabe:
+   
+   j/J/y/Y → Settings werden aktualisiert
+   n/N     → Keine Änderung
+
+6. Bei "j":
+   - Backup: settings.json → settings.json.backup
+   - Alte Strategien werden GELÖSCHT
+   - Nur optimierte Strategien bleiben aktiv
+   - use_auto_optimizer_results: true
+
+
+================================================================================
+🎯 BEISPIEL
+================================================================================
+
+VORHER (settings.json):
+{
+  "live_trading_settings": {
+    "use_auto_optimizer_results": false,
+    "active_strategies": [
+      {"symbol": "SOL/USDT:USDT", "timeframe": "15m", "active": true},
+      {"symbol": "XRP/USDT:USDT", "timeframe": "15m", "active": false},
+      {"symbol": "ADA/USDT:USDT", "timeframe": "1d", "active": false},
+      {"symbol": "DOGE/USDT:USDT", "timeframe": "15m", "active": false},
+      {"symbol": "ETH/USDT:USDT", "timeframe": "15m", "active": false}
+    ]
+  }
+}
+
+OPTIMIZER FINDET:
+- config_BTCUSDTUSDT_4h.json
+- config_ETHUSDTUSDT_1h.json
+- config_SOLUSDTUSDT_15m.json
+
+NACHHER (settings.json):
+{
+  "live_trading_settings": {
+    "use_auto_optimizer_results": true,
+    "active_strategies": [
+      {"symbol": "BTC/USDT:USDT", "timeframe": "4h", "active": true, "use_macd_filter": false},
+      {"symbol": "ETH/USDT:USDT", "timeframe": "1h", "active": true, "use_macd_filter": false},
+      {"symbol": "SOL/USDT:USDT", "timeframe": "15m", "active": true, "use_macd_filter": false}
+    ]
+  }
+}
+
+
+================================================================================
+📁 NEUE DATEIEN
+================================================================================
+
+1. update_settings_from_optimizer.py
+   - Python-Script zur Settings-Aktualisierung
+   - Parst Config-Dateinamen (z.B. config_SOLUSDTUSDT_15m.json)
+   - Extrahiert Symbol (SOL/USDT:USDT) und Timeframe (15m)
+   - Erstellt Backup automatisch
+   - Schreibt neue settings.json
+
+2. show_results.sh (ERWEITERT)
+   - Prüft nach Option 3 ob Optimizer erfolgreich war
+   - Zeigt interaktive Frage
+   - Ruft update_settings_from_optimizer.py auf
+   - Löscht Temp-Datei (.optimal_configs.tmp)
+
+3. show_results.py (ERWEITERT)
+   - Speichert optimale Config-Namen in .optimal_configs.tmp
+   - Wird von show_results.sh gelesen
+
+
+================================================================================
+🔐 SICHERHEIT
+================================================================================
+
+BACKUP-MECHANISMUS:
+- Vor jeder Änderung wird settings.json.backup erstellt
+- Original bleibt erhalten bis nächste Aktualisierung
+
+RÜCKGÄNGIG MACHEN:
+Unter Linux/Mac:
+  cp settings.json.backup settings.json
+
+Unter Windows PowerShell:
+  Copy-Item settings.json.backup settings.json
+
+
+================================================================================
+⚠️  WICHTIGE HINWEISE
+================================================================================
+
+1. 🔴 NUR BEI OPTION 3
+   Die interaktive Frage erscheint NUR nach Option 3!
+   Bei Option 1 und 2 passiert nichts.
+
+2. 🔴 ALLE ALTEN STRATEGIEN WERDEN GELÖSCHT
+   Wenn du "j" drückst, werden ALLE bisherigen Strategien
+   aus settings.json entfernt. Nur die optimierten bleiben.
+
+3. 🔴 BACKUP PRÜFEN
+   Nach der Aktualisierung solltest du settings.json.backup
+   prüfen, falls du etwas wiederherstellen musst.
+
+4. 🟡 KEINE OPTIMIERUNG GEFUNDEN
+   Wenn der Optimizer keine Strategien findet (z.B. wegen
+   zu strengem Max-DD), wird die Frage NICHT angezeigt.
+
+5. 🟡 LIVE-TRADING VORSICHT
+   Nach Änderung der settings.json musst du master_runner.py
+   NEU STARTEN, damit die Änderungen wirksam werden!
+
+
+================================================================================
+🎓 TECHNISCHE DETAILS
+================================================================================
+
+TEMP-DATEI (.optimal_configs.tmp):
+- Wird von show_results.py erstellt
+- Enthält Config-Dateinamen (1 pro Zeile)
+- Format: config_SOLUSDTUSDT_15m.json
+- Wird nach Verarbeitung gelöscht
+
+PARSING-LOGIK:
+config_SOLUSDTUSDT_15m.json
+↓
+1. Entferne "config_" und ".json" → SOLUSDTUSDT_15m
+2. Erkenne Timeframe (15m, 1h, 4h, etc.)
+3. Extrahiere Symbol-Teil → SOLUSDTUSDT
+4. Konvertiere → SOL/USDT:USDT
+
+UNTERSTÜTZTE TIMEFRAMES:
+1m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 12h, 1d, 1w
+
+
+================================================================================
+🚀 VERWENDUNG
+================================================================================
+
+SCHRITT 1: Optimierung durchführen
+bash show_results.sh
+→ Wähle Option 3
+→ Gib Parameter ein (Zeitraum, Kapital, Max-DD)
+
+SCHRITT 2: Ergebnisse prüfen
+→ Optimizer zeigt gefundene Strategien
+→ Prüfe Performance (PnL, Win-Rate, Max-DD)
+
+SCHRITT 3: Settings aktualisieren (OPTIONAL)
+→ Frage erscheint: "Sollen die optimierten Strategien übernommen werden?"
+→ Drücke "j" wenn Performance gut ist
+→ Drücke "n" wenn du manuell anpassen willst
+
+SCHRITT 4: Backup prüfen
+cat settings.json.backup
+
+SCHRITT 5: Neue Settings prüfen
+cat settings.json
+
+SCHRITT 6: Bot neu starten (wenn Live-Trading läuft)
+# Master Runner beenden (Ctrl+C)
+bash run_pipeline.sh
+
+
+================================================================================
+✅ VORTEILE
+================================================================================
+
+✅ SCHNELLER WORKFLOW
+   Kein manuelles Copy-Paste mehr nötig
+
+✅ FEHLER-VERMEIDUNG
+   Automatisches Parsing verhindert Tippfehler
+
+✅ AUTOMATISCHES BACKUP
+   Original wird immer gesichert
+
+✅ INTERAKTIV
+   User behält Kontrolle (j/n Abfrage)
+
+✅ CLEAN SLATE
+   Alte, nicht-optimierte Strategien werden entfernt
+
+
+================================================================================
+🎉 ZUSAMMENFASSUNG
+================================================================================
+
+Du kannst jetzt nach einer automatischen Portfolio-Optimierung
+die Ergebnisse DIREKT in die settings.json übernehmen lassen!
+
+WORKFLOW:
+  bash show_results.sh → Option 3 → Optimierung läuft → Frage erscheint → "j" drücken → Fertig!
+
+BACKUP:
+  settings.json.backup enthält immer die alte Version
+
+RÜCKGÄNGIG:
+  cp settings.json.backup settings.json
+
+VIEL ERFOLG! 🚀
+
+================================================================================
