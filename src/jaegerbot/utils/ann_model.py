@@ -56,9 +56,6 @@ def create_ann_features(df):
     df['ema20'] = ta.trend.ema_indicator(df['close'], window=20)
     df['ema50'] = ta.trend.ema_indicator(df['close'], window=50)
     df['ema200'] = ta.trend.ema_indicator(df['close'], window=200)
-    # EMA Cross mit NaN-Handling
-    ema_cross = (df['ema20'] > df['ema50']).fillna(False).astype(int) - (df['ema20'] > df['ema50']).shift(1).fillna(False).astype(int)
-    df['ema_cross_20_50'] = ema_cross
     df['price_to_ema20'] = (df['close'] - df['ema20']) / df['ema20']
     df['price_to_ema50'] = (df['close'] - df['ema50']) / df['ema50']
     
@@ -150,6 +147,7 @@ def prepare_data_for_ann(df, timeframe: str, verbose: bool = True):
     df_with_features['target'] = df_with_features['target'].replace(-1, 0)
 
     # *** ERWEITERTE FEATURE-LISTE MIT ALLEN NEUEN FEATURES ***
+    # Feature 'ema_cross_20_50' entfernt aufgrund durchgehend niedriger Wichtigkeit (<0.2%)
     feature_cols = [
         # Basis-Features
         'bb_width', 'bb_pband', 'obv', 'rsi', 'macd_diff', 'macd', 
@@ -159,7 +157,7 @@ def prepare_data_for_ann(df, timeframe: str, verbose: bool = True):
         'volume_ratio', 'mfi', 'cmf',
         
         # Trend-Features
-        'price_to_ema20', 'price_to_ema50', 'ema_cross_20_50',
+        'price_to_ema20', 'price_to_ema50',
         
         # Momentum-Features
         'stoch_k', 'stoch_d', 'williams_r', 'roc', 'cci',
