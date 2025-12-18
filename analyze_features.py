@@ -90,7 +90,19 @@ def analyze_feature_importance(symbol, timeframe, start_date, end_date):
     plt.savefig('feature_importance.png')
 
     print("\n--- Analyse abgeschlossen ---")
-    print("Empfehlung: Überlege, Indikatoren mit einer Wichtigkeit von < 0.05 (oder 5%) zu entfernen.")
+    
+    # Dynamische Empfehlung basierend auf Feature-Anzahl
+    n_features = len(feature_names)
+    avg_importance = 1.0 / n_features
+    threshold_low = avg_importance * 0.5  # 50% vom Durchschnitt
+    threshold_high = avg_importance * 2.0  # 200% vom Durchschnitt
+    
+    print(f"\n📊 INTERPRETATIONSHILFE (bei {n_features} Features):")
+    print(f"   Durchschnittliche Wichtigkeit: {avg_importance*100:.2f}%")
+    print(f"   • Sehr unwichtig: < {threshold_low*100:.2f}% → Entfernen erwägen")
+    print(f"   • Unterdurchschnittlich: {threshold_low*100:.2f}% - {avg_importance*100:.2f}%")
+    print(f"   • Durchschnittlich: {avg_importance*100:.2f}% - {threshold_high*100:.2f}%")
+    print(f"   • Sehr wichtig: > {threshold_high*100:.2f}% → Definitiv behalten!")
 
 
 if __name__ == "__main__":
