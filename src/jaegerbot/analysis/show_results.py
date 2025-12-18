@@ -215,11 +215,13 @@ def run_shared_mode(is_auto: bool, start_date, end_date, start_capital, max_draw
             print(f"Anzahl Trades:    {trade_count}{days_per_trade_str}")
             print(f"Portfolio Max DD:   {final_report['max_drawdown_pct']:.2f}%")
             print(f"Liquidiert:       {'JA, am ' + final_report['liquidation_date'].strftime('%Y-%m-%d') if final_report['liquidation_date'] else 'NEIN'}")
+
             # Speichere optimale Strategien für das Bash-Script
             optimal_configs_file = os.path.join(PROJECT_ROOT, '.optimal_configs.tmp')
             with open(optimal_configs_file, 'w') as f:
                 f.write('\n'.join(results['optimal_portfolio']))
-                        csv_path = os.path.join(PROJECT_ROOT, 'optimal_portfolio_equity.csv')
+            
+            csv_path = os.path.join(PROJECT_ROOT, 'optimal_portfolio_equity.csv')
             caption = f"Automatischer Portfolio-Optimierungsbericht\nMax. erlaubter DD: {max_drawdown:.2f}%\nTrades: {trade_count}{days_per_trade_str}\nEndkapital: {final_report['end_capital']:.2f} USDT"
             equity_df = final_report.get('equity_curve')
         else:
