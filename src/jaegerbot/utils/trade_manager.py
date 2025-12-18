@@ -142,11 +142,12 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
     # ---
 
     # *** ERWEITERTE FEATURE-LISTE ***
+    # Feature 'ema_cross_20_50' entfernt (konsistent mit ann_model.py)
     feature_cols = [
         'bb_width', 'bb_pband', 'obv', 'rsi', 'macd_diff', 'macd', 
         'atr_normalized', 'adx', 'adx_pos', 'adx_neg',
         'volume_ratio', 'mfi', 'cmf',
-        'price_to_ema20', 'price_to_ema50', 'ema_cross_20_50',
+        'price_to_ema20', 'price_to_ema50',
         'stoch_k', 'stoch_d', 'williams_r', 'roc', 'cci',
         'price_to_resistance', 'price_to_support',
         'high_low_range', 'close_to_high', 'close_to_low',

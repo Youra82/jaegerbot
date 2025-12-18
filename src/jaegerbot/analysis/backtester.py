@@ -79,11 +79,12 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
         return {"total_pnl_pct": 0, "trades_count": 0, "win_rate": 0, "max_drawdown_pct": 1.0, "end_capital": start_capital}
 
     # *** ERWEITERTE FEATURE-LISTE FÜR BACKTEST ***
+    # Feature 'ema_cross_20_50' entfernt (konsistent mit ann_model.py)
     feature_cols = [
         'bb_width', 'bb_pband', 'obv', 'rsi', 'macd_diff', 'macd', 
         'atr_normalized', 'adx', 'adx_pos', 'adx_neg',
         'volume_ratio', 'mfi', 'cmf',
-        'price_to_ema20', 'price_to_ema50', 'ema_cross_20_50',
+        'price_to_ema20', 'price_to_ema50',
         'stoch_k', 'stoch_d', 'williams_r', 'roc', 'cci',
         'price_to_resistance', 'price_to_support',
         'high_low_range', 'close_to_high', 'close_to_low',
