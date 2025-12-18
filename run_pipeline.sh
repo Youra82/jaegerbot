@@ -49,7 +49,7 @@ read -p "Enddatum (JJJJ-MM-TT) [Standard: Heute]: " END_DATE; END_DATE=${END_DAT
 read -p "Startkapital in USDT [Standard: 1000]: " START_CAPITAL; START_CAPITAL=${START_CAPITAL:-1000}
 read -p "CPU-Kerne [Standard: -1 für alle]: " N_CORES; N_CORES=${N_CORES:--1}
 read -p "Anzahl Trials [Standard: 200]: " N_TRIALS; N_TRIALS=${N_TRIALS:-200}
-read -p "Mindest-Genauigkeit in % eingeben [Standard: 55]: " MIN_ACCURACY; MIN_ACCURACY=${MIN_ACCURACY:-55}
+read -p "Mindest-Genauigkeit in % eingeben [Standard: 50]: " MIN_ACCURACY; MIN_ACCURACY=${MIN_ACCURACY:-50}
 
 # --- MACD-ABFRAGE ENTFERNT ---
 
