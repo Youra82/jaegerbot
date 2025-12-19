@@ -59,8 +59,33 @@ def run_portfolio_simulation(start_capital, strategies_data, start_date, end_dat
         data_with_features.dropna(inplace=True)
         if data_with_features.empty: continue
 
-        # Feature-Spalten definieren (ohne ADX)
-        feature_cols = ['bb_width', 'obv', 'rsi', 'macd_diff', 'day_of_week', 'returns_lag1', 'returns_lag2', 'atr_normalized']
+        # Feature-Spalten definieren (muss mit Training übereinstimmen!)
+        feature_cols = [
+            # Basis-Features
+            'bb_width', 'bb_pband', 'obv', 'rsi', 'macd_diff', 'macd', 
+            'atr_normalized', 'adx', 'adx_pos', 'adx_neg',
+            
+            # Volume-Features
+            'volume_ratio', 'mfi', 'cmf',
+            
+            # Trend-Features
+            'price_to_ema20', 'price_to_ema50',
+            
+            # Momentum-Features
+            'stoch_k', 'stoch_d', 'williams_r', 'roc', 'cci',
+            
+            # Support/Resistance
+            'price_to_resistance', 'price_to_support',
+            
+            # Price Action
+            'high_low_range', 'close_to_high', 'close_to_low',
+            
+            # Zeitliche Features
+            'day_of_week', 'hour_of_day',
+            
+            # Returns & Volatilität
+            'returns_lag1', 'returns_lag2', 'returns_lag3', 'hist_volatility'
+        ]
 
         # Skalieren und Vorhersage
         features_scaled = scaler.transform(data_with_features[feature_cols])
