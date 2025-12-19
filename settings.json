@@ -1,54 +1,18 @@
 {
   "live_trading_settings": {
-    "use_auto_optimizer_results": false,
+    "use_auto_optimizer_results": true,
     "active_strategies": [
       {
-        "symbol": "SOL/USDT:USDT",
-        "timeframe": "15m",
+        "symbol": "DOGE/USDT:USDT",
+        "timeframe": "1d",
         "use_macd_filter": false,
         "active": true
       },
       {
-        "symbol": "XRP/USDT:USDT",
-        "timeframe": "15m",
-        "use_macd_filter": false,
-        "active": false
-      },
-      {
-        "symbol": "ADA/USDT:USDT",
-        "timeframe": "1d",
-        "use_macd_filter": false,
-        "active": false
-      },
-      {
-        "symbol": "DOGE/USDT:USDT",
-        "timeframe": "15m",
-        "use_macd_filter": false,
-        "active": false
-      },
-      {
-        "symbol": "ETH/USDT:USDT",
-        "timeframe": "15m",
-        "use_macd_filter": false,
-        "active": false
-      },
-      {
-        "symbol": "AAVE/USDT:USDT",
-        "timeframe": "1d",
-        "use_macd_filter": false,
-        "active": false
-      },
-      {
         "symbol": "ETH/USDT:USDT",
         "timeframe": "1d",
         "use_macd_filter": false,
-        "active": false
-      },
-      {
-        "symbol": "BTC/USDT:USDT",
-        "timeframe": "1d",
-        "use_macd_filter": false,
-        "active": false
+        "active": true
       }
     ]
   }
