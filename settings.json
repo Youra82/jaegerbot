@@ -1,16 +1,22 @@
 {
   "live_trading_settings": {
-    "use_auto_optimizer_results": true,
+    "use_auto_optimizer_results": false,
     "active_strategies": [
       {
         "symbol": "DOGE/USDT:USDT",
-        "timeframe": "1d",
+        "timeframe": "6h",
         "use_macd_filter": false,
         "active": true
       },
       {
         "symbol": "ETH/USDT:USDT",
-        "timeframe": "1d",
+        "timeframe": "6h",
+        "use_macd_filter": false,
+        "active": true
+      },
+      {
+        "symbol": "SOL/USDT:USDT",
+        "timeframe": "5m",
         "use_macd_filter": false,
         "active": true
       }
