@@ -59,7 +59,7 @@ def run_portfolio_simulation(start_capital, strategies_data, start_date, end_dat
         data_with_features.dropna(inplace=True)
         if data_with_features.empty: continue
 
-        # Feature-Spalten definieren (muss mit Training übereinstimmen!)
+        # Feature-Spalten definieren (muss EXAKT mit ann_model.py übereinstimmen!)
         feature_cols = [
             # Basis-Features
             'bb_width', 'bb_pband', 'obv', 'rsi', 'macd_diff', 'macd', 
