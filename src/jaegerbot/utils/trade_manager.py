@@ -12,7 +12,7 @@ from jaegerbot.utils.telegram import send_message
 from jaegerbot.utils.ann_model import create_ann_features
 from jaegerbot.utils.exchange import Exchange
 from jaegerbot.utils.supertrend_indicator import SuperTrendLocal
-from jaegerbot.utils.circuit_breaker import is_trading_allowed, update_circuit_breaker
+from jaegerbot.utils.circuit_breaker import is_trading_allowed, update_circuit_breaker, get_circuit_breaker_status
 
 # Pfade für die Lock-Datei definieren
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
@@ -109,15 +109,19 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
     # Update Circuit Breaker mit aktuellem Equity
     current_balance = exchange.fetch_balance_usdt()
     circuit_status = update_circuit_breaker(current_balance)
-    
+
+    # Lade persistenten Circuit-Status (z.B. reduced-Flag)
+    cb_status = get_circuit_breaker_status()
+    reduced_flag = cb_status.get('reduced', False)
+    reduction_factor = cb_status.get('reduction_factor', 1.0)
+
     if circuit_status == 'STOP_ALL_TRADING':
         logger.critical("🚨 CIRCUIT BREAKER AUSGELÖST - 10% Drawdown erreicht!")
         send_message(f"🚨 CIRCUIT BREAKER AUSGELÖST\n\nTrading wurde automatisch gestoppt!\nDrawdown: >10%\nBalance: {current_balance:.2f} USDT", telegram_config)
         return
-    elif circuit_status == 'REDUCE_SIZE':
-        logger.warning("⚠️  Drawdown Warning: Position Size wird reduziert")
-        # Reduziere Risk per Trade um 50%
-        params['risk']['risk_per_trade_pct'] = params['risk']['risk_per_trade_pct'] * 0.5
+    elif reduced_flag:
+        logger.warning(f"⚠️  Drawdown Warning: Position Size wird reduziert (Factor={reduction_factor})")
+        # Hinweis: Wir ändern `params` nicht dauerhaft hier; die Reduktion ist persistent gesteuert
     # *** ENDE CIRCUIT BREAKER CHECK ***
 
     logger.info("Suche nach neuen Signalen...")
@@ -217,8 +221,15 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
     if side and trade_allowed:
         logger.info(f"Gültiges Signal '{side.upper()}' für Kerze {last_candle_timestamp} erkannt (ST Trend). Beginne Trade-Eröffnung.")
         p = params['risk']
+        # Basis-Risk aus Config
+        base_risk_pct = p['risk_per_trade_pct']
+        # Wenn Circuit Breaker-Reduktion aktiv ist, wende Faktor an (persistent gesteuert)
+        if reduced_flag:
+            applied_risk_pct = base_risk_pct * reduction_factor
+        else:
+            applied_risk_pct = base_risk_pct
 
-        risk_per_trade_pct = p['risk_per_trade_pct'] / 100.0
+        risk_per_trade_pct = applied_risk_pct / 100.0
         risk_reward_ratio = p['risk_reward_ratio']
         # --- NEU: Dynamische SL-Parameter lesen ---
         # Nutze 0.5% als Fallback für min_sl_pct, falls es in alten Configs fehlt
