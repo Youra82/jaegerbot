@@ -168,58 +168,59 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
 
     scaled_features = scaler.transform(latest_features)
     prediction = model.predict(scaled_features, verbose=0)[0][0]
-    logger.info(f"Analyse für Kerze {last_candle_timestamp} -> Modell-Vorhersage: {prediction:.3f}")
-
     pred_threshold = params['strategy']['prediction_threshold']
     side = None
+    signal_reason = None
 
-    # --- Zuerst ANN-Signal prüfen ---
+    # --- ANN-Signal prüfen und loggen ---
     if prediction >= pred_threshold and params.get('behavior', {}).get('use_longs', True):
         side = 'buy'
+        signal_reason = f"Modell-Vorhersage {prediction:.3f} >= Schwelle {pred_threshold:.3f} (LONG)"
     elif prediction <= (1 - pred_threshold) and params.get('behavior', {}).get('use_shorts', True):
         side = 'sell'
+        signal_reason = f"Modell-Vorhersage {prediction:.3f} <= Schwelle {1 - pred_threshold:.3f} (SHORT)"
+    else:
+        signal_reason = f"Modell-Vorhersage {prediction:.3f} -> Kein gültiges Signal (LONG/SHORT) für Schwellen {pred_threshold:.3f}/{1 - pred_threshold:.3f}"
+
+    logger.info(f"Signal-Entscheidung für {symbol} @ {last_candle_timestamp}: {side if side else 'NEUTRAL'} | Grund: {signal_reason}")
 
     # --- SUPER TREND FILTER: Trendbestätigung und Richtung erzwingen ---
     trade_allowed = True
     if side == 'buy':
         if st_direction != 1.0:
             trade_allowed = False
-            logger.info("Signal (Long) abgelehnt: Kein Long-Trend (SuperTrend).")
+            logger.info(f"Signal (LONG) für {symbol} @ {last_candle_timestamp} deaktiviert durch SuperTrend-Filter: Kein Long-Trend (st_direction={st_direction})")
     elif side == 'sell':
         if st_direction != -1.0:
             trade_allowed = False
-            logger.info("Signal (Short) abgelehnt: Kein Short-Trend (SuperTrend).")
+            logger.info(f"Signal (SHORT) für {symbol} @ {last_candle_timestamp} deaktiviert durch SuperTrend-Filter: Kein Short-Trend (st_direction={st_direction})")
     # --- ENDE SUPER TREND FILTER ---
-    
-    # *** NEUE FILTER: ADX & VOLUME ***
+
+    # *** NEUE FILTER: ADX & VOLUME & VOLATILITÄT ***
     if side and trade_allowed:
         last_candle = data_with_features.iloc[-2]
-        
         # ADX-Filter: Nur bei ausreichender Trendstärke traden
         current_adx = last_candle.get('adx', 0)
         if current_adx < 20:
             trade_allowed = False
-            logger.info(f"Signal abgelehnt: ADX zu niedrig ({current_adx:.1f} < 20). Kein klarer Trend.")
-        
+            logger.info(f"Signal ({side.upper()}) für {symbol} @ {last_candle_timestamp} deaktiviert durch ADX-Filter: ADX zu niedrig ({current_adx:.1f} < 20)")
         # Volume-Filter: Mindestens 80% des Average Volume
         if 'volume' in data_with_features.columns:
             current_volume = last_candle['volume']
             avg_volume = data_with_features['volume'].rolling(20).mean().iloc[-2]
             if current_volume < avg_volume * 0.8:
                 trade_allowed = False
-                logger.info(f"Signal abgelehnt: Volume zu niedrig ({current_volume:.0f} < {avg_volume*0.8:.0f}).")
-        
+                logger.info(f"Signal ({side.upper()}) für {symbol} @ {last_candle_timestamp} deaktiviert durch Volumen-Filter: Volume zu niedrig ({current_volume:.0f} < {avg_volume*0.8:.0f})")
         # Volatilitäts-Filter: Keine extremen Spikes
         current_atr_norm = last_candle.get('atr_normalized', 0)
         avg_atr_norm = data_with_features['atr_normalized'].rolling(50).mean().iloc[-2]
         if current_atr_norm > avg_atr_norm * 2.0:
             trade_allowed = False
-            logger.info(f"Signal abgelehnt: Extreme Volatilität erkannt (ATR {current_atr_norm:.2f}% > {avg_atr_norm*2:.2f}%).")
+            logger.info(f"Signal ({side.upper()}) für {symbol} @ {last_candle_timestamp} deaktiviert durch Volatilitäts-Filter: ATR {current_atr_norm:.2f}% > {avg_atr_norm*2:.2f}%")
     # *** ENDE NEUE FILTER ***
 
-
     if side and trade_allowed:
-        logger.info(f"Gültiges Signal '{side.upper()}' für Kerze {last_candle_timestamp} erkannt (ST Trend). Beginne Trade-Eröffnung.")
+        logger.info(f"Gültiges Signal '{side.upper()}' für {symbol} @ {last_candle_timestamp} erkannt (Grund: {signal_reason}). Trade-Eröffnung wird gestartet.")
         p = params['risk']
         # Basis-Risk aus Config
         base_risk_pct = p['risk_per_trade_pct']
