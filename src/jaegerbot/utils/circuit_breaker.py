@@ -65,6 +65,15 @@ def update_circuit_breaker(current_equity, peak_equity=None):
     if drawdown_pct > 0.05:
         logger.warning(f"⚠️  WARNUNG: 5% Drawdown erreicht! ({drawdown_pct*100:.2f}%)")
         result = 'REDUCE_SIZE'
+        # Persistente Markierung: Positionsgrößenreduktion aktivieren
+        status['reduced'] = True
+        status['reduction_factor'] = status.get('reduction_factor', 0.5)
+
+    # Wenn Drawdown wieder unter 4% fällt, entferne die Reduktion (Auto-Restore)
+    if status.get('reduced') and drawdown_pct < 0.04:
+        logger.info(f"ℹ️  Drawdown unter 4% ({drawdown_pct*100:.2f}%), hebe Positionsgrößenreduktion auf.")
+        status['reduced'] = False
+        status.pop('reduction_factor', None)
     
     # LEVEL 2: 10% Drawdown - Circuit Breaker
     if drawdown_pct > 0.10:
