@@ -30,12 +30,15 @@ JaegerBot ist ein hochmodernes, KI-gesteuertes Trading-System, das Machine Learn
 ### 🔍 Strategie-Visualisierung
 ```mermaid
 flowchart LR
-  A[Marktdaten (OHLCV)] --> B[Feature-Engine<br/>RSI + MACD + ATR + Bollinger]
-  B --> C[LSTM-Prognose<br/>Mehrtägiger Trend]
-  C --> D[Signal-Score<br/>(Prognose + Indikatoren)]
-  D --> E[Regime-Filter<br/>MACD-Bias]
-  E --> F[Risk Engine<br/>SL/TP + Trailing]
-  F --> G[Order Router (CCXT)<br/>Market/Limit]
+    A["Marktdaten (OHLCV)"]
+    B["Feature-Engine<br/>RSI + MACD + ATR + Bollinger"]
+    C["LSTM-Prognose<br/>Mehrtägiger Trend"]
+    D["Signal-Score<br/>(Prognose + Indikatoren)"]
+    E["Regime-Filter<br/>MACD-Bias"]
+    F["Risk Engine<br/>SL/TP + Trailing"]
+    G["Order Router (CCXT)<br/>Market/Limit"]
+
+    A --> B --> C --> D --> E --> F --> G
 ```
 
 ### 📈 Trade-Beispiel (TP/SL/Trailing)
