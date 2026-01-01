@@ -106,7 +106,7 @@ Marktdaten → Feature-Engine → LSTM-Modelle → Signal-Score
 ### 1. Repository klonen
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/Youra82/jaegerbot.git
 cd jaegerbot
 ```
 
