@@ -21,6 +21,7 @@
 JaegerBot ist ein hochmodernes, KI-gesteuertes Trading-System, das Machine Learning (TensorFlow) mit fortgeschrittenen technischen Analysen kombiniert. Das System unterstützt mehrere Handelspaare gleichzeitig, führt automatisches Training durch und optimiert kontinuierlich seine Parameter für maximale Performance.
 
 ### 🧭 Trading-Logik (Kurzfassung)
+- **Mehr-Tages-Trend-Prognose**: LSTM-Modelle schätzen den Trend mehrere Tage im Voraus (mid-term bias) und glätten Intraday-Rauschen.
 - **Signal-Engine**: LSTM-Vorhersagen + klassische Indikatoren (RSI, MACD, ATR, Bollinger) werden zu einem Score gemischt.
 - **Regime-Filter**: Optionaler MACD-Filter unterdrückt Trades in trendlosen Phasen.
 - **Risk Layer**: Dynamisches Stop-/Take-Profit und Trailing-SL, Positionsgröße am verfügbaren Kapital ausgerichtet.
