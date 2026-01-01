@@ -20,6 +20,18 @@
 
 JaegerBot ist ein hochmodernes, KI-gesteuertes Trading-System, das Machine Learning (TensorFlow) mit fortgeschrittenen technischen Analysen kombiniert. Das System unterstützt mehrere Handelspaare gleichzeitig, führt automatisches Training durch und optimiert kontinuierlich seine Parameter für maximale Performance.
 
+### 🧭 Trading-Logik (Kurzfassung)
+- **Signal-Engine**: LSTM-Vorhersagen + klassische Indikatoren (RSI, MACD, ATR, Bollinger) werden zu einem Score gemischt.
+- **Regime-Filter**: Optionaler MACD-Filter unterdrückt Trades in trendlosen Phasen.
+- **Risk Layer**: Dynamisches Stop-/Take-Profit und Trailing-SL, Positionsgröße am verfügbaren Kapital ausgerichtet.
+- **Execution**: CCXT schickt Limit/Market-Orders; Slippage- und Fee-Modell wird in Backtests simuliert.
+
+Architektur-Skizze:
+```
+Marktdaten → Feature-Engine → LSTM-Modelle → Signal-Score
+  ↘ Backtest & Optuna ↗            ↘ Risk Engine → Order Router (CCXT)
+```
+
 ### 🎯 Hauptmerkmale
 
 - **🤖 AI-Powered**: Deep Learning mit TensorFlow für präzise Vorhersagen
@@ -258,6 +270,13 @@ python src/jaegerbot/backtest/backtester.py --config custom_config.json
 ```bash
 # Master Runner starten (verwaltet alle aktiven Strategien)
 python master_runner.py
+```
+
+### Manuell starten / Cronjob testen
+Ausführung sofort anstoßen (ohne auf den 15-Minuten-Cron zu warten):
+
+```bash
+cd /home/ubuntu/jaegerbot && /home/ubuntu/jaegerbot/.venv/bin/python3 /home/ubuntu/jaegerbot/master_runner.py
 ```
 
 Der Master Runner:
