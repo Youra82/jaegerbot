@@ -710,6 +710,24 @@ git status
 ./update.sh
 ```
 
+### Optimierte Konfigurationen auf Repo hochladen
+
+Nach erfolgreicher Parameter-Optimierung können die Konfigurationsdateien auf das Repository hochgeladen werden:
+
+```bash
+# Konfigurationsdateien und Modelle auf Repository hochladen
+git add src/jaegerbot/strategy/configs/*.json
+git add artifacts/models/*.h5 artifacts/models/*.joblib
+git commit -m "Update: Optimierte Strategie-Konfigurationen und Modelle"
+git push origin main
+```
+
+Dies sichert:
+- ✅ **Backup** der optimierten Parameter und trainierten Modelle
+- ✅ **Versionierung** aller Konfigurationsänderungen
+- ✅ **Deployment** auf mehrere Server mit konsistenten Einstellungen
+- ✅ **Nachvollziehbarkeit** welche Parameter zu welchem Zeitpunkt verwendet wurden
+
 ---
 
 ## 📜 Lizenz
