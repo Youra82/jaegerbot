@@ -1,0 +1,9 @@
+{
+    "tripped": false,
+    "peak_equity": 55.18299974,
+    "current_equity": 51.81934353,
+    "drawdown_pct": 0.060954573434720674,
+    "last_update": "2026-01-01T19:00:27.571371",
+    "reduced": true,
+    "reduction_factor": 0.5
+}
