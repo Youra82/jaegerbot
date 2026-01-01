@@ -27,6 +27,30 @@ JaegerBot ist ein hochmodernes, KI-gesteuertes Trading-System, das Machine Learn
 - **Risk Layer**: Dynamisches Stop-/Take-Profit und Trailing-SL, Positionsgröße am verfügbaren Kapital ausgerichtet.
 - **Execution**: CCXT schickt Limit/Market-Orders; Slippage- und Fee-Modell wird in Backtests simuliert.
 
+### 🔍 Strategie-Visualisierung
+```mermaid
+flowchart LR
+  A[Marktdaten (OHLCV)] --> B[Feature-Engine
+  RSI | MACD | ATR | Bollinger]
+  B --> C[LSTM-Prognose
+  mehrtägiger Trend]
+  C --> D[Signal-Score
+  (Prognose + Indikatoren)]
+  D --> E[Regime-Filter
+  MACD-Bias]
+  E --> F[Risk Engine
+  SL/TP + Trailing]
+  F --> G[Order Router (CCXT)
+  Market/Limit]
+```
+
+### 📈 Trade-Beispiel (TP/SL/Trailing)
+- Bias: LSTM sagt Aufwärtstrend für die nächsten Tage; MACD > 0 bestätigt Regime.
+- Entry: Long an lokaler Pullback-Kerze (z.B. 30m/1h), sobald Signal-Score > Schwelle.
+- Initial SL: 1.5×ATR unter lokalem Swing-Low; TP: 2.5×ATR über Entry.
+- Trailing: Nach +1×ATR im Profit zieht der Trail unter das letzte Higher Low; TP bleibt als Hard Cap.
+- Exit: Entweder TP erreicht, Trail ausgelöst oder Regime-Filter kippt (MACD < 0) → Flat.
+
 Architektur-Skizze:
 ```
 Marktdaten → Feature-Engine → LSTM-Modelle → Signal-Score
