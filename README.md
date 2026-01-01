@@ -1,314 +1,699 @@
------
+# 🎯 JaegerBot - Advanced AI-Powered Trading System
 
-# JaegerBot
+<div align="center">
 
-Ein vollautomatischer Trading-Bot für Krypto-Futures auf der Bitget-Börse, basierend auf einem neuronalen Netzwerk (ANN) zur Vorhersage signifikanter Preisbewegungen.
+![JaegerBot Logo](https://img.shields.io/badge/JaegerBot-v3.3-blue?style=for-the-badge)
+[![Python](https://img.shields.io/badge/Python-3.8+-green?style=for-the-badge&logo=python)](https://www.python.org/)
+[![TensorFlow](https://img.shields.io/badge/TensorFlow-2.16.1-orange?style=for-the-badge&logo=tensorflow)](https://www.tensorflow.org/)
+[![CCXT](https://img.shields.io/badge/CCXT-4.3.5-red?style=for-the-badge)](https://github.com/ccxt/ccxt)
+[![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
 
-Dieses System wurde für den Betrieb auf einem Ubuntu-Server entwickelt und umfasst neben dem Live-Trading-Modul eine hochentwickelte, automatisierte Pipeline zur Modellerstellung und Strategie-Optimierung.
+**Ein vollautomatisiertes KI-Trading-System mit Deep Learning, Multi-Strategie-Support und dynamischem Kapitalmanagement**
 
-## Kernstrategie
+[Features](#-features) • [Installation](#-installation) • [Training](#-training) • [Live-Trading](#-live-trading) • [Monitoring](#-monitoring) • [Wartung](#-wartung)
 
-Der Bot implementiert eine prädiktive Handelsstrategie, die darauf abzielt, statistische Vorteile in den Marktdaten zu nutzen.
+</div>
 
-  * **Feature-Analyse:** Vor jeder Entscheidung analysiert der Bot eine Vielzahl von Indikatoren, darunter Volatilität (Bollinger Bänder), Volumen (OBV), Momentum (RSI, MACD), zeitbasierte Muster (Stunde, Wochentag) und Preisveränderungen der letzten Kerzen.
-  * **Vorhersage-Ziel:** Das Modell wurde darauf trainiert, nicht die nächste Kerze, sondern eine **signifikante Preisbewegung** über einen zukünftigen Zeitraum vorherzusagen. Dies filtert kurzfristiges Marktrauschen heraus.
-  * **Einstieg:** Ein Trade wird nur dann initiiert, wenn die vom Modell berechnete Wahrscheinlichkeit für eine bevorstehende Bewegung einen in der Konfiguration festgelegten Schwellenwert überschreitet.
-  * **Ausstieg & Risikomanagement:**
-      * Die **Positionsgröße** wird dynamisch vor jedem Trade berechnet. Sie basiert auf einem festen Prozentsatz (`risk_per_trade_pct`) des **aktuellen, live von der Börse abgerufenen Kontostandes**.
-      * Nach der Trade-Eröffnung werden sofort ein fester **Stop Loss** und ein fester **Take Profit** platziert, basierend auf dem konfigurierten Risiko-Ertrags-Verhältnis (`risk_reward_ratio`).
-      * Alle Preise werden vor dem Senden an die Börse **automatisch auf die korrekte Anzahl an Nachkommastellen gerundet**, um API-Fehler zu vermeiden.
+---
 
-## Architektur & Arbeitsablauf
+## 📊 Übersicht
 
-Der Bot arbeitet mit einem präzisen, automatisierten und ressourcenschonenden System.
+JaegerBot ist ein hochmodernes, KI-gesteuertes Trading-System, das Machine Learning (TensorFlow) mit fortgeschrittenen technischen Analysen kombiniert. Das System unterstützt mehrere Handelspaare gleichzeitig, führt automatisches Training durch und optimiert kontinuierlich seine Parameter für maximale Performance.
 
-1.  **Der Cronjob (Der Wecker):** Ein einziger, simpler Cronjob läuft in einem kurzen Intervall (z.B. alle 15 Minuten). Er hat nur eine Aufgabe: den intelligenten Master-Runner zu starten.
+### 🎯 Hauptmerkmale
 
-2.  **Der Master-Runner (Der Dirigent):** Das `master_runner.py`-Skript ist das Herz der Automatisierung. Bei jedem Aufruf:
+- **🤖 AI-Powered**: Deep Learning mit TensorFlow für präzise Vorhersagen
+- **📈 Multi-Strategy**: Parallele Verwaltung mehrerer Handelspaare und Zeitrahmen
+- **🔄 Auto-Optimization**: Automatische Hyperparameter-Optimierung mit Optuna
+- **💰 Dynamic Capital**: Vollautomatisches, dynamisches Kapitalmanagement
+- **⚡ Real-Time**: Live-Trading mit minimaler Latenz
+- **📊 Advanced Analytics**: Umfassende Backtest- und Performance-Analysen
+- **🛡️ Risk Management**: Integriertes Stop-Loss und Take-Profit Management
+- **🔔 Notifications**: Telegram-Benachrichtigungen für wichtige Events
 
-      * Liest es alle aktiven Strategien aus der `settings.json`.
-      * Prüft es für jede Strategie, ob ein **neuer, exakter Zeit-Block** begonnen hat (z.B. eine neue 4-Stunden-Kerze um 08:00 Uhr UTC).
-      * Nur wenn eine Strategie an der Reihe ist, startet es den eigentlichen Handelsprozess für diese eine Strategie.
-      * Es **sammelt die komplette Log-Ausgabe** des Handelsprozesses und schreibt sie in die zentrale `cron.log`.
+---
 
-3.  **Der Handelsprozess (Der Agent):**
+## 🚀 Features
 
-      * Die `run.py` wird für eine spezifische Strategie gestartet.
-      * Der **Guardian-Decorator** führt zuerst eine Reihe von **automatisierten Sicherheits-Checks** durch (Konfiguration, Verbindung, etc.). Schlägt ein Check fehl, wird der Start verhindert und ein Alarm gesendet.
-      * Die Kernlogik in `trade_manager.py` wird ausgeführt: Kontostand abrufen, Aufräumen, Markt analysieren, ggf. handeln und absichern.
+### Trading Features
+- ✅ Unterstützt mehrere Kryptowährungspaare (BTC, ETH, SOL, DOGE, etc.)
+- ✅ Flexible Zeitrahmen (5m, 15m, 30m, 1h, 2h, 4h, 6h, 1d)
+- ✅ Automatische Positionsgröße basierend auf verfügbarem Kapital
+- ✅ Optionaler MACD-Filter für zusätzliche Signalvalidierung
+- ✅ Dynamischer Stop-Loss und Take-Profit
+- ✅ Trailing Stop-Loss für Gewinnmaximierung
 
------
+### Technical Features
+- ✅ TensorFlow LSTM Neural Networks
+- ✅ RSI, MACD, Bollinger Bands, ATR Indikatoren
+- ✅ Optuna Hyperparameter-Optimierung
+- ✅ Walk-Forward-Analyse
+- ✅ Backtesting mit realistischer Slippage-Simulation
+- ✅ Feature-Engineering und -Selektion
 
-## Installation 🚀
+---
 
-Führe die folgenden Schritte auf einem frischen Ubuntu-Server aus.
+## 📋 Systemanforderungen
 
-#### 1\. Projekt klonen
+### Hardware
+- **CPU**: Multi-Core Prozessor (Intel i5 oder besser empfohlen)
+- **RAM**: Minimum 4GB, empfohlen 8GB+
+- **Speicher**: 2GB freier Speicherplatz
+
+### Software
+- **OS**: Linux (Ubuntu 20.04+), macOS, Windows 10/11
+- **Python**: Version 3.8 oder höher
+- **Git**: Für Repository-Verwaltung
+
+---
+
+## 💻 Installation
+
+### 1. Repository klonen
 
 ```bash
-git clone https://github.com/Youra82/jaegerbot.git
-```
-
-#### 2\. Installations-Skript ausführen
-
-```bash
+git clone <repository-url>
 cd jaegerbot
 ```
-Installation aktivieren (einmalig):
+
+### 2. Automatische Installation (empfohlen)
+
 ```bash
+# Linux/macOS
 chmod +x install.sh
-```
-Installation ausführen:
-```bash
-bash ./install.sh
-```
+./install.sh
 
-#### 3\. API-Schlüssel eintragen
-
-Erstelle eine Kopie der Vorlage und trage deine Schlüssel ein.
-
-```bash
-cp secret.json.example secret.json
-nano secret.json
+# Windows (PowerShell)
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
-Speichere mit `Strg + X`, dann `Y`, dann `Enter`.
+Das Installations-Script führt folgende Schritte aus:
+- ✅ Erstellt eine virtuelle Python-Umgebung (`.venv`)
+- ✅ Installiert alle erforderlichen Abhängigkeiten
+- ✅ Erstellt notwendige Verzeichnisse (`data/`, `logs/`, `artifacts/`)
+- ✅ Initialisiert Konfigurationsdateien
 
------
+### 3. API-Credentials konfigurieren
 
-## Konfiguration & Automatisierung
-
-#### 1\. Strategien finden (Optional, rechenintensiv)
-
-Führe die interaktive Pipeline aus, um neue Strategie-Konfigurationen für bestimmte Handelspaare zu finden.
-Run_pipeline aktivieren (einmalig):
-```bash
-chmod +x run_pipeline.sh
-```
-
-```bash
-bash ./run_pipeline.sh
-```
-Backtest aktivieren (einmalig):
-```bash
-chmod +x show_results.sh
-```
-Backtest ausführen:
-```bash
-bash show_results.sh
-```
-Ergebnisse (CSV) liegen hier:
-```bash
-ls -l *.csv
-```
-Ergebnisse (CSV) an Telegram zuschicken:
-```bash
-chmod +x send_report.sh
-```
-```bash
-./send_report.sh optimal_portfolio_equity.csv
-```
-
-```bash
-./send_report.sh manual_portfolio_equity.csv
-```
-
-```bash
-./send_report.sh portfolio_equity_curve.csv
-```
-Ergebnisse Grafisch an Telegram zuschicken:
-```bash
-chmod +x show_chart.sh
-```
-
-```bash
-./show_chart.sh optimal_portfolio_equity.csv
-```
-
-```bash
-./show_chart.sh manual_portfolio_equity.csv
-```
-
-
-Alte Konfigurationen löschen:
-```bash
-rm -f src/jaegerbot/strategy/configs/config_*.json
-```
-Alte Modelle löschen:
-```bash
-rm -f artifacts/models/*
-```
-```bash
-rm artifacts/db/optuna_studies.db
-```
-
-Kontrolle ob alles gelöscht wurde:
-```bash
-ls -l src/jaegerbot/strategy/configs/
-
-```
-Die gefundenen `config_...json`-Dateien werden in `src/jaegerbot/strategy/configs/` gespeichert.
-
-#### 2\. Strategien für den Handel aktivieren
-
-Bearbeite die zentrale Steuerungsdatei `settings.json`, um die Strategien zu definieren, die der `master_runner` überwachen soll.
-
-```bash
-nano settings.json
-```
-
-**Beispiel `settings.json` (ohne `budget_usdt`):**
+Erstelle eine `secret.json` Datei im Root-Verzeichnis:
 
 ```json
 {
-    "live_trading_settings": {
-        "use_auto_optimizer_results": false,
-        "active_strategies": [
-            {
-                "symbol": "AAVE/USDT:USDT",
-                "timeframe": "1d"
-            },
-            {
-                "symbol": "BIO/USDT:USDT",
-                "timeframe": "4h"
-            }
-        ]
-    },
-    "optimization_settings": {
-        "enabled": false
+  "jaegerbot": [
+    {
+      "name": "Binance Main Account",
+      "exchange": "binance",
+      "apiKey": "DEIN_API_KEY",
+      "secret": "DEIN_SECRET_KEY",
+      "options": {
+        "defaultType": "future"
+      }
     }
+  ]
 }
 ```
 
-#### 3\. Automatisierung per Cronjob einrichten
+⚠️ **Wichtig**: 
+- Niemals `secret.json` committen oder teilen!
+- Verwende nur API-Keys mit eingeschränkten Rechten (Nur Trading, keine Withdrawals)
+- Aktiviere IP-Whitelist auf der Exchange
 
-Richte den automatischen Prozess für den Live-Handel ein.
+### 4. Trading-Strategien konfigurieren
+
+Bearbeite `settings.json` für deine gewünschten Handelspaare:
+
+```json
+{
+  "live_trading_settings": {
+    "use_auto_optimizer_results": false,
+    "active_strategies": [
+      {
+        "symbol": "BTC/USDT:USDT",
+        "timeframe": "6h",
+        "use_macd_filter": false,
+        "active": true
+      },
+      {
+        "symbol": "ETH/USDT:USDT",
+        "timeframe": "4h",
+        "use_macd_filter": true,
+        "active": true
+      }
+    ]
+  }
+}
+```
+
+**Parameter-Erklärung**:
+- `symbol`: Handelspaar (Format: BASE/QUOTE:SETTLE)
+- `timeframe`: Zeitrahmen (5m, 15m, 30m, 1h, 2h, 4h, 6h, 1d)
+- `use_macd_filter`: MACD-Filter aktivieren (true/false)
+- `active`: Strategie aktiv (true/false)
+
+---
+
+## 🎓 Training & Optimierung
+
+### Vollständige Pipeline (Empfohlen)
+
+Der einfachste Weg für Training, Optimierung und Deployment:
 
 ```bash
-crontab -e
+# Interaktives Pipeline-Script
+./run_pipeline.sh
 ```
 
-Füge die folgende **eine Zeile** am Ende der Datei ein. Passe den Pfad an, falls dein Bot nicht unter `/home/ubuntu/jaegerbot` liegt.
+Das Script führt folgende Schritte automatisch durch:
 
-```
-# Starte den JaegerBot Master-Runner alle 15 Minuten
-*/15 * * * * /usr/bin/flock -n /home/ubuntu/jaegerbot/jaegerbot.lock /bin/sh -c "cd /home/ubuntu/jaegerbot && /home/ubuntu/jaegerbot/.venv/bin/python3 /home/ubuntu/jaegerbot/master_runner.py >> /home/ubuntu/jaegerbot/logs/cron.log 2>&1"
-```
+1. **Aufräumen** (Optional): Löscht alte Modelle und Konfigurationen
+2. **Daten-Download**: Lädt historische Marktdaten von der Exchange
+3. **Training**: Trainiert LSTM-Modelle für jedes Handelspaar
+4. **Threshold-Optimierung**: Findet optimale Schwellenwerte
+5. **Hyperparameter-Optimierung**: Optimiert Parameter mit Optuna
+6. **Backtest**: Validiert die Strategie auf historischen Daten
+7. **Deployment**: Bereitet Konfigurationen für Live-Trading vor
 
-*(Hinweis: `flock` ist eine gute Ergänzung, um Überlappungen zu verhindern, aber für den Start nicht zwingend notwendig.)*
+### Manuelle Schritte
 
-Logverzeichnis anlegen:
-
-```
-mkdir -p /home/ubuntu/jaegerbot/logs
-```
------
-
-## Tägliche Verwaltung & Wichtige Befehle ⚙️
-
-#### Logs ansehen
-
-Die zentrale `cron.log`-Datei enthält **alle** wichtigen Informationen, sowohl vom Scheduler als auch von den Handels-Entscheidungen.
-
-  * **Logs live mitverfolgen (der wichtigste Befehl):**
-
-    ```bash
-    tail -f logs/cron.log
-    ```
-
-    *(Mit `Strg + C` beenden)*
-
-  * **Die letzten 200 Zeilen der zentralen Log-Datei anzeigen:**
-
-    ```bash
-    tail -n 200 logs/cron.log
-    ```
-
-  * **Zentrale Log-Datei nach Fehlern durchsuchen:**
-
-    ```bash
-    grep -i "ERROR" logs/cron.log
-    ```
-
-  * **Logs einer individuellen Strategie ansehen (für Detail-Analyse):**
-
-    ```bash
-    tail -n 100 logs/jaegerbot_BIOUSDTUSDT_4h.log
-    ```
-
-#### Cronjob manuell testen
-
-Um den `master_runner` sofort auszuführen, ohne auf den nächsten 15-Minuten-Takt zu warten:
+#### 1. Nur Training
 
 ```bash
-cd /home/ubuntu/jaegerbot && /home/ubuntu/jaegerbot/.venv/bin/python3 /home/ubuntu/jaegerbot/master_runner.py
+source .venv/bin/activate
+python src/jaegerbot/analysis/trainer.py
 ```
 
-#### Bot aktualisieren
-
-Um die neueste Version des Codes von deinem Git-Repository zu holen:
-Update aktivieren (einmalig)
+**Optionen**:
 ```bash
-chmod +x update.sh
+# Training für spezifische Symbole
+python src/jaegerbot/analysis/trainer.py --symbols BTC ETH SOL
+
+# Mit custom Epochs
+python src/jaegerbot/analysis/trainer.py --epochs 100
 ```
 
-```bash
-bash ./update.sh
-```
-Absolut. Das ist eine hervorragende Ergänzung für deine Dokumentation. Das Test-System ist ein zentraler Bestandteil der Qualitätssicherung, und jeder Nutzer sollte wissen, wie man es verwendet.
+**Output**: 
+- Trainierte Modelle in `artifacts/models/`
+- Training-Logs in `logs/training/`
+- Performance-Metriken als JSON
 
-Ich habe einen neuen Abschnitt "Qualitätssicherung & Tests" erstellt und ihn an der passenden Stelle in deine `README.md`-Datei eingefügt. Er erklärt, *warum* es die Tests gibt und wie man sie ausführt.
-
------
-Projekt hochladen:
-
-```bash
-git add .
-```
+#### 2. Threshold-Optimierung
 
 ```bash
-git commit -m "Rollback auf stabile Server-Version vom 12.10."
+python src/jaegerbot/analysis/find_best_threshold.py
+```
+
+Findet optimale Schwellenwerte für:
+- Kauf-Signale
+- Verkauf-Signale
+- Risk/Reward Ratio
+
+#### 3. Hyperparameter-Optimierung
+
+```bash
+python src/jaegerbot/analysis/optimizer.py
+```
+
+**Optionen**:
+```bash
+# Spezifische Symbole
+python src/jaegerbot/analysis/optimizer.py --symbols DOGE SOL
+
+# Mehr Trials für bessere Ergebnisse
+python src/jaegerbot/analysis/optimizer.py --trials 200
+
+# Mit Walk-Forward Analyse
+python src/jaegerbot/analysis/optimizer.py --walk-forward
+```
+
+**Optimierte Parameter**:
+- RSI-Perioden und Schwellenwerte
+- ATR-Multiplikatoren
+- Stop-Loss/Take-Profit Levels
+- MACD-Parameter
+
+#### 4. Backtest
+
+```bash
+# Direkter Backtest
+python run_backtest_direct.py
+
+# Mit spezifischer Konfiguration
+python src/jaegerbot/backtest/backtester.py --config custom_config.json
+```
+
+**Backtest-Features**:
+- Realistische Slippage-Simulation
+- Transaktionskosten berücksichtigt
+- Equity-Curve Visualisierung
+- Detaillierte Trade-Logs
+
+---
+
+## 🔴 Live Trading
+
+### Start des Live-Trading
+
+```bash
+# Master Runner starten (verwaltet alle aktiven Strategien)
+python master_runner.py
+```
+
+Der Master Runner:
+- ✅ Lädt Konfigurationen aus `settings.json`
+- ✅ Startet separate Prozesse für jede aktive Strategie
+- ✅ Überwacht Kontostand und verfügbares Kapital
+- ✅ Managed Positionen und Risk-Limits
+- ✅ Loggt alle Trading-Aktivitäten
+
+### Automatischer Start (Produktions-Setup)
+
+```bash
+# Mit automatischer Optimierung
+./run_pipeline_automated.sh
+```
+
+Führt automatisch aus:
+1. Neue Optimierung (falls konfiguriert)
+2. Backtest-Validierung
+3. Live-Trading Start
+
+### Als Systemd Service (Linux)
+
+Für 24/7 Betrieb:
+
+```bash
+# Service-Datei erstellen
+sudo nano /etc/systemd/system/jaegerbot.service
+```
+
+```ini
+[Unit]
+Description=JaegerBot Trading System
+After=network.target
+
+[Service]
+Type=simple
+User=your-user
+WorkingDirectory=/path/to/jaegerbot
+ExecStart=/path/to/jaegerbot/.venv/bin/python master_runner.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
 ```
 
 ```bash
-git push --force origin main
+# Service aktivieren
+sudo systemctl enable jaegerbot
+sudo systemctl start jaegerbot
+
+# Status prüfen
+sudo systemctl status jaegerbot
 ```
 
-Komplette Projektstruktur anzeigen:
+---
+
+## 📊 Monitoring & Status
+
+### Status-Dashboard
 
 ```bash
-chmod +x show_status.sh
+# Zeigt alle wichtigen Informationen
+./show_status.sh
 ```
+
+**Angezeigt**:
+- 📊 Aktuelle Konfiguration (`settings.json`)
+- 🔐 API-Status (ohne Credentials)
+- 📈 Offene Positionen
+- 💰 Kontostand und verfügbares Kapital
+- 📝 Letzte Logs
+
+### Live-Status anzeigen
 
 ```bash
-bash ./show_status.sh
+# Aktuelle Positionen und Performance
+python show_leverage.py
+
+# Detaillierte Ergebnisse
+./show_results.sh
 ```
 
-## Qualitätssicherung & Tests 🛡️
-
-Um sicherzustellen, dass alle Kernfunktionen des Bots nach jeder Code-Änderung wie erwartet funktionieren und keine alten Fehler ("Regressionen") wieder auftreten, verfügt das Projekt über ein automatisiertes Test-System.
-
-Dieses "Sicherheitsnetz" prüft zwei Ebenen:
-
-1.  **Struktur-Tests:** Überprüfen, ob alle kritischen Funktionen und Code-Teile vorhanden sind.
-2.  **Workflow-Tests:** Führen einen kompletten Live-Zyklus auf der Bitget-API durch (Aufräumen, Order platzieren mit korrekten Einstellungen, SL/TP setzen, Position schließen), um die korrekte Interaktion mit der Börse zu verifizieren.
-
-#### Das Test-System ausführen
-
-Der einfachste Weg, alle Tests zu starten, ist das dafür vorgesehene Skript. Dieser Befehl sollte **nach jeder Code-Änderung** (z.B. nach einem `bash ./update.sh`) ausgeführt werden, um die Stabilität und korrekte Funktion des Bots zu garantieren.
+### Chart-Generierung
 
 ```bash
-bash ./run_tests.sh
+# Equity-Curve und Performance-Charts
+./show_chart.sh
+
+# Chart per Telegram senden
+python generate_and_send_chart.py
 ```
 
-  * **Erfolgreiches Ergebnis:** Alle Tests werden als `PASSED` (grün) markiert. Das bedeutet, alle geprüften Kernfunktionen arbeiten wie erwartet.
-  * **Fehlerhaftes Ergebnis:** Mindestens ein Test wird als `FAILED` (rot) markiert. Die Ausgabe gibt einen detaillierten Hinweis darauf, welche Funktion nicht mehr wie erwartet funktioniert. In diesem Fall sollte der Bot nicht im Live-Betrieb eingesetzt werden, bis der Fehler behoben ist.
+### Log-Files
 
------
+```bash
+# Live-Trading Logs
+tail -f logs/live_trading_*.log
 
-Ich habe den Text so formuliert, dass er sich nahtlos in den Stil deiner bestehenden Dokumentation einfügt.
------
+# Fehler-Logs
+tail -f logs/error.log
 
-### ⚠️ Disclaimer
+# Alle Logs eines bestimmten Symbols
+grep "BTC/USDT" logs/*.log
+```
 
-Dieses Material dient ausschließlich zu Bildungs- und Unterhaltungszwecken. Es handelt sich nicht um eine Finanzberatung. Der Nutzer trägt die alleinige Verantwortung für alle Handlungen. Der Autor haftet nicht für etwaige Verluste.
+### Performance-Metriken
+
+```bash
+# Trade-Analyse
+python analyze_real_trades_detailed.py
+
+# Feature-Importance Analyse
+python analyze_features.py
+
+# Vergleich Backtest vs. Live
+python compare_real_vs_backtest.py
+```
+
+---
+
+## 🛠️ Wartung & Pflege
+
+### Regelmäßige Wartung
+
+#### 1. Updates einspielen
+
+```bash
+# Automatisches Update-Script
+./update.sh
+```
+
+Das Script:
+- ✅ Pulled neueste Änderungen von Git
+- ✅ Updated Dependencies
+- ✅ Migriert Konfigurationen
+- ✅ Führt Tests aus
+
+#### 2. Log-Rotation
+
+```bash
+# Alte Logs archivieren (älter als 30 Tage)
+find logs/ -name "*.log" -type f -mtime +30 -exec gzip {} \;
+
+# Archivierte Logs löschen (älter als 90 Tage)
+find logs/ -name "*.log.gz" -type f -mtime +90 -delete
+```
+
+#### 3. Datenbank-Cleanup
+
+```bash
+# Alte Backtesting-Daten löschen
+rm -rf data/backtest_cache/*
+
+# Trade-History archivieren
+mv logs/trades_*.csv logs/archive/
+```
+
+### Vollständiges Aufräumen
+
+#### Konfigurationen löschen
+
+```bash
+# Nur generierte Configs
+rm -f src/jaegerbot/strategy/configs/config_*.json
+
+# Alle Optimierungsergebnisse
+rm -rf artifacts/results/*
+
+# Prüfen ob wirklich alles gelöscht wurde
+ls -la src/jaegerbot/strategy/configs/
+ls -la artifacts/results/
+```
+
+#### Modelle und Artefakte löschen
+
+```bash
+# Alle trainierten Modelle
+rm -rf artifacts/models/*
+
+# Alle Backtest-Ergebnisse
+rm -rf artifacts/backtest/*
+
+# Komplett-Reset (Vorsicht!)
+rm -rf artifacts/*
+mkdir -p artifacts/{models,results,backtest,logs}
+
+# Verification
+find artifacts/ -type f | wc -l  # Sollte 0 sein
+```
+
+#### Daten-Cache löschen
+
+```bash
+# Heruntergeladene Marktdaten
+rm -rf data/raw/*
+rm -rf data/processed/*
+
+# Cache-Verzeichnis prüfen
+du -sh data/*
+```
+
+#### Kompletter Neustart
+
+```bash
+# Backup erstellen (wichtig!)
+tar -czf jaegerbot_backup_$(date +%Y%m%d).tar.gz \
+    secret.json settings.json artifacts/ logs/
+
+# Alles zurücksetzen
+rm -rf artifacts/* data/* logs/*
+./install.sh
+
+# Nur Konfigurationen behalten
+cp settings.json.backup settings.json
+```
+
+### Tests ausführen
+
+```bash
+# Alle Tests
+./run_tests.sh
+
+# Spezifische Tests
+pytest tests/test_strategy.py
+pytest tests/test_exchange.py -v
+
+# Mit Coverage
+pytest --cov=src tests/
+```
+
+### Account-Type überprüfen
+
+```bash
+# Prüft ob Futures-Trading aktiviert ist
+python check_account_type.py
+```
+
+---
+
+## 🔧 Nützliche Befehle
+
+### Konfiguration
+
+```bash
+# Settings validieren
+python -c "import json; print(json.load(open('settings.json')))"
+
+# Backup erstellen
+cp settings.json settings.json.backup.$(date +%Y%m%d)
+
+# Diff zwischen Versionen
+diff settings.json settings.json.backup
+```
+
+### Prozess-Management
+
+```bash
+# Alle Python-Prozesse anzeigen
+ps aux | grep python | grep jaegerbot
+
+# Master Runner Process-ID finden
+pgrep -f master_runner.py
+
+# Prozess sauber beenden
+pkill -f master_runner.py
+
+# Erzwungenes Beenden (Notfall)
+pkill -9 -f master_runner.py
+```
+
+### Exchange-Verbindung
+
+```bash
+# API-Verbindung testen
+python -c "from src.jaegerbot.utils.exchange import Exchange; \
+    e = Exchange('binance'); print(e.fetch_balance())"
+
+# Marktdaten abrufen
+python -c "from src.jaegerbot.utils.exchange import Exchange; \
+    e = Exchange('binance'); print(e.fetch_ohlcv('BTC/USDT:USDT', '1h'))"
+```
+
+### Performance-Analyse
+
+```bash
+# Equity-Curve vergleichen
+python -c "
+import pandas as pd
+manual = pd.read_csv('manual_portfolio_equity.csv')
+optimal = pd.read_csv('optimal_portfolio_equity.csv')
+print('Manual Return:', manual['equity'].iloc[-1] / manual['equity'].iloc[0])
+print('Optimal Return:', optimal['equity'].iloc[-1] / optimal['equity'].iloc[0])
+"
+
+# Trade-Statistiken
+python -c "
+import pandas as pd
+trades = pd.read_csv('doge_trades_analysis.csv')
+print('Total Trades:', len(trades))
+print('Win Rate:', (trades['profit'] > 0).mean())
+print('Average Profit:', trades['profit'].mean())
+"
+```
+
+### Debugging
+
+```bash
+# Verbose-Modus aktivieren
+export JAEGERBOT_DEBUG=1
+python master_runner.py
+
+# Nur Strategie-Logs anzeigen
+tail -f logs/live_trading_*.log | grep -i "signal\|trade\|position"
+
+# Fehler im Detail
+python -m pdb master_runner.py
+```
+
+---
+
+## 📂 Projekt-Struktur
+
+```
+jaegerbot/
+├── src/
+│   └── jaegerbot/
+│       ├── analysis/          # Training & Optimierung
+│       │   ├── trainer.py
+│       │   ├── optimizer.py
+│       │   └── find_best_threshold.py
+│       ├── strategy/          # Trading-Logik
+│       │   ├── run.py
+│       │   └── configs/       # Generierte Konfigs
+│       ├── backtest/          # Backtesting
+│       │   └── backtester.py
+│       └── utils/             # Hilfsfunktionen
+│           ├── exchange.py
+│           └── indicators.py
+├── scripts/                   # Hilfsskripte
+├── tests/                     # Unit-Tests
+├── data/                      # Marktdaten
+├── logs/                      # Log-Files
+├── artifacts/                 # Modelle & Ergebnisse
+│   ├── models/
+│   ├── results/
+│   └── backtest/
+├── master_runner.py          # Haupt-Entry-Point
+├── settings.json             # Konfiguration
+├── secret.json               # API-Credentials
+└── requirements.txt          # Dependencies
+```
+
+---
+
+## ⚠️ Wichtige Hinweise
+
+### Risiko-Disclaimer
+
+⚠️ **Trading mit Kryptowährungen birgt erhebliche Risiken!**
+
+- Nur Kapital einsetzen, dessen Verlust Sie verkraften können
+- Keine Garantie für Gewinne
+- Vergangene Performance ist kein Indikator für zukünftige Ergebnisse
+- Testen Sie ausgiebig mit Demo-Accounts
+- Starten Sie mit kleinen Beträgen
+
+### Security Best Practices
+
+- 🔐 Niemals API-Keys mit Withdrawal-Rechten verwenden
+- 🔐 IP-Whitelist auf Exchange aktivieren
+- 🔐 2FA für Exchange-Account aktivieren
+- 🔐 `secret.json` niemals committen (in `.gitignore`)
+- 🔐 Regelmäßige Security-Updates durchführen
+
+### Performance-Tipps
+
+- 💡 Starten Sie mit 1-2 Strategien
+- 💡 Verwenden Sie längere Timeframes (4h+) für stabilere Signale
+- 💡 Aktivieren Sie MACD-Filter in volatilen Märkten
+- 💡 Monitoren Sie regelmäßig die Performance
+- 💡 Re-Optimierung alle 2-4 Wochen empfohlen
+
+---
+
+## 🤝 Support & Community
+
+### Probleme melden
+
+Bei Problemen oder Fragen:
+
+1. Prüfen Sie die Logs in `logs/`
+2. Führen Sie Tests aus: `./run_tests.sh`
+3. Öffnen Sie ein Issue auf GitHub mit:
+   - Beschreibung des Problems
+   - Relevante Log-Auszüge
+   - System-Informationen
+   - Schritte zur Reproduktion
+
+### Updates erhalten
+
+```bash
+# Regelmäßig Updates prüfen
+git fetch origin
+git status
+
+# Updates installieren
+./update.sh
+```
+
+---
+
+## 📜 Lizenz
+
+Dieses Projekt ist lizenziert unter der MIT License - siehe [LICENSE](LICENSE) Datei für Details.
+
+---
+
+## 🙏 Credits
+
+Entwickelt mit:
+- [TensorFlow](https://www.tensorflow.org/) - Deep Learning Framework
+- [CCXT](https://github.com/ccxt/ccxt) - Cryptocurrency Exchange Trading Library
+- [Optuna](https://optuna.org/) - Hyperparameter Optimization Framework
+- [Pandas](https://pandas.pydata.org/) - Data Analysis Library
+- [TA-Lib](https://github.com/mrjbq7/ta-lib) - Technical Analysis Library
+
+---
+
+<div align="center">
+
+**Made with ❤️ by the JaegerBot Team**
+
+⭐ Star uns auf GitHub wenn dir dieses Projekt gefällt!
+
+[🔝 Nach oben](#-jaegerbot---advanced-ai-powered-trading-system)
+
+</div>
