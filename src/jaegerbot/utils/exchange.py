@@ -47,17 +47,60 @@ class Exchange:
             return pd.DataFrame()
 
     def fetch_historical_ohlcv(self, symbol, timeframe, start_date_str, end_date_str):
-        # ... (Unveränderter Code von Zeile 52 bis 109)
+        # Berechne Timeframe-Multiplikator in Millisekunden
+        timeframe_ms = {
+            '5m': 5 * 60 * 1000,
+            '15m': 15 * 60 * 1000,
+            '30m': 30 * 60 * 1000,
+            '1h': 60 * 60 * 1000,
+            '2h': 2 * 60 * 60 * 1000,
+            '4h': 4 * 60 * 60 * 1000,
+            '6h': 6 * 60 * 60 * 1000,
+            '8h': 8 * 60 * 60 * 1000,
+            '12h': 12 * 60 * 60 * 1000,
+            '1d': 24 * 60 * 60 * 1000,
+            '3d': 3 * 24 * 60 * 60 * 1000,
+            '1w': 7 * 24 * 60 * 60 * 1000,
+        }.get(timeframe, 60 * 60 * 1000)  # Default: 1h
+        
         start_ts = int(self.exchange.parse8601(start_date_str + 'T00:00:00Z'))
         end_ts = int(self.exchange.parse8601(end_date_str + 'T00:00:00Z'))
         all_ohlcv = []
+        request_count = 0
+        max_requests = 10000  # Sicherheitslimit
 
-        while start_ts < end_ts:
-            ohlcv = self.exchange.fetch_ohlcv(symbol, timeframe, since=start_ts, limit=1000)
-            if not ohlcv:
+        while start_ts < end_ts and request_count < max_requests:
+            try:
+                ohlcv = self.exchange.fetch_ohlcv(symbol, timeframe, since=start_ts, limit=1000)
+                request_count += 1
+                
+                if not ohlcv or len(ohlcv) == 0:
+                    logger.warning(f"Keine weiteren Daten ab {start_ts} für {symbol} {timeframe}")
+                    break
+                
+                # Deduplizierung: Nur neue Kerzen hinzufügen
+                existing_timestamps = {int(candle[0]) for candle in all_ohlcv}
+                new_candles = [c for c in ohlcv if int(c[0]) not in existing_timestamps]
+                
+                if not new_candles:
+                    logger.info(f"Alle Kerzen ab {start_ts} sind Duplikate - abgebrochen")
+                    break
+                
+                all_ohlcv.extend(new_candles)
+                
+                # Springe zur nächsten Kerze (nicht nur +1ms!)
+                last_candle_ts = ohlcv[-1][0]
+                start_ts = int(last_candle_ts + timeframe_ms)
+                
+                # Verhindere Endlosschleife falls keine Daten mehr
+                if last_candle_ts >= end_ts:
+                    break
+                    
+                logger.debug(f"Fetched {len(new_candles)} new candles for {symbol} {timeframe}, next start: {start_ts}")
+                
+            except Exception as e:
+                logger.error(f"Fehler beim Fetch von {symbol} {timeframe} ab {start_ts}: {e}")
                 break
-            all_ohlcv.extend(ohlcv)
-            start_ts = ohlcv[-1][0] + 1
 
         if not all_ohlcv:
             return pd.DataFrame()
