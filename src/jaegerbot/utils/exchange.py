@@ -46,63 +46,66 @@ class Exchange:
             logger.error(f"Fehler bei fetch_recent_ohlcv für {symbol}: {e}")
             return pd.DataFrame()
 
-    def fetch_historical_ohlcv(self, symbol, timeframe, start_date_str, end_date_str):
-        # Berechne Timeframe-Multiplikator in Millisekunden
-        timeframe_ms = {
-            '5m': 5 * 60 * 1000,
-            '15m': 15 * 60 * 1000,
-            '30m': 30 * 60 * 1000,
-            '1h': 60 * 60 * 1000,
-            '2h': 2 * 60 * 60 * 1000,
-            '4h': 4 * 60 * 60 * 1000,
-            '6h': 6 * 60 * 60 * 1000,
-            '8h': 8 * 60 * 60 * 1000,
-            '12h': 12 * 60 * 60 * 1000,
-            '1d': 24 * 60 * 60 * 1000,
-            '3d': 3 * 24 * 60 * 60 * 1000,
-            '1w': 7 * 24 * 60 * 60 * 1000,
-        }.get(timeframe, 60 * 60 * 1000)  # Default: 1h
-        
-        start_ts = int(self.exchange.parse8601(start_date_str + 'T00:00:00Z'))
-        end_ts = int(self.exchange.parse8601(end_date_str + 'T00:00:00Z'))
-        all_ohlcv = []
-        request_count = 0
-        max_requests = 10000  # Sicherheitslimit
+    def fetch_historical_ohlcv(self, symbol, timeframe, start_date_str, end_date_str, max_retries=3):
+        if not self.markets: 
+            return pd.DataFrame()
+            
+        try:
+            start_dt = pd.to_datetime(start_date_str + 'T00:00:00Z', utc=True)
+            end_dt = pd.to_datetime(end_date_str + 'T23:59:59Z', utc=True)
+            start_ts = int(start_dt.timestamp() * 1000)
+            end_ts = int(end_dt.timestamp() * 1000)
+        except ValueError as e:
+            logger.error(f"FEHLER: Ungültiges Datumsformat: {e}")
+            return pd.DataFrame()
 
-        while start_ts < end_ts and request_count < max_requests:
+        all_ohlcv = []
+        current_ts = start_ts
+        retries = 0
+        limit = 1000
+        
+        # Nutze ccxt's parse_timeframe für korrekte Timeframe-Duration
+        timeframe_duration_ms = self.exchange.parse_timeframe(timeframe) * 1000 if self.exchange.parse_timeframe(timeframe) else 60000
+
+        while current_ts < end_ts and retries < max_retries:
             try:
-                ohlcv = self.exchange.fetch_ohlcv(symbol, timeframe, since=start_ts, limit=1000)
-                request_count += 1
-                
-                if not ohlcv or len(ohlcv) == 0:
-                    logger.warning(f"Keine weiteren Daten ab {start_ts} für {symbol} {timeframe}")
+                ohlcv = self.exchange.fetch_ohlcv(symbol, timeframe, since=current_ts, limit=limit)
+                if not ohlcv:
+                    logger.warning(f"Keine OHLCV-Daten für {symbol} {timeframe} ab {pd.to_datetime(current_ts, unit='ms', utc=True)} erhalten.")
+                    current_ts += limit * timeframe_duration_ms
+                    continue
+
+                # Filtere Kerzen die nach end_ts liegen
+                ohlcv = [candle for candle in ohlcv if candle[0] <= end_ts]
+                if not ohlcv: 
                     break
-                
-                # Deduplizierung: Nur neue Kerzen hinzufügen
-                existing_timestamps = {int(candle[0]) for candle in all_ohlcv}
-                new_candles = [c for c in ohlcv if int(c[0]) not in existing_timestamps]
-                
-                if not new_candles:
-                    logger.info(f"Alle Kerzen ab {start_ts} sind Duplikate - abgebrochen")
-                    break
-                
-                all_ohlcv.extend(new_candles)
-                
-                # Springe zur nächsten Kerze (nicht nur +1ms!)
-                last_candle_ts = ohlcv[-1][0]
-                start_ts = int(last_candle_ts + timeframe_ms)
-                
-                # Verhindere Endlosschleife falls keine Daten mehr
-                if last_candle_ts >= end_ts:
+
+                all_ohlcv.extend(ohlcv)
+                last_ts = ohlcv[-1][0]
+
+                # Springe zur nächsten Kerze
+                if last_ts >= current_ts:
+                    current_ts = last_ts + timeframe_duration_ms
+                else:
+                    logger.warning("WARNUNG: Kein Zeitfortschritt beim Datenabruf, breche ab.")
                     break
                     
-                logger.debug(f"Fetched {len(new_candles)} new candles for {symbol} {timeframe}, next start: {start_ts}")
+                retries = 0
                 
+            except (ccxt.RateLimitExceeded, ccxt.NetworkError) as e:
+                logger.warning(f"Netzwerk/Ratelimit-Fehler: {e}. Versuch {retries+1}/{max_retries}. Warte...")
+                time.sleep(5 * (retries + 1))
+                retries += 1
+            except ccxt.BadSymbol as e:
+                logger.error(f"FEHLER: Ungültiges Symbol: {symbol}. {e}")
+                return pd.DataFrame()
             except Exception as e:
-                logger.error(f"Fehler beim Fetch von {symbol} {timeframe} ab {start_ts}: {e}")
-                break
+                logger.error(f"Unerwarteter Fehler: {e}. Versuch {retries+1}/{max_retries}.")
+                time.sleep(5)
+                retries += 1
 
         if not all_ohlcv:
+            logger.warning(f"Keine historischen Daten für {symbol} ({timeframe}) im Zeitraum {start_date_str} - {end_date_str} gefunden.")
             return pd.DataFrame()
 
         df = pd.DataFrame(all_ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
