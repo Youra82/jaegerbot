@@ -719,7 +719,7 @@ Nach erfolgreicher Parameter-Optimierung können die Konfigurationsdateien auf d
 git add src/jaegerbot/strategy/configs/*.json
 git add artifacts/models/*.h5 artifacts/models/*.joblib
 git commit -m "Update: Optimierte Strategie-Konfigurationen und Modelle"
-git push origin main
+git push origin main --force
 ```
 
 Dies sichert:
