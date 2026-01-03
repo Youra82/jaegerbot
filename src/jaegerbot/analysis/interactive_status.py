@@ -333,8 +333,11 @@ def main():
             if send_telegram and telegram_config:
                 try:
                     logger.info(f"Sende Chart via Telegram...")
-                    from jaegerbot.utils.telegram import send_file
-                    send_file(output_file, telegram_config)
+                    from jaegerbot.utils.telegram import send_document
+                    bot_token = telegram_config.get('bot_token')
+                    chat_id = telegram_config.get('chat_id')
+                    if bot_token and chat_id:
+                        send_document(bot_token, chat_id, output_file, caption=f"Chart: {symbol} {timeframe}")
                 except Exception as e:
                     logger.warning(f"Konnte Chart nicht via Telegram versenden: {e}")
         
