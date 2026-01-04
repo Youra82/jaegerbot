@@ -266,10 +266,23 @@ def main():
             timeframe = config['market']['timeframe']
             
             logger.info(f"Lade OHLCV-Daten für {symbol} {timeframe}...")
-            df = exchange.fetch_recent_ohlcv(symbol, timeframe, limit=500)
+            
+            # Nutze historische Daten basierend auf Start/End Datum
+            # Falls keine Daten angefordert: letzte 30 Tage
+            if not start_date:
+                start_date_for_load = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d")
+            else:
+                start_date_for_load = start_date
+            
+            if not end_date:
+                end_date_for_load = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            else:
+                end_date_for_load = end_date
+            
+            df = exchange.fetch_historical_ohlcv(symbol, timeframe, start_date_for_load, end_date_for_load)
             
             if df is None or len(df) == 0:
-                logger.warning(f"Keine Daten für {symbol} {timeframe}")
+                logger.warning(f"Keine Daten für {symbol} {timeframe} im Zeitraum {start_date_for_load} bis {end_date_for_load}")
                 continue
             
             logger.info("Verarbeite Daten...")
