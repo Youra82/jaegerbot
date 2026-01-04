@@ -217,7 +217,8 @@ def create_interactive_chart(symbol, timeframe, df, trades, start_date, end_date
         height=600,
         hovermode='x unified',
         template='plotly_white',
-        xaxis=dict(rangeslider=dict(visible=True)),
+        xaxis=dict(rangeslider=dict(visible=True), fixedrange=False),
+        yaxis=dict(fixedrange=False),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
     
