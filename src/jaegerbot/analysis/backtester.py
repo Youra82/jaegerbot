@@ -118,6 +118,7 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
     current_capital, trades_count, wins_count = start_capital, 0, 0
     peak_capital, max_drawdown_pct = start_capital, 0.0
     position = None
+    trades = []  # Sammle alle Trades für Chart-Darstellung
 
     # --- KORREKTUR: ADX / HTF-Filter-Initialisierung entfernt ---
     # Entferne die Lade-Logik für HTF-Daten, da der ADX-Filter entfernt wurde
@@ -167,6 +168,19 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
                     
                 current_capital += net_pnl
                 
+                # *** SAMMLE TRADE FÜR CHART-ANZEIGE ***
+                if position['side'] == 'long':
+                    trades.append({
+                        'entry_long': {'time': position['entry_time'], 'price': position['entry_price']},
+                        'exit_long': {'time': data_with_features.index[i], 'price': exit_price}
+                    })
+                else:  # short
+                    trades.append({
+                        'entry_short': {'time': position['entry_time'], 'price': position['entry_price']},
+                        'exit_short': {'time': data_with_features.index[i], 'price': exit_price}
+                    })
+                # *** ENDE TRADE-SAMMLUNG ***
+                
                 if net_pnl > 0: wins_count += 1
                 trades_count += 1
                 position = None
@@ -212,6 +226,7 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
 
                 if side and trade_allowed:
                     entry_price = current['close']
+                    entry_time = data_with_features.index[i]  # Speichere Entry-Zeit
                     risk_amount_usd = current_capital * risk_per_trade_pct
 
                     sl_distance = entry_price * initial_sl_pct
@@ -229,7 +244,7 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
                     # TSL-Aktivierungspreis basierend auf Activation RR
                     activation_price = entry_price + stop_loss_distance * activation_rr if side == 'long' else entry_price - stop_loss_distance * activation_rr
 
-                    position = {'side': side, 'entry_price': entry_price, 'stop_loss': stop_loss,
+                    position = {'side': side, 'entry_price': entry_price, 'entry_time': entry_time, 'stop_loss': stop_loss,
                                 'take_profit': take_profit, 'margin_used': margin_used,
                                 'notional_value': notional_value,
                                 'trailing_active': False,
@@ -239,4 +254,4 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
 
     win_rate = (wins_count / trades_count * 100) if trades_count > 0 else 0
     final_pnl_pct = ((current_capital - start_capital) / start_capital) * 100 if start_capital > 0 else 0
-    return {"total_pnl_pct": final_pnl_pct, "trades_count": trades_count, "win_rate": win_rate, "max_drawdown_pct": max_drawdown_pct, "end_capital": current_capital}
+    return {"total_pnl_pct": final_pnl_pct, "trades_count": trades_count, "win_rate": win_rate, "max_drawdown_pct": max_drawdown_pct, "end_capital": current_capital, "trades": trades}
