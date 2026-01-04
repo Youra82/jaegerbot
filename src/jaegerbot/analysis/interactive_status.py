@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Interactive Status für JaegerBot - ANN-basierte Strategie mit EMA, MACD, RSI, Bollinger Bands
-Zeigt Candlestick-Chart mit technischen Indikatoren und simulierten Trades
+Interactive Charts für JaegerBot - ANN-basierte Strategie
+Zeigt Candlestick-Chart mit Trade-Signalen (Entry/Exit Long/Short)
 Nutzt durchnummerierte Konfigurationsdateien zum Auswählen
 """
 
