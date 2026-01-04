@@ -217,12 +217,19 @@ def create_interactive_chart(symbol, timeframe, df, trades, start_date, end_date
         height=600,
         hovermode='x unified',
         template='plotly_white',
+        dragmode='zoom',  # Zoom-Mode für Drag-Aktion
         xaxis=dict(rangeslider=dict(visible=True), fixedrange=False),
         yaxis=dict(fixedrange=False),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        # Zeige Toolbar mit Zoom/Pan/Reset Controls oben rechts (wie TradingView)
+        showlegend=True
     )
     
     fig.update_yaxes(title_text="Preis")
+    
+    # Aktiviere Scroll-Wheel Zoom für beide Achsen
+    fig.update_xaxes(fixedrange=False)
+    fig.update_yaxes(fixedrange=False)
     
     return fig
 
