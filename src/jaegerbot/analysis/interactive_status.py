@@ -97,31 +97,13 @@ def load_config(filepath):
         return json.load(f)
 
 def add_jaegerbot_indicators(df):
-    """Fügt JaegerBot-spezifische Indikatoren hinzu"""
-    # EMA
-    df['ema_20'] = ta.trend.ema_indicator(df['close'], window=20)
-    df['ema_50'] = ta.trend.ema_indicator(df['close'], window=50)
-    df['ema_200'] = ta.trend.ema_indicator(df['close'], window=200)
-    
-    # MACD
-    macd = ta.trend.MACD(df['close'])
-    df['macd'] = macd.macd()
-    df['macd_signal'] = macd.macd_signal()
-    df['macd_diff'] = macd.macd_diff()
-    
-    # RSI
-    df['rsi'] = ta.momentum.rsi(df['close'], window=14)
-    
-    # Bollinger Bands
-    bb = ta.volatility.BollingerBands(df['close'], window=20, window_dev=2)
-    df['bb_upper'] = bb.bollinger_hband()
-    df['bb_middle'] = bb.bollinger_mavg()
-    df['bb_lower'] = bb.bollinger_lband()
-    
+    """Fügt Indikatoren für Chart-Anzeige hinzu (vereinfacht)"""
+    # Kerzen-Daten sind bereits vorhanden, keine zusätzlichen Indikatoren nötig
+    # Die eigentliche ANN-Analyse passiert in der Backtest-Funktion
     return df
 
 def create_interactive_chart(symbol, timeframe, df, trades, start_date, end_date, window=None):
-    """Erstellt interaktiven Chart mit Indikatoren und Trades"""
+    """Erstellt interaktiven Chart mit Candlesticks und Trade-Signalen (Entry/Exit)"""
     
     # Filter auf Fenster
     if window:
@@ -134,16 +116,10 @@ def create_interactive_chart(symbol, timeframe, df, trades, start_date, end_date
     if end_date:
         df = df[df.index <= pd.to_datetime(end_date, utc=True)]
     
-    # Erstelle Subplots: Hauptchart + MACD + RSI
-    fig = make_subplots(
-        rows=3, cols=1,
-        shared_xaxes=True,
-        vertical_spacing=0.08,
-        row_heights=[0.6, 0.2, 0.2],
-        subplot_titles=("OHLC + EMA + Bollinger Bands", "MACD", "RSI")
-    )
+    # Erstelle einfachen Chart mit Candlesticks + Trade-Signalen
+    fig = go.Figure()
     
-    # === Row 1: Candlestick + EMAs + Bollinger Bands ===
+    # === Candlestick Chart ===
     fig.add_trace(
         go.Candlestick(
             x=df.index,
@@ -152,113 +128,100 @@ def create_interactive_chart(symbol, timeframe, df, trades, start_date, end_date
             low=df['low'],
             close=df['close'],
             name='OHLC',
+            increasing_line_color="#16a34a",
+            decreasing_line_color="#dc2626",
             showlegend=True
-        ),
-        row=1, col=1
+        )
     )
     
-    # EMAs
-    fig.add_trace(
-        go.Scatter(x=df.index, y=df['ema_20'], name='EMA 20', line=dict(color='orange', width=1.5)),
-        row=1, col=1
-    )
-    fig.add_trace(
-        go.Scatter(x=df.index, y=df['ema_50'], name='EMA 50', line=dict(color='blue', width=1.5)),
-        row=1, col=1
-    )
-    fig.add_trace(
-        go.Scatter(x=df.index, y=df['ema_200'], name='EMA 200', line=dict(color='red', width=2)),
-        row=1, col=1
-    )
+    # === Trade-Signale extrahieren und eintragen ===
+    # Gruppiere Trades: Long (entry_long, exit_long) und Short (entry_short, exit_short)
+    entry_long_x, entry_long_y = [], []
+    exit_long_x, exit_long_y = [], []
+    entry_short_x, entry_short_y = [], []
+    exit_short_x, exit_short_y = [], []
     
-    # Bollinger Bands
-    fig.add_trace(
-        go.Scatter(x=df.index, y=df['bb_upper'], name='BB Upper', line=dict(color='green', width=1, dash='dash')),
-        row=1, col=1
-    )
-    fig.add_trace(
-        go.Scatter(x=df.index, y=df['bb_lower'], name='BB Lower', line=dict(color='green', width=1, dash='dash')),
-        row=1, col=1
-    )
-    
-    # === Row 2: MACD ===
-    fig.add_trace(
-        go.Scatter(x=df.index, y=df['macd'], name='MACD', line=dict(color='blue', width=1.5)),
-        row=2, col=1
-    )
-    fig.add_trace(
-        go.Scatter(x=df.index, y=df['macd_signal'], name='Signal', line=dict(color='red', width=1.5)),
-        row=2, col=1
-    )
-    
-    # === Row 3: RSI ===
-    fig.add_trace(
-        go.Scatter(x=df.index, y=df['rsi'], name='RSI', line=dict(color='purple', width=1.5)),
-        row=3, col=1
-    )
-    fig.add_hline(y=70, line_dash="dash", line_color="red", row=3, col=1)
-    fig.add_hline(y=30, line_dash="dash", line_color="green", row=3, col=1)
-    
-    # === Trade Marker ===
     for trade in trades:
-        entry_time = trade['entry_time']
-        entry_price = trade['entry_price']
-        exit_time = trade['exit_time']
-        exit_price = trade['exit_price']
-        profit = trade['profit']
+        # Entry Long (Dreieck nach oben, grün)
+        if 'entry_long' in trade:
+            entry_time = trade['entry_long'].get('time')
+            entry_price = trade['entry_long'].get('price')
+            if entry_time and entry_price:
+                entry_long_x.append(pd.to_datetime(entry_time))
+                entry_long_y.append(entry_price)
         
-        color = 'green' if profit > 0 else 'red'
+        # Exit Long (Kreis, Cyan)
+        if 'exit_long' in trade:
+            exit_time = trade['exit_long'].get('time')
+            exit_price = trade['exit_long'].get('price')
+            if exit_time and exit_price:
+                exit_long_x.append(pd.to_datetime(exit_time))
+                exit_long_y.append(exit_price)
         
-        # Entry Point
-        fig.add_trace(
-            go.Scatter(
-                x=[entry_time],
-                y=[entry_price],
-                mode='markers',
-                marker=dict(size=10, color='green', symbol='triangle-up'),
-                name=f'Entry ({entry_price:.2f})',
-                showlegend=False
-            ),
-            row=1, col=1
-        )
+        # Entry Short (Dreieck nach unten, Orange)
+        if 'entry_short' in trade:
+            entry_time = trade['entry_short'].get('time')
+            entry_price = trade['entry_short'].get('price')
+            if entry_time and entry_price:
+                entry_short_x.append(pd.to_datetime(entry_time))
+                entry_short_y.append(entry_price)
         
-        # Exit Point
-        fig.add_trace(
-            go.Scatter(
-                x=[exit_time],
-                y=[exit_price],
-                mode='markers',
-                marker=dict(size=10, color=color, symbol='triangle-down'),
-                name=f'Exit ({exit_price:.2f})',
-                showlegend=False
-            ),
-            row=1, col=1
-        )
-        
-        # Verbindungslinie
-        fig.add_trace(
-            go.Scatter(
-                x=[entry_time, exit_time],
-                y=[entry_price, exit_price],
-                mode='lines',
-                line=dict(color=color, width=1, dash='dash'),
-                showlegend=False
-            ),
-            row=1, col=1
-        )
+        # Exit Short (Diamant, Rot)
+        if 'exit_short' in trade:
+            exit_time = trade['exit_short'].get('time')
+            exit_price = trade['exit_short'].get('price')
+            if exit_time and exit_price:
+                exit_short_x.append(pd.to_datetime(exit_time))
+                exit_short_y.append(exit_price)
+    
+    # Entry Long: Dreieck nach oben, grün (#16a34a)
+    if entry_long_x:
+        fig.add_trace(go.Scatter(
+            x=entry_long_x, y=entry_long_y, mode="markers",
+            marker=dict(color="#16a34a", symbol="triangle-up", size=14, line=dict(width=1.2, color="#0f5132")),
+            name="Entry Long",
+            showlegend=True
+        ))
+    
+    # Exit Long: Kreis, Cyan (#22d3ee)
+    if exit_long_x:
+        fig.add_trace(go.Scatter(
+            x=exit_long_x, y=exit_long_y, mode="markers",
+            marker=dict(color="#22d3ee", symbol="circle", size=12, line=dict(width=1.1, color="#0e7490")),
+            name="Exit Long",
+            showlegend=True
+        ))
+    
+    # Entry Short: Dreieck nach unten, Orange (#f59e0b)
+    if entry_short_x:
+        fig.add_trace(go.Scatter(
+            x=entry_short_x, y=entry_short_y, mode="markers",
+            marker=dict(color="#f59e0b", symbol="triangle-down", size=14, line=dict(width=1.2, color="#92400e")),
+            name="Entry Short",
+            showlegend=True
+        ))
+    
+    # Exit Short: Diamant, Rot (#ef4444)
+    if exit_short_x:
+        fig.add_trace(go.Scatter(
+            x=exit_short_x, y=exit_short_y, mode="markers",
+            marker=dict(color="#ef4444", symbol="diamond", size=12, line=dict(width=1.1, color="#7f1d1d")),
+            name="Exit Short",
+            showlegend=True
+        ))
     
     # Layout
     title = f"{symbol} {timeframe} - JaegerBot (ANN-Strategie)"
     fig.update_layout(
         title=title,
-        height=1000,
+        height=600,
         hovermode='x unified',
-        template='plotly_dark'
+        template='plotly_white',
+        xaxis=dict(rangeslider=dict(visible=True)),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
     
-    fig.update_yaxes(title_text="Price", row=1, col=1)
-    fig.update_yaxes(title_text="MACD", row=2, col=1)
-    fig.update_yaxes(title_text="RSI", row=3, col=1)
+    fig.update_yaxes(title_text="Preis")
     
     return fig
 
@@ -308,16 +271,40 @@ def main():
                 logger.warning(f"Keine Daten für {symbol} {timeframe}")
                 continue
             
-            logger.info("Berechne Indikatoren...")
+            logger.info("Verarbeite Daten...")
             df = add_jaegerbot_indicators(df)
             
-            # Erstelle Chart
+            # Führe Backtest durch, um Trades zu generieren
+            logger.info("Führe Backtest durch...")
+            from jaegerbot.analysis.backtester import run_ann_backtest
+            
+            model_save_path = os.path.join(PROJECT_ROOT, 'artifacts', 'models', 
+                                          f'ann_predictor_{symbol.replace("/", "").replace(":", "")}_{timeframe}.h5')
+            scaler_save_path = os.path.join(PROJECT_ROOT, 'artifacts', 'models', 
+                                           f'ann_scaler_{symbol.replace("/", "").replace(":", "")}_{timeframe}.joblib')
+            
+            model_paths = {'model': model_save_path, 'scaler': scaler_save_path}
+            
+            backtest_result = run_ann_backtest(
+                df, 
+                config,
+                model_paths,
+                start_capital=1000,
+                use_macd_filter=config.get('market', {}).get('use_macd_filter', False),
+                timeframe=timeframe,
+                verbose=False
+            )
+            
+            # Extrahiere Trades aus Backtest-Ergebnis
+            trades = backtest_result.get('trades', [])
+            
+            # Erstelle Chart mit Trades
             logger.info("Erstelle Chart...")
             fig = create_interactive_chart(
                 symbol,
                 timeframe,
                 df,
-                [],  # Keine Trades für diese vereinachte Version
+                trades,
                 start_date,
                 end_date,
                 window
@@ -342,7 +329,7 @@ def main():
                     logger.warning(f"Konnte Chart nicht via Telegram versenden: {e}")
         
         except Exception as e:
-            logger.error(f"Fehler bei {filename}: {e}", exc_info=False)
+            logger.error(f"Fehler bei {filename}: {e}", exc_info=True)
             continue
     
     logger.info("\n✅ Alle Charts generiert!")
