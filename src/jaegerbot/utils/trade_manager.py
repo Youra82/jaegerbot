@@ -102,24 +102,21 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
     account_name = exchange.account.get('name', 'Standard-Account')
     
     # *** CIRCUIT BREAKER CHECK ***
-    if not is_trading_allowed():
-        logger.critical("🚨 CIRCUIT BREAKER AKTIV - Trading gestoppt!")
-        return
-    
-    # Update Circuit Breaker mit aktuellem Equity
+    # Erst den aktuellen Status aktualisieren, DANN prüfen!
     current_balance = exchange.fetch_balance_usdt()
     circuit_status = update_circuit_breaker(current_balance)
 
+    if circuit_status == 'STOP_ALL_TRADING':
+        logger.critical("🚨 CIRCUIT BREAKER AKTIV - Trading gestoppt!")
+        send_message(f"🚨 CIRCUIT BREAKER AUSGELÖST\n\nTrading wurde automatisch gestoppt!\nDrawdown: >10%\nBalance: {current_balance:.2f} USDT", telegram_config)
+        return
+    
     # Lade persistenten Circuit-Status (z.B. reduced-Flag)
     cb_status = get_circuit_breaker_status()
     reduced_flag = cb_status.get('reduced', False)
     reduction_factor = cb_status.get('reduction_factor', 1.0)
 
-    if circuit_status == 'STOP_ALL_TRADING':
-        logger.critical("🚨 CIRCUIT BREAKER AUSGELÖST - 10% Drawdown erreicht!")
-        send_message(f"🚨 CIRCUIT BREAKER AUSGELÖST\n\nTrading wurde automatisch gestoppt!\nDrawdown: >10%\nBalance: {current_balance:.2f} USDT", telegram_config)
-        return
-    elif reduced_flag:
+    if reduced_flag:
         logger.warning(f"⚠️  Drawdown Warning: Position Size wird reduziert (Factor={reduction_factor})")
         # Hinweis: Wir ändern `params` nicht dauerhaft hier; die Reduktion ist persistent gesteuert
     # *** ENDE CIRCUIT BREAKER CHECK ***
