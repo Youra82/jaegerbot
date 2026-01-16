@@ -223,40 +223,7 @@ Logverzeichnis anlegen:
 mkdir -p /home/ubuntu/jaegerbot/logs
 ```
 
-### Als Systemd Service (Linux)
 
-Für 24/7 Betrieb:
-
-```bash
-# Service-Datei erstellen
-sudo nano /etc/systemd/system/jaegerbot.service
-```
-
-```ini
-[Unit]
-Description=JaegerBot Trading System
-After=network.target
-
-[Service]
-Type=simple
-User=your-user
-WorkingDirectory=/path/to/jaegerbot
-ExecStart=/path/to/jaegerbot/.venv/bin/python master_runner.py
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-# Service aktivieren
-sudo systemctl enable jaegerbot
-sudo systemctl start jaegerbot
-
-# Status prüfen
-sudo systemctl status jaegerbot
-```
 
 ---
 
@@ -575,15 +542,7 @@ chmod +x update.sh
 bash ./update.sh
 ```
 
-### Log-Rotation
 
-```bash
-# Alte Logs archivieren (älter als 30 Tage)
-find logs/ -name "*.log" -type f -mtime +30 -exec gzip {} \;
-
-# Archivierte Logs löschen (älter als 90 Tage)
-find logs/ -name "*.log.gz" -type f -mtime +90 -delete
-```
 
 ### Modell-Neutrainierung
 
@@ -607,65 +566,6 @@ pytest tests/test_lstm_model.py -v
 
 # Mit Coverage
 pytest --cov=src tests/
-```
-
----
-
-## 🔧 Nützliche Befehle
-
-### Konfiguration
-
-```bash
-# Settings validieren
-python -c "import json; print(json.load(open('settings.json')))"
-
-# Backup erstellen
-cp settings.json settings.json.backup.$(date +%Y%m%d)
-
-# Diff zwischen Versionen
-diff settings.json settings.json.backup
-```
-
-### Prozess-Management
-
-```bash
-# Alle Python-Prozesse anzeigen
-ps aux | grep python | grep jaegerbot
-
-# Master Runner Process-ID finden
-pgrep -f master_runner.py
-
-# Prozess sauber beenden
-pkill -f master_runner.py
-
-# Erzwungenes Beenden (Notfall)
-pkill -9 -f master_runner.py
-```
-
-### Exchange-Verbindung
-
-```bash
-# API-Verbindung testen
-python -c "from src.jaegerbot.utils.exchange import Exchange; \
-    e = Exchange('binance'); print(e.fetch_balance())"
-
-# Marktdaten abrufen
-python -c "from src.jaegerbot.utils.exchange import Exchange; \
-    e = Exchange('binance'); print(e.fetch_ohlcv('BTC/USDT:USDT', '1h'))"
-```
-
-### Debugging
-
-```bash
-# Verbose-Modus aktivieren
-export JAEGERBOT_DEBUG=1
-python master_runner.py
-
-# Nur Strategie-Logs anzeigen
-tail -f logs/cron.log | grep -i "signal\|trade\|position"
-
-# Fehler im Detail
-python -m pdb master_runner.py
 ```
 
 ---
