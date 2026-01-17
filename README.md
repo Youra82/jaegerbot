@@ -223,6 +223,22 @@ Logverzeichnis anlegen:
 mkdir -p /home/ubuntu/jaegerbot/logs
 ```
 
+### 🔧 Config-Management
+
+#### Konfigurationsdateien löschen
+
+Bei Bedarf können alle generierten Konfigurationen und Modelle gelöscht werden:
+
+```bash
+rm -f src/jaegerbot/strategy/configs/config_*.json
+```
+
+#### Löschung verifizieren
+
+```bash
+ls -la src/jaegerbot/strategy/configs/config_*.json 2>&1 || echo "✅ Alle Konfigurationsdateien wurden gelöscht"
+```
+
 
 
 ---
