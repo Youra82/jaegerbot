@@ -701,7 +701,43 @@ Dieses Projekt ist lizenziert unter der MIT License - siehe [LICENSE](LICENSE) D
 
 ---
 
-## 🙏 Credits
+## � Konfigurationsdateien & Modelle hochladen
+
+Wenn neue `config_*.json` Konfigurationsdateien oder LSTM-Modelle (`.h5`) aus der Optimierung generiert wurden, können diese ins Repository gepusht werden:
+
+```bash
+cd ~/jaegerbot
+git pull origin main
+git add src/jaegerbot/strategy/configs/*.json
+git add artifacts/models/*.h5
+git commit -m "Add optimized jaegerbot LSTM configs and models"
+git push origin main
+```
+
+Falls Sie die Dateien mit Force pushen müssen (lokale Versionen überschreiben):
+
+```bash
+cd ~/jaegerbot
+git add src/jaegerbot/strategy/configs/*.json artifacts/models/*.h5
+git commit -m "Force update jaegerbot configs and models"
+git push -f origin main
+```
+
+Bei **Konflikten** (wenn Remote andere Versionen hat):
+
+```bash
+cd ~/jaegerbot
+git checkout --ours src/jaegerbot/strategy/configs/ artifacts/models/
+git add src/jaegerbot/strategy/configs/ artifacts/models/
+git rebase --continue
+git push origin main
+```
+
+**Hinweis:** `.venv/` und TensorFlow Cache-Dateien sollten **nicht** gepusht werden. Ein `.gitignore` schließt diese aus. LSTM-Modelle können groß sein – nutzen Sie ggf. Git LFS für `*.h5` Dateien.
+
+---
+
+## �🙏 Credits
 
 Entwickelt mit:
 - [TensorFlow](https://www.tensorflow.org/) - Deep Learning Framework
