@@ -513,7 +513,10 @@ python3 auto_optimizer_scheduler.py --daemon
 ### Status-Dashboard
 
 ```bash
-# Zeigt alle wichtigen Informationen
+# Einmalig ausführbar machen
+chmod +x show_status.sh
+
+# Status anzeigen
 ./show_status.sh
 ```
 
@@ -525,10 +528,13 @@ python3 auto_optimizer_scheduler.py --daemon
 - 💰 Kontostand und verfügbares Kapital
 - 📝 Letzte Logs
 
-### Live-Status anzeigen
+### Trading-Ergebnisse anzeigen
 
 ```bash
-# Aktuelle Positionen und Performance
+# Einmalig ausführbar machen
+chmod +x show_results.sh
+
+# Ergebnisse anzeigen
 ./show_results.sh
 ```
 
