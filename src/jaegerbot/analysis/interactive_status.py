@@ -102,8 +102,9 @@ def add_jaegerbot_indicators(df):
     # Die eigentliche ANN-Analyse passiert in der Backtest-Funktion
     return df
 
-def create_interactive_chart(symbol, timeframe, df, trades, start_date, end_date, window=None):
-    """Erstellt interaktiven Chart mit Candlesticks und Trade-Signalen (Entry/Exit)"""
+def create_interactive_chart(symbol, timeframe, df, trades, equity_df, stats, start_date, end_date, window=None, start_capital=1000):
+    """Erstellt interaktiven Chart mit Candlesticks, Trade-Signalen und Equity Curve"""
+    from plotly.subplots import make_subplots
     
     # Filter auf Fenster
     if window:
@@ -116,10 +117,10 @@ def create_interactive_chart(symbol, timeframe, df, trades, start_date, end_date
     if end_date:
         df = df[df.index <= pd.to_datetime(end_date, utc=True)]
     
-    # Erstelle einfachen Chart mit Candlesticks + Trade-Signalen
-    fig = go.Figure()
+    # Erstelle Chart mit secondary_y für Equity Curve
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
     
-    # === Candlestick Chart ===
+    # === Candlestick Chart (primäre Y-Achse) ===
     fig.add_trace(
         go.Candlestick(
             x=df.index,
@@ -131,8 +132,23 @@ def create_interactive_chart(symbol, timeframe, df, trades, start_date, end_date
             increasing_line_color="#16a34a",
             decreasing_line_color="#dc2626",
             showlegend=True
-        )
+        ),
+        secondary_y=False
     )
+    
+    # === Equity Curve (sekundäre Y-Achse, rechts) ===
+    if not equity_df.empty and 'equity' in equity_df.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=equity_df.index,
+                y=equity_df['equity'],
+                name='Kontostand',
+                line=dict(color='#3b82f6', width=2),
+                hovertemplate='<b>Kontostand</b><br>Zeit: %{x}<br>Equity: $%{y:.2f}<extra></extra>',
+                showlegend=True
+            ),
+            secondary_y=True
+        )
     
     # === Trade-Signale extrahieren und eintragen ===
     # Gruppiere Trades: Long (entry_long, exit_long) und Short (entry_short, exit_short)
@@ -181,7 +197,7 @@ def create_interactive_chart(symbol, timeframe, df, trades, start_date, end_date
             marker=dict(color="#16a34a", symbol="triangle-up", size=14, line=dict(width=1.2, color="#0f5132")),
             name="Entry Long",
             showlegend=True
-        ))
+        ), secondary_y=False)
     
     # Exit Long: Kreis, Cyan (#22d3ee)
     if exit_long_x:
@@ -190,7 +206,7 @@ def create_interactive_chart(symbol, timeframe, df, trades, start_date, end_date
             marker=dict(color="#22d3ee", symbol="circle", size=12, line=dict(width=1.1, color="#0e7490")),
             name="Exit Long",
             showlegend=True
-        ))
+        ), secondary_y=False)
     
     # Entry Short: Dreieck nach unten, Orange (#f59e0b)
     if entry_short_x:
@@ -199,7 +215,7 @@ def create_interactive_chart(symbol, timeframe, df, trades, start_date, end_date
             marker=dict(color="#f59e0b", symbol="triangle-down", size=14, line=dict(width=1.2, color="#92400e")),
             name="Entry Short",
             showlegend=True
-        ))
+        ), secondary_y=False)
     
     # Exit Short: Diamant, Rot (#ef4444)
     if exit_short_x:
@@ -208,28 +224,40 @@ def create_interactive_chart(symbol, timeframe, df, trades, start_date, end_date
             marker=dict(color="#ef4444", symbol="diamond", size=12, line=dict(width=1.1, color="#7f1d1d")),
             name="Exit Short",
             showlegend=True
-        ))
+        ), secondary_y=False)
     
-    # Layout
-    title = f"{symbol} {timeframe} - JaegerBot (ANN-Strategie)"
+    # === Stats für Titel extrahieren ===
+    end_capital = stats.get('end_capital', start_capital)
+    pnl_pct = ((end_capital - start_capital) / start_capital) * 100 if start_capital > 0 else 0
+    max_dd = stats.get('max_drawdown', 0)
+    total_trades = stats.get('total_trades', len(trades))
+    win_rate = stats.get('win_rate', 0)
+    
+    # Layout mit Stats im Titel
+    title = (f"{symbol} {timeframe} - JaegerBot (ANN) | "
+             f"Kapital: ${start_capital:.0f}→${end_capital:.0f} | "
+             f"PnL: {pnl_pct:+.2f}% | DD: {max_dd:.1f}% | "
+             f"Trades: {total_trades} | WR: {win_rate:.1f}%")
+    
     fig.update_layout(
         title=title,
-        height=600,
+        height=650,
         hovermode='x unified',
         template='plotly_white',
-        dragmode='zoom',  # Zoom-Mode für Drag-Aktion
-        xaxis=dict(rangeslider=dict(visible=True), fixedrange=False),
-        yaxis=dict(fixedrange=False),
+        dragmode='zoom',
+        xaxis=dict(rangeslider=dict(visible=True, thickness=0.05), fixedrange=False),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        # Zeige Toolbar mit Zoom/Pan/Reset Controls oben rechts (wie TradingView)
         showlegend=True
     )
     
-    fig.update_yaxes(title_text="Preis")
+    # Primäre Y-Achse (links): Preis
+    fig.update_yaxes(title_text="Preis", secondary_y=False, fixedrange=False)
     
-    # Aktiviere Scroll-Wheel Zoom für beide Achsen
+    # Sekundäre Y-Achse (rechts): Kontostand
+    fig.update_yaxes(title_text="Kontostand ($)", secondary_y=True, fixedrange=False, showgrid=False)
+    
+    # X-Achse zoomen erlauben
     fig.update_xaxes(fixedrange=False)
-    fig.update_yaxes(fixedrange=False)
     
     return fig
 
@@ -306,29 +334,40 @@ def main():
             
             model_paths = {'model': model_save_path, 'scaler': scaler_save_path}
             
-            backtest_result = run_ann_backtest(
+            backtest_result, equity_snapshots = run_ann_backtest(
                 df, 
                 config,
                 model_paths,
                 start_capital=1000,
                 use_macd_filter=config.get('market', {}).get('use_macd_filter', False),
                 timeframe=timeframe,
-                verbose=False
+                verbose=False,
+                return_equity=True
             )
             
-            # Extrahiere Trades aus Backtest-Ergebnis
+            # Extrahiere Trades und Stats aus Backtest-Ergebnis
             trades = backtest_result.get('trades', [])
             
-            # Erstelle Chart mit Trades
+            # Equity Snapshots in DataFrame umwandeln
+            if equity_snapshots:
+                equity_df = pd.DataFrame(equity_snapshots)
+                equity_df.set_index('timestamp', inplace=True)
+            else:
+                equity_df = pd.DataFrame()
+            
+            # Erstelle Chart mit Trades und Equity Curve
             logger.info("Erstelle Chart...")
             fig = create_interactive_chart(
                 symbol,
                 timeframe,
                 df,
                 trades,
+                equity_df,
+                backtest_result,
                 start_date,
                 end_date,
-                window
+                window,
+                1000
             )
             
             # Speichere HTML
