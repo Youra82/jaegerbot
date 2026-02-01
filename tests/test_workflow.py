@@ -144,7 +144,7 @@ def test_setup():
         'strategy': {'prediction_threshold': 0.6},
         'behavior': {'use_longs': True, 'use_shorts': True},
         'risk': {
-            'risk_per_trade_pct': 15.0,       # 15% wie StBot/KBot
+            'risk_per_trade_pct': 50.0,       # Erhöht für Test: 50% um Mindestgrößenprobleme zu vermeiden
             'risk_reward_ratio': 2.0,
             'initial_sl_pct': 4.0,            # 4% SL wie StBot/KBot
             'leverage': 20,
@@ -232,8 +232,8 @@ def test_full_jaegerbot_workflow_on_bitget(test_setup):
             print("\n[Schritt 1/3] Mocke ANN-Signal und prüfe Trade-Eröffnung...")
             check_and_open_new_position(exchange, model, scaler, params, telegram_config, logger)
 
-    print("-> Warte 5s auf Order-Ausführung...")
-    time.sleep(5)
+    print("-> Warte 8s auf Order-Ausführung (erhöht für Bitget Ausführung)...")
+    time.sleep(8)
 
     print("\n[Schritt 2/3] Überprüfe Position und Orders...")
     position = exchange.fetch_open_positions(symbol)
