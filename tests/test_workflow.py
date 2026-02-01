@@ -96,7 +96,7 @@ def test_setup():
     print("\n[Teardown] Räume nach dem Test auf...")
     try:
         print("-> 1. Lösche offene Trigger Orders...")
-        exchange.cancel_all_orders_for_symbol(symbol)
+        exchange.cleanup_all_open_orders(symbol)
         time.sleep(2)
 
         print("-> 2. Prüfe auf offene Positionen...")
@@ -110,7 +110,7 @@ def test_setup():
             print("-> Keine offene Position gefunden.")
 
         print("-> 3. Lösche verbleibende Trigger Orders (Sicherheitsnetz)...")
-        exchange.cancel_all_orders_for_symbol(symbol)
+        exchange.cleanup_all_open_orders(symbol)
 
         clear_lock_file()
         clear_circuit_breaker_file()
@@ -180,7 +180,7 @@ def test_full_jaegerbot_workflow_on_bitget(test_setup):
 
     # 1. Orders löschen VOR dem Schließen
     print("-> Lösche Trigger-Orders VOR dem Schließen...")
-    exchange.cancel_all_orders_for_symbol(symbol)
+    exchange.cleanup_all_open_orders(symbol)
     time.sleep(2)
 
     # 2. Position schließen
@@ -196,7 +196,7 @@ def test_full_jaegerbot_workflow_on_bitget(test_setup):
 
     # 3. Orders löschen NACH dem Schließen
     print("-> Lösche verbleibende Trigger-Orders NACH dem Schließen...")
-    exchange.cancel_all_orders_for_symbol(symbol)
+    exchange.cleanup_all_open_orders(symbol)
     time.sleep(2)
 
     # Finale Prüfung
@@ -205,7 +205,7 @@ def test_full_jaegerbot_workflow_on_bitget(test_setup):
 
     if len(final_orders) > 0:
         print(f"WARNUNG: Es sind noch {len(final_orders)} Trigger-Orders offen! Versuche erneutes Löschen...")
-        exchange.cancel_all_orders_for_symbol(symbol)
+        exchange.cleanup_all_open_orders(symbol)
         time.sleep(2)
         final_orders = exchange.fetch_open_trigger_orders(symbol)
 

@@ -118,18 +118,30 @@ class Exchange:
 
     def set_margin_mode(self, symbol, mode='isolated'):
         try:
-            self.exchange.set_margin_mode(mode, symbol)
+            params = {
+                'productType': 'USDT-FUTURES',
+                'marginCoin': 'USDT'
+            }
+            self.exchange.set_margin_mode(mode, symbol, params)
+            logger.info(f"Margin-Modus auf '{mode}' gesetzt für {symbol}")
             return True
         except Exception as e:
             if 'Margin mode is the same' not in str(e): 
                 logger.warning(f"Warnung: Margin-Modus konnte nicht gesetzt werden: {e}")
             else:
+                logger.info(f"Margin-Modus ist bereits '{mode}' für {symbol}")
                 return True
             return False
 
-    def set_leverage(self, symbol, level=10):
+    def set_leverage(self, symbol, level=10, margin_mode=None):
         try:
-            self.exchange.set_leverage(level, symbol)
+            params = {
+                'productType': 'USDT-FUTURES',
+                'marginCoin': 'USDT'
+            }
+            if margin_mode:
+                params['marginMode'] = margin_mode
+            self.exchange.set_leverage(level, symbol, params)
             return True
         except Exception as e:
             if 'Leverage not changed' not in str(e): 
