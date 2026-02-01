@@ -108,7 +108,11 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
 
     if circuit_status == 'STOP_ALL_TRADING':
         logger.critical("🚨 CIRCUIT BREAKER AKTIV - Trading gestoppt!")
-        send_message(f"🚨 CIRCUIT BREAKER AUSGELÖST\n\nTrading wurde automatisch gestoppt!\nDrawdown: >10%\nBalance: {current_balance:.2f} USDT", telegram_config)
+            send_message(
+                telegram_config.get('bot_token'),
+                telegram_config.get('chat_id'),
+                f"🚨 CIRCUIT BREAKER AUSGELÖST\n\nTrading wurde automatisch gestoppt!\nDrawdown: >10%\nBalance: {current_balance:.2f} USDT"
+            )
         return
     
     # Lade persistenten Circuit-Status (z.B. reduced-Flag)
