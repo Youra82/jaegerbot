@@ -461,6 +461,53 @@ pip install --upgrade tensorflow
 
 ---
 
+## 🤖 Auto-Optimizer Scheduler
+
+Automatische Optimierung der Strategie-Konfigurationen nach Zeitplan mit Telegram-Benachrichtigungen.
+
+### Schnellstart-Befehle
+
+```bash
+# Status prüfen (wann ist die nächste Optimierung fällig?)
+python3 auto_optimizer_scheduler.py --check-only
+
+# Sofort optimieren (ignoriert Zeitplan)
+python3 auto_optimizer_scheduler.py --force
+
+# Als Daemon laufen (prüft alle 60 Sekunden)
+python3 auto_optimizer_scheduler.py --daemon
+```
+
+### Konfiguration (settings.json)
+
+```json
+{
+    "optimization_settings": {
+        "enabled": true,
+        "schedule": {
+            "day_of_week": 0,
+            "hour": 3,
+            "minute": 0,
+            "interval_days": 7
+        },
+        "symbols_to_optimize": "auto",
+        "timeframes_to_optimize": "auto",
+        "num_trials": 500,
+        "send_telegram_on_completion": true
+    }
+}
+```
+
+| Parameter | Beschreibung |
+|-----------|--------------|
+| `enabled` | Automatische Optimierung aktivieren |
+| `day_of_week` | 0=Montag, 6=Sonntag |
+| `hour` | Stunde (0-23, 24h Format) |
+| `symbols_to_optimize` | `"auto"` = aus active_strategies |
+| `timeframes_to_optimize` | `"auto"` = aus active_strategies |
+
+---
+
 ## 📊 Monitoring & Status
 
 ### Status-Dashboard
