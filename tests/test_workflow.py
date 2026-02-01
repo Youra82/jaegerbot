@@ -21,6 +21,7 @@ from jaegerbot.utils.ann_model import create_ann_features
 # Definition der Pfade und Mocks
 
 LOCK_FILE_PATH = os.path.join(PROJECT_ROOT, 'artifacts', 'db', 'trade_lock.json')
+CIRCUIT_BREAKER_PATH = os.path.join(PROJECT_ROOT, 'artifacts', 'db', 'circuit_breaker.json')
 
 # Erstelle eine "Fake"-KI, die wir für den Test kontrollieren können
 class FakeModel:
@@ -43,6 +44,16 @@ def clear_lock_file():
             print("-> Lokale 'trade_lock.json' wurde erfolgreich gelöscht.")
         except Exception as e:
             print(f"Warnung: Lock-Datei konnte nicht gelöscht werden: {e}")
+
+
+def clear_circuit_breaker_file():
+    """Löscht die circuit_breaker.json, falls sie existiert (reset für Tests)."""
+    if os.path.exists(CIRCUIT_BREAKER_PATH):
+        try:
+            os.remove(CIRCUIT_BREAKER_PATH)
+            print("-> Lokale 'circuit_breaker.json' wurde erfolgreich gelöscht.")
+        except Exception as e:
+            print(f"Warnung: Circuit-Breaker-Datei konnte nicht gelöscht werden: {e}")
 
 
 @pytest.fixture
@@ -96,6 +107,7 @@ def test_setup():
 
     print("-> Führe initiales Aufräumen durch (Lokal)...")
     clear_lock_file()
+    clear_circuit_breaker_file()
 
     print("-> Ausgangszustand ist sauber.")
 
@@ -113,6 +125,7 @@ def test_setup():
 
     print("-> Räume lokale Lock-Datei auf...")
     clear_lock_file()
+    clear_circuit_breaker_file()
 
 
 # NEUE KLASSE zum Mocken der SuperTrendLocal-Initialisierung
