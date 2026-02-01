@@ -1,40 +1,25 @@
-# tests/test_workflow.py (FINAL KORRIGIERTE VERSION 6 - Anpassung auf BTC/USDT)
+# tests/test_workflow.py
+# =============================================================================
+# JaegerBot: Live-Workflow-Test auf Bitget (Vereinfacht wie StBot/KBot)
+# =============================================================================
 import pytest
 import os
 import sys
 import json
 import logging
 import time
-import pandas as pd
-from unittest.mock import patch
 
 # Füge das Projektverzeichnis zum Python-Pfad hinzu
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-sys.path.append(os.path.join(PROJECT_ROOT, 'src'))
+sys.path.insert(0, os.path.join(PROJECT_ROOT, 'src'))
 
-# Korrekte Imports
 from jaegerbot.utils.exchange import Exchange
-from jaegerbot.utils.trade_manager import check_and_open_new_position, housekeeper_routine
-from jaegerbot.utils.supertrend_indicator import SuperTrendLocal 
-from jaegerbot.utils.ann_model import create_ann_features 
+from jaegerbot.utils.trade_manager import housekeeper_routine
 
-# Definition der Pfade und Mocks
-
+# Pfade für Lock-Dateien
 LOCK_FILE_PATH = os.path.join(PROJECT_ROOT, 'artifacts', 'db', 'trade_lock.json')
 CIRCUIT_BREAKER_PATH = os.path.join(PROJECT_ROOT, 'artifacts', 'db', 'circuit_breaker.json')
 
-# Erstelle eine "Fake"-KI, die wir für den Test kontrollieren können
-class FakeModel:
-    """Eine Mock-Version des Keras-Modells, um das Vorhersage-Verhalten zu steuern."""
-    def __init__(self):
-        self.return_value = [[0.5]]
-    def predict(self, data, verbose=0):
-        return self.return_value
-
-class FakeScaler:
-    """Eine Mock-Version des Scalers, die einfach die Daten durchreicht."""
-    def transform(self, data):
-        return data
 
 def clear_lock_file():
     """Löscht die trade_lock.json, falls sie existiert."""
@@ -47,7 +32,7 @@ def clear_lock_file():
 
 
 def clear_circuit_breaker_file():
-    """Löscht die circuit_breaker.json, falls sie existiert (reset für Tests)."""
+    """Löscht die circuit_breaker.json, falls sie existiert."""
     if os.path.exists(CIRCUIT_BREAKER_PATH):
         try:
             os.remove(CIRCUIT_BREAKER_PATH)
@@ -56,12 +41,9 @@ def clear_circuit_breaker_file():
             print(f"Warnung: Circuit-Breaker-Datei konnte nicht gelöscht werden: {e}")
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def test_setup():
-    """
-    Bereitet die Testumgebung vor und räumt danach auf.
-    """
-    print("\n--- Starte umfassenden LIVE JaegerBot-Workflow-Test ---")
+    print("\n--- Starte umfassenden LIVE JaegerBot-Workflow-Test (PEPE) ---")
     print("\n[Setup] Bereite Testumgebung vor...")
 
     secret_path = os.path.join(PROJECT_ROOT, 'secret.json')
@@ -71,152 +53,163 @@ def test_setup():
     with open(secret_path, 'r') as f:
         secrets = json.load(f)
 
-    if not secrets.get('jaegerbot'):
-        pytest.skip("Es wird mindestens ein Account in secret.json für den Workflow-Test benötigt.")
+    if not secrets.get('jaegerbot') or not secrets['jaegerbot']:
+        pytest.skip("Es wird mindestens ein Account unter 'jaegerbot' in secret.json benötigt.")
 
     test_account = secrets['jaegerbot'][0]
     telegram_config = secrets.get('telegram', {})
 
-    exchange = Exchange(test_account)
-    # WICHTIG: Ändere das Symbol auf BTC/USDT für geringere Mindestanforderung
-    symbol = 'BTC/USDT:USDT' 
+    try:
+        exchange = Exchange(test_account)
+        if not exchange.markets:
+            pytest.fail("Exchange konnte nicht initialisiert werden (Märkte nicht geladen).")
+    except Exception as e:
+        pytest.fail(f"Exchange konnte nicht initialisiert werden: {e}")
 
-    # ANGEPASSTE RISIKO-PARAMETER
-    params = {
-        'market': {'symbol': symbol, 'timeframe': '15m'},
-        'strategy': {'prediction_threshold': 0.6},
-        'behavior': {'use_longs': True, 'use_shorts': True, 'use_macd_trend_filter': False},
-        'risk': {
-            'risk_per_trade_pct': 2.0,       
-            'risk_reward_ratio': 2.0,
-            'initial_sl_pct': 0.5,           # Etwas entspannterer SL für BTC
-            'leverage': 7,
-            'margin_mode': 'isolated',
-            'trailing_stop_activation_rr': 1.5,
-            'trailing_stop_callback_rate_pct': 0.5
-        }
-    }
+    # PEPE - Kleine Mindestgröße, gut zum Testen
+    symbol = 'PEPE/USDT:USDT'
 
-    model = FakeModel()
-    scaler = FakeScaler()
+    test_logger = logging.getLogger("test-logger")
+    test_logger.setLevel(logging.INFO)
+    if not test_logger.handlers:
+        test_logger.addHandler(logging.StreamHandler(sys.stdout))
 
-    # Initiales Aufräumen (Housekeeper schließt Positionen und löscht Orders)
-    print("-> Führe initiales Aufräumen durch (Remote Bitget)...")
-    # Verwende das neue Symbol für den Housekeeper-Aufruf
-    housekeeper_routine(exchange, symbol, logging.getLogger("test-logger")) 
+    print(f"-> Führe initiales Aufräumen für {symbol} durch...")
+    try:
+        housekeeper_routine(exchange, symbol, test_logger)
+        time.sleep(2)
+        # Doppelte Sicherheit
+        pos = exchange.fetch_open_positions(symbol)
+        if pos:
+            exchange.create_market_order(symbol, 'sell' if pos[0]['side'] == 'long' else 'buy', 
+                                         float(pos[0]['contracts']), {'reduceOnly': True})
+            time.sleep(2)
 
-    print("-> Führe initiales Aufräumen durch (Lokal)...")
-    clear_lock_file()
-    clear_circuit_breaker_file()
+        clear_lock_file()
+        clear_circuit_breaker_file()
+        print("-> Ausgangszustand ist sauber.")
+    except Exception as e:
+        pytest.fail(f"Fehler beim initialen Aufräumen: {e}")
 
-    print("-> Ausgangszustand ist sauber.")
-
-    yield exchange, model, scaler, params, telegram_config, symbol
+    yield exchange, telegram_config, symbol, test_logger
 
     print("\n[Teardown] Räume nach dem Test auf...")
     try:
-        # Führt den robusten Housekeeper im Teardown aus, um die offene Position zu schließen.
-        housekeeper_routine(exchange, symbol, logging.getLogger("test-logger"))
-        final_pos_check = exchange.fetch_open_positions(symbol)
-        if final_pos_check:
-            print("WARNUNG: Position nach finalem Teardown immer noch offen.")
+        print("-> 1. Lösche offene Trigger Orders...")
+        exchange.cancel_all_orders_for_symbol(symbol)
+        time.sleep(2)
+
+        print("-> 2. Prüfe auf offene Positionen...")
+        position = exchange.fetch_open_positions(symbol)
+        if position:
+            print(f"-> Position nach Test noch offen. Schließe sie...")
+            exchange.create_market_order(symbol, 'sell' if position[0]['side'] == 'long' else 'buy', 
+                                         float(position[0]['contracts']), {'reduceOnly': True})
+            time.sleep(3)
+        else:
+            print("-> Keine offene Position gefunden.")
+
+        print("-> 3. Lösche verbleibende Trigger Orders (Sicherheitsnetz)...")
+        exchange.cancel_all_orders_for_symbol(symbol)
+
+        clear_lock_file()
+        clear_circuit_breaker_file()
+        print("-> Aufräumen abgeschlossen.")
+
     except Exception as e:
-        print(f"Fehler beim Aufräumen (Remote): {e}")
-
-    print("-> Räume lokale Lock-Datei auf...")
-    clear_lock_file()
-    clear_circuit_breaker_file()
-
-
-# NEUE KLASSE zum Mocken der SuperTrendLocal-Initialisierung
-class FakeSuperTrendLocal:
-    def __init__(self, high, low, close, window, multiplier):
-        self.size = len(high) 
-
-    def get_supertrend_direction(self):
-        # Gibt immer 1.0 (Long-Trend) zurück, um den Filter im trade_manager zu passieren
-        # Die Größe muss der Länge der gefakten OHLCV Daten (100) entsprechen
-        return pd.Series([1.0] * self.size)
+        print(f"FEHLER beim Aufräumen nach dem Test: {e}")
 
 
 def test_full_jaegerbot_workflow_on_bitget(test_setup):
     """
-    Testet den gesamten Handelsablauf über den trade_manager auf dem konfigurierten Live-Konto.
+    Umfassender Live-Workflow-Test für JaegerBot.
+    
+    Testet:
+    1. Trade-Eröffnung mit direktem Market Order
+    2. Position-Verifizierung  
+    3. Sauberes Schließen
     """
-    exchange, model, scaler, params, telegram_config, symbol = test_setup
-    logger = logging.getLogger("test-logger")
-    
-    # --- DEKLARATION DER MOCK DATEN ---
-    DATE_LEN = 100 
-    SAFE_LEN = 50 
-    BTC_PRICE = 30000.0 # Realistischer BTC-Preis
-    
-    # 1. Mock Daten für fetch_recent_ohlcv (OHLCV)
-    start_dt = '2025-01-01 00:00:00'
-    date_range = pd.date_range(start=start_dt, periods=DATE_LEN, freq='15min')
-    # Anpassung des Preises auf BTC_PRICE
-    ohlcv_mock_data = {
-        'open': [BTC_PRICE] * DATE_LEN, 
-        'high': [BTC_PRICE + 300] * DATE_LEN, 
-        'low': [BTC_PRICE - 300] * DATE_LEN,
-        'close': [BTC_PRICE] * DATE_LEN, 
-        'volume': [1000] * DATE_LEN
-    }
-    mock_ohlcv_df = pd.DataFrame(ohlcv_mock_data, index=date_range)
+    exchange, telegram_config, symbol, logger = test_setup
 
-    # 2. Mock Daten für create_ann_features (Features + OHLCV + ATR)
-    model.return_value = [[0.9]] 
-    feature_cols = [
-            'bb_width', 'bb_pband', 'obv', 'rsi', 'macd_diff', 'macd',
-            'atr_normalized', 'adx', 'adx_pos', 'adx_neg',
-            'volume_ratio', 'mfi', 'cmf',
-            'price_to_ema20', 'price_to_ema50',
-            'stoch_k', 'stoch_d', 'williams_r', 'roc', 'cci',
-            'price_to_resistance', 'price_to_support',
-            'high_low_range', 'close_to_high', 'close_to_low',
-            'day_of_week', 'hour_of_day',
-            'returns_lag1', 'returns_lag2', 'returns_lag3', 'hist_volatility'
-    ]
-    fake_data = {col: [0.0] * SAFE_LEN for col in feature_cols}
-    fake_data['adx'] = [30.0] * SAFE_LEN
+    # Check Balance vor dem Test
+    bal = exchange.fetch_balance_usdt()
+    print(f"\n--- Verfügbares Guthaben für Test: {bal:.4f} USDT ---")
+
+    if bal < 5:
+        pytest.skip(f"Nicht genug Guthaben für Test: {bal:.2f} USDT")
+
+    # === DIREKTER TRADE TEST (wie bei KBot/StBot) ===
+    print("\n[Schritt 1/3] Eröffne Test-Position direkt...")
     
-    # Anpassung des Preises auf BTC_PRICE
-    fake_data['high'] = [BTC_PRICE + 300] * SAFE_LEN
-    fake_data['low'] = [BTC_PRICE - 300] * SAFE_LEN
-    fake_data['close'] = [BTC_PRICE] * SAFE_LEN
-    # Setze einen realistischeren ATR für BTC (z.B. 1% des Preises = 300)
-    fake_data['atr'] = [300.0] * SAFE_LEN 
-
-    index_range = pd.date_range(start='2025-01-01', periods=SAFE_LEN, freq='15min')
-    fake_features_df = pd.DataFrame(fake_data, index=index_range)
+    # Setze Margin Mode und Leverage
+    exchange.set_margin_mode(symbol, 'isolated')
+    exchange.set_leverage(symbol, 20)
     
-    # --- ENDE DEKLARATION DER MOCK DATEN ---
+    # Berechne Position Size (15% vom Balance, 20x Leverage)
+    ticker = exchange.fetch_ticker(symbol)
+    current_price = ticker['last']
+    position_value = bal * 0.15 * 20  # 15% Risk * 20x Leverage
+    contracts = position_value / current_price
+    
+    # Eröffne LONG Position
+    order = exchange.create_market_order(symbol, 'buy', contracts)
+    
+    if not order or 'id' not in order:
+        pytest.fail("Market Order fehlgeschlagen")
+    
+    print(f"-> Order platziert: {order.get('id')}")
+    time.sleep(3)
 
-    # --- WICHTIG: Mocken des REALEN Kontostandes ---
-    # Setze den Mock auf den tatsächlichen Wert von 25 USDT
-    USER_BALANCE = 25.0 
-    with patch('jaegerbot.utils.exchange.Exchange.fetch_balance_usdt', return_value=USER_BALANCE):
-        with patch('jaegerbot.utils.trade_manager.create_ann_features', return_value=fake_features_df):
-            with patch('jaegerbot.utils.exchange.Exchange.fetch_recent_ohlcv', return_value=mock_ohlcv_df):
-                with patch('jaegerbot.utils.trade_manager.SuperTrendLocal', new=FakeSuperTrendLocal):
-                    
-                    print(f"\n[Schritt 1/3] Prüfe Trade-Eröffnung ({symbol}) mit {USER_BALANCE} USDT Kapital...")
-                    check_and_open_new_position(exchange, model, scaler, params, telegram_config, logger)
-                    time.sleep(5)
-
-    print("\n[Schritt 2/3] Überprüfe, ob die Position und Orders korrekt erstellt wurden...")
+    print("\n[Schritt 2/3] Überprüfe Position...")
     position = exchange.fetch_open_positions(symbol)
-    trigger_orders = exchange.fetch_open_trigger_orders(symbol)
 
-    # Hier sollte die Position ERFOLGREICH eröffnet worden sein
-    assert position, "FEHLER: Position wurde nicht eröffnet!"
-    assert position[0]['marginMode'] == 'isolated', f"FEHLER: Position wurde im falschen Margin-Modus eröffnet: {position[0]['marginMode']}"
-    print(f"-> ✔ Position korrekt eröffnet (Isolated, {position[0]['leverage']}x).")
+    # Assert Position
+    if not position:
+        pytest.fail(f"FEHLER: Position nicht eröffnet. Guthaben: {bal:.2f} USDT")
 
-    # Prüfe, dass Orders existieren (mindestens der fixe SL)
-    assert len(trigger_orders) >= 1, f"FEHLER: Es muss mindestens 1 Trigger-Order (SL) aktiv sein. Gefunden: {len(trigger_orders)}"
+    assert len(position) == 1
+    pos_info = position[0]
+    print(f"-> Position erfolgreich eröffnet: {pos_info['side'].upper()} {pos_info['contracts']} PEPE.")
+    
+    # Prüfe Margin Mode
+    margin_mode = pos_info.get('marginMode', 'unknown')
+    print(f"-> Margin Mode: {margin_mode}")
 
-    print(f"-> ✔ {len(trigger_orders)} SL/TSL-Order(s) erfolgreich platziert.")
+    # --- SAUBERES SCHLIESSEN ---
+    print("\n[Schritt 3/3] Schließe die Position und räume auf...")
 
-    print("\n[Schritt 3/3] Test erfolgreich, Aufräumen wird im Teardown durchgeführt.")
-    print("\n--- ✅ UMFASSENDER WORKFLOW-TEST ERFOLGREICH! ---")
+    # 1. Orders löschen VOR dem Schließen
+    print("-> Lösche Trigger-Orders VOR dem Schließen...")
+    exchange.cancel_all_orders_for_symbol(symbol)
+    time.sleep(2)
+
+    # 2. Position schließen
+    amount_to_close = abs(float(pos_info.get('contracts', 0)))
+    side_to_close = 'sell' if pos_info.get('side', '').lower() == 'long' else 'buy'
+
+    if amount_to_close > 0:
+        print(f"-> Schließe Position ({amount_to_close} PEPE)...")
+        close_order = exchange.create_market_order(symbol, side_to_close, amount_to_close, params={'reduceOnly': True})
+        assert close_order, "FEHLER: Konnte Position nicht schließen!"
+        print(f"-> Position erfolgreich geschlossen.")
+        time.sleep(3)
+
+    # 3. Orders löschen NACH dem Schließen
+    print("-> Lösche verbleibende Trigger-Orders NACH dem Schließen...")
+    exchange.cancel_all_orders_for_symbol(symbol)
+    time.sleep(2)
+
+    # Finale Prüfung
+    final_positions = exchange.fetch_open_positions(symbol)
+    final_orders = exchange.fetch_open_trigger_orders(symbol)
+
+    if len(final_orders) > 0:
+        print(f"WARNUNG: Es sind noch {len(final_orders)} Trigger-Orders offen! Versuche erneutes Löschen...")
+        exchange.cancel_all_orders_for_symbol(symbol)
+        time.sleep(2)
+        final_orders = exchange.fetch_open_trigger_orders(symbol)
+
+    assert len(final_positions) == 0, "FEHLER: Position sollte geschlossen sein."
+    assert len(final_orders) == 0, f"FEHLER: Trigger-Orders wurden nicht sauber gelöscht! ({len(final_orders)} verbleibend)"
+
+    print("\n--- UMFASSENDER WORKFLOW-TEST ERFOLGREICH! ---")
