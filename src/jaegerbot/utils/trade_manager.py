@@ -12,7 +12,6 @@ from jaegerbot.utils.telegram import send_message
 from jaegerbot.utils.ann_model import create_ann_features
 from jaegerbot.utils.exchange import Exchange
 from jaegerbot.utils.supertrend_indicator import SuperTrendLocal
-from jaegerbot.utils.circuit_breaker import is_trading_allowed, update_circuit_breaker, get_circuit_breaker_status
 
 # Pfade für die Lock-Datei definieren
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
@@ -101,30 +100,6 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
     strategy_id = f"{symbol.replace('/', '').replace(':', '')}_{timeframe}"
     account_name = exchange.account.get('name', 'Standard-Account')
     
-    # *** CIRCUIT BREAKER CHECK ***
-    # Erst den aktuellen Status aktualisieren, DANN prüfen!
-    current_balance = exchange.fetch_balance_usdt()
-    circuit_status = update_circuit_breaker(current_balance)
-
-    if circuit_status == 'STOP_ALL_TRADING':
-        logger.critical("🚨 CIRCUIT BREAKER AKTIV - Trading gestoppt!")
-        send_message(
-            telegram_config.get('bot_token'),
-            telegram_config.get('chat_id'),
-            f"🚨 CIRCUIT BREAKER AUSGELÖST\n\nTrading wurde automatisch gestoppt!\nDrawdown: >10%\nBalance: {current_balance:.2f} USDT"
-        )
-        return
-    
-    # Lade persistenten Circuit-Status (z.B. reduced-Flag)
-    cb_status = get_circuit_breaker_status()
-    reduced_flag = cb_status.get('reduced', False)
-    reduction_factor = cb_status.get('reduction_factor', 1.0)
-
-    if reduced_flag:
-        logger.warning(f"⚠️  Drawdown Warning: Position Size wird reduziert (Factor={reduction_factor})")
-        # Hinweis: Wir ändern `params` nicht dauerhaft hier; die Reduktion ist persistent gesteuert
-    # *** ENDE CIRCUIT BREAKER CHECK ***
-
     logger.info("Suche nach neuen Signalen...")
     data = exchange.fetch_recent_ohlcv(symbol, timeframe, limit=500)
 
