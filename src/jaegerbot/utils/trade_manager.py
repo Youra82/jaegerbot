@@ -254,9 +254,7 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
         try:
             if not exchange.set_leverage(symbol, leverage): return
             if not exchange.set_margin_mode(symbol, p.get('margin_mode', 'isolated')): return
-
-            order_params = {'marginMode': p['margin_mode']}
-            exchange.create_market_order(symbol, side, amount, params=order_params)
+                # Circuit Breaker deaktiviert – kein Risk-Scaling
 
             time.sleep(2)
 
