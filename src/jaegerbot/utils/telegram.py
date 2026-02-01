@@ -9,12 +9,8 @@ def send_message(bot_token, chat_id, message):
         logger.warning("Telegram Bot-Token oder Chat-ID nicht konfiguriert.")
         return
 
-    escape_chars = '_*[]()~`>#+-=|{}.!'
-    for char in escape_chars:
-        message = message.replace(char, f'\\{char}')
-
     api_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    payload = {'chat_id': chat_id, 'text': message, 'parse_mode': 'MarkdownV2'}
+    payload = {'chat_id': chat_id, 'text': message, 'parse_mode': 'HTML'}
 
     try:
         response = requests.post(api_url, data=payload, timeout=10)
