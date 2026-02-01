@@ -232,8 +232,8 @@ def test_full_jaegerbot_workflow_on_bitget(test_setup):
             print("\n[Schritt 1/3] Mocke ANN-Signal und prüfe Trade-Eröffnung...")
             check_and_open_new_position(exchange, model, scaler, params, telegram_config, logger)
 
-    print("-> Warte 8s auf Order-Ausführung (erhöht für Bitget Ausführung)...")
-    time.sleep(8)
+    print("-> Warte 11s auf Order-Ausführung (erhöht für Bitget Ausführung, TSL-Hitverifikation)...")
+    time.sleep(11)
 
     print("\n[Schritt 2/3] Überprüfe Position und Orders...")
     position = exchange.fetch_open_positions(symbol)
@@ -278,6 +278,8 @@ def test_full_jaegerbot_workflow_on_bitget(test_setup):
                 exchange.place_trigger_market_order(symbol, 'sell', final_amount, sl_price, {'reduceOnly': True})
                 try:
                     exchange.place_trailing_stop_order(symbol, 'sell', final_amount, activation_price, callback_rate, {'reduceOnly': True})
+                    # Kurze Pause nach TSL-Platzierung, damit der Exchange die Order registriert
+                    time.sleep(2)
                 except Exception as e:
                     logger.warning(f"Fallback: TSL-Platzierung fehlgeschlagen: {e}")
             except Exception as e:
@@ -296,6 +298,8 @@ def test_full_jaegerbot_workflow_on_bitget(test_setup):
     print(f"-> Margin Mode: {margin_mode}")
 
     # Assert Orders (SL + optional TSL)
+    # Kurze Wartezeit, damit native TSLs vom Exchange registriert werden können
+    time.sleep(2)
     trigger_orders = exchange.fetch_open_trigger_orders(symbol)
     if len(trigger_orders) == 0:
         print("WARNUNG: Keine Trigger-Orders im API-Return gefunden (kann bei PEPE vorkommen).")
