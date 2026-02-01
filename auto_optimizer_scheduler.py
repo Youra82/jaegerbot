@@ -270,7 +270,8 @@ def run_optimization_python() -> bool:
         "--min_win_rate", str(min_wr),
         "--trials", str(n_trials),
         "--min_pnl", str(min_pnl),
-        "--mode", "strict"
+        "--mode", "strict",
+        "--threshold", "0.6"
     ]
     
     log(f"Führe aus: {' '.join(cmd[:5])}...")
