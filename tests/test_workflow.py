@@ -166,7 +166,7 @@ def test_full_jaegerbot_workflow_on_bitget(test_setup):
 
     # 2. Mock Daten für create_ann_features (Features + OHLCV + ATR)
     model.return_value = [[0.9]] 
-        feature_cols = [
+    feature_cols = [
             'bb_width', 'bb_pband', 'obv', 'rsi', 'macd_diff', 'macd',
             'atr_normalized', 'adx', 'adx_pos', 'adx_neg',
             'volume_ratio', 'mfi', 'cmf',
@@ -176,7 +176,7 @@ def test_full_jaegerbot_workflow_on_bitget(test_setup):
             'high_low_range', 'close_to_high', 'close_to_low',
             'day_of_week', 'hour_of_day',
             'returns_lag1', 'returns_lag2', 'returns_lag3', 'hist_volatility'
-        ]
+    ]
     fake_data = {col: [0.0] * SAFE_LEN for col in feature_cols}
     fake_data['adx'] = [30.0] * SAFE_LEN
     
