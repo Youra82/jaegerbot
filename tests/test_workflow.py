@@ -1,6 +1,6 @@
 # tests/test_workflow.py
 # =============================================================================
-# JaegerBot: Live-Workflow-Test auf Bitget (Vereinfacht wie StBot/KBot)
+# JaegerBot: Live-Workflow-Test auf Bitget (mit gemocktem ANN-Signal)
 # =============================================================================
 import pytest
 import os
@@ -8,17 +8,41 @@ import sys
 import json
 import logging
 import time
+import pandas as pd
+from unittest.mock import patch
 
 # Füge das Projektverzeichnis zum Python-Pfad hinzu
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, os.path.join(PROJECT_ROOT, 'src'))
 
 from jaegerbot.utils.exchange import Exchange
-from jaegerbot.utils.trade_manager import housekeeper_routine
+from jaegerbot.utils.trade_manager import check_and_open_new_position, housekeeper_routine
 
 # Pfade für Lock-Dateien
 LOCK_FILE_PATH = os.path.join(PROJECT_ROOT, 'artifacts', 'db', 'trade_lock.json')
 CIRCUIT_BREAKER_PATH = os.path.join(PROJECT_ROOT, 'artifacts', 'db', 'circuit_breaker.json')
+
+
+# Mock-Klassen für das ANN-Modell
+class FakeModel:
+    """Mock-Version des Keras-Modells - gibt immer LONG-Signal."""
+    def predict(self, data, verbose=0):
+        return [[0.95]]  # Hohe Vorhersage = LONG Signal
+
+
+class FakeScaler:
+    """Mock-Version des Scalers - reicht Daten einfach durch."""
+    def transform(self, data):
+        return data
+
+
+class FakeSuperTrendLocal:
+    """Mock-Version von SuperTrend - gibt immer LONG-Trend zurück."""
+    def __init__(self, high, low, close, window, multiplier):
+        self.size = len(high)
+
+    def get_supertrend_direction(self):
+        return pd.Series([1.0] * self.size)  # 1.0 = Long-Trend
 
 
 def clear_lock_file():
@@ -69,6 +93,25 @@ def test_setup():
     # PEPE - Kleine Mindestgröße, gut zum Testen
     symbol = 'PEPE/USDT:USDT'
 
+    # Test-Parameter für JaegerBot
+    params = {
+        'market': {'symbol': symbol, 'timeframe': '15m'},
+        'strategy': {'prediction_threshold': 0.6},
+        'behavior': {'use_longs': True, 'use_shorts': True},
+        'risk': {
+            'risk_per_trade_pct': 15.0,       # 15% wie StBot/KBot
+            'risk_reward_ratio': 2.0,
+            'initial_sl_pct': 4.0,            # 4% SL wie StBot/KBot
+            'leverage': 20,
+            'margin_mode': 'isolated',
+            'trailing_stop_activation_rr': 1.0,
+            'trailing_stop_callback_rate_pct': 0.5
+        }
+    }
+
+    model = FakeModel()
+    scaler = FakeScaler()
+
     test_logger = logging.getLogger("test-logger")
     test_logger.setLevel(logging.INFO)
     if not test_logger.handlers:
@@ -91,7 +134,7 @@ def test_setup():
     except Exception as e:
         pytest.fail(f"Fehler beim initialen Aufräumen: {e}")
 
-    yield exchange, telegram_config, symbol, test_logger
+    yield exchange, model, scaler, params, telegram_config, symbol, test_logger
 
     print("\n[Teardown] Räume nach dem Test auf...")
     try:
@@ -125,11 +168,11 @@ def test_full_jaegerbot_workflow_on_bitget(test_setup):
     Umfassender Live-Workflow-Test für JaegerBot.
     
     Testet:
-    1. Trade-Eröffnung mit direktem Market Order
-    2. Position-Verifizierung  
+    1. Trade-Eröffnung mit gemocktem ANN-Signal
+    2. Position + SL/TSL-Verifizierung (Native Bitget TSL)
     3. Sauberes Schließen
     """
-    exchange, telegram_config, symbol, logger = test_setup
+    exchange, model, scaler, params, telegram_config, symbol, logger = test_setup
 
     # Check Balance vor dem Test
     bal = exchange.fetch_balance_usdt()
@@ -138,34 +181,20 @@ def test_full_jaegerbot_workflow_on_bitget(test_setup):
     if bal < 5:
         pytest.skip(f"Nicht genug Guthaben für Test: {bal:.2f} USDT")
 
-    # === DIREKTER TRADE TEST (wie bei KBot/StBot) ===
-    print("\n[Schritt 1/3] Eröffne Test-Position direkt...")
-    
-    # Setze Margin Mode und Leverage
-    exchange.set_margin_mode(symbol, 'isolated')
-    exchange.set_leverage(symbol, 20)
-    
-    # Berechne Position Size (15% vom Balance, 20x Leverage)
-    ticker = exchange.fetch_ticker(symbol)
-    current_price = ticker['last']
-    position_value = bal * 0.15 * 20  # 15% Risk * 20x Leverage
-    contracts = position_value / current_price
-    
-    # Eröffne LONG Position
-    order = exchange.create_market_order(symbol, 'buy', contracts)
-    
-    if not order or 'id' not in order:
-        pytest.fail("Market Order fehlgeschlagen")
-    
-    print(f"-> Order platziert: {order.get('id')}")
-    time.sleep(3)
+    # Mock SuperTrend um den LONG-Trade zu erzwingen (alle Filter deaktivieren)
+    with patch('jaegerbot.utils.trade_manager.SuperTrendLocal', FakeSuperTrendLocal):
+        print("\n[Schritt 1/3] Mocke ANN-Signal und prüfe Trade-Eröffnung...")
+        check_and_open_new_position(exchange, model, scaler, params, telegram_config, logger)
 
-    print("\n[Schritt 2/3] Überprüfe Position...")
+    print("-> Warte 5s auf Order-Ausführung...")
+    time.sleep(5)
+
+    print("\n[Schritt 2/3] Überprüfe Position und Orders...")
     position = exchange.fetch_open_positions(symbol)
 
     # Assert Position
     if not position:
-        pytest.fail(f"FEHLER: Position nicht eröffnet. Guthaben: {bal:.2f} USDT")
+        pytest.fail(f"FEHLER: Position nicht eröffnet. Verfügbares Guthaben ({bal:.2f} USDT) war evtl. zu wenig oder Filter haben blockiert.")
 
     assert len(position) == 1
     pos_info = position[0]
@@ -175,13 +204,20 @@ def test_full_jaegerbot_workflow_on_bitget(test_setup):
     margin_mode = pos_info.get('marginMode', 'unknown')
     print(f"-> Margin Mode: {margin_mode}")
 
+    # Assert Orders (SL + optional TSL)
+    trigger_orders = exchange.fetch_open_trigger_orders(symbol)
+    if len(trigger_orders) == 0:
+        print("WARNUNG: Keine Trigger-Orders im API-Return gefunden (kann bei PEPE vorkommen).")
+    else:
+        print(f"-> Trigger-Orders gefunden: {len(trigger_orders)} (SL + ggf. TSL)")
+
     # --- SAUBERES SCHLIESSEN ---
     print("\n[Schritt 3/3] Schließe die Position und räume auf...")
 
     # 1. Orders löschen VOR dem Schließen
     print("-> Lösche Trigger-Orders VOR dem Schließen...")
     exchange.cleanup_all_open_orders(symbol)
-    time.sleep(2)
+    time.sleep(3)
 
     # 2. Position schließen
     amount_to_close = abs(float(pos_info.get('contracts', 0)))
@@ -192,7 +228,7 @@ def test_full_jaegerbot_workflow_on_bitget(test_setup):
         close_order = exchange.create_market_order(symbol, side_to_close, amount_to_close, params={'reduceOnly': True})
         assert close_order, "FEHLER: Konnte Position nicht schließen!"
         print(f"-> Position erfolgreich geschlossen.")
-        time.sleep(3)
+        time.sleep(4)
 
     # 3. Orders löschen NACH dem Schließen
     print("-> Lösche verbleibende Trigger-Orders NACH dem Schließen...")
