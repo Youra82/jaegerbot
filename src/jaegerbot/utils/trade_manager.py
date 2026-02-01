@@ -200,11 +200,7 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
         p = params['risk']
         # Basis-Risk aus Config
         base_risk_pct = p['risk_per_trade_pct']
-        # Wenn Circuit Breaker-Reduktion aktiv ist, wende Faktor an (persistent gesteuert)
-        if reduced_flag:
-            applied_risk_pct = base_risk_pct * reduction_factor
-        else:
-            applied_risk_pct = base_risk_pct
+        applied_risk_pct = base_risk_pct
 
         risk_per_trade_pct = applied_risk_pct / 100.0
         risk_reward_ratio = p['risk_reward_ratio']
