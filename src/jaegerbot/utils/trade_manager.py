@@ -248,8 +248,9 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
 
         # --- Trade-Eröffnung ---
         try:
-            if not exchange.set_leverage(symbol, leverage): return
+            # Setze zuerst Margin Mode (isolated) bevor Hebel, damit Bitget den Modus korrekt übernimmt
             if not exchange.set_margin_mode(symbol, p.get('margin_mode', 'isolated')): return
+            if not exchange.set_leverage(symbol, leverage, p.get('margin_mode', 'isolated')): return
                 # Circuit Breaker deaktiviert – kein Risk-Scaling
 
             time.sleep(2)
