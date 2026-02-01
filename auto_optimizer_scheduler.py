@@ -30,6 +30,11 @@ CACHE_DIR = SCRIPT_DIR / "data" / "cache"
 LAST_RUN_FILE = CACHE_DIR / ".last_optimization_run"
 LOG_FILE = SCRIPT_DIR / "logs" / "scheduler.log"
 
+# Füge src/ zum Python-Pfad hinzu (wichtig für Hintergrund-Prozesse)
+SRC_DIR = SCRIPT_DIR / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
 # Python-Interpreter aus venv (falls vorhanden)
 if sys.platform == "win32":
     VENV_PYTHON = SCRIPT_DIR / ".venv" / "Scripts" / "python.exe"
@@ -129,7 +134,12 @@ def send_telegram(message: str) -> bool:
         
         if bot_token and chat_id:
             send_message(bot_token, chat_id, message)
+            log(f"✅ Telegram-Nachricht gesendet")
             return True
+        else:
+            log(f"⚠️ Telegram nicht konfiguriert (bot_token oder chat_id fehlt)")
+    except ImportError as e:
+        log(f"Telegram Import-Fehler: {e}")
     except Exception as e:
         log(f"Telegram-Fehler: {e}")
     return False
