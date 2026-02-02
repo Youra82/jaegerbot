@@ -154,13 +154,13 @@ def test_setup():
         }
     }
 
-        # Optional: Force Notional via Env (z.B. JAEGER_PEPE_NOTIONAL_USDT=2)
-        force_notional = os.getenv('JAEGER_PEPE_NOTIONAL_USDT')
-        if force_notional:
-            try:
-                params['risk']['force_notional_usdt'] = float(force_notional)
-            except Exception:
-                pass
+    # Optional: Force Notional via Env (z.B. JAEGER_PEPE_NOTIONAL_USDT=2)
+    force_notional = os.getenv('JAEGER_PEPE_NOTIONAL_USDT')
+    if force_notional:
+        try:
+            params['risk']['force_notional_usdt'] = float(force_notional)
+        except Exception:
+            pass
 
     model = FakeModel()
     scaler = FakeScaler()
