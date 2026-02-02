@@ -117,16 +117,14 @@ class Exchange:
         return self.exchange.fetch_ticker(symbol)
 
     def set_margin_mode(self, symbol, mode='isolated'):
+        if not self.markets: return False
         try:
-            params = {
-                'productType': 'USDT-FUTURES',
-                'marginCoin': 'USDT'
-            }
-            self.exchange.set_margin_mode(mode, symbol, params)
+            # Bitget/ccxt: call set_margin_mode with (mode, symbol) as in UTBot2 implementation
+            self.exchange.set_margin_mode(mode, symbol)
             logger.info(f"Margin-Modus auf '{mode}' gesetzt für {symbol}")
             return True
         except Exception as e:
-            if 'Margin mode is the same' not in str(e): 
+            if 'Margin mode is the same' not in str(e):
                 logger.warning(f"Warnung: Margin-Modus konnte nicht gesetzt werden: {e}")
             else:
                 logger.info(f"Margin-Modus ist bereits '{mode}' für {symbol}")
