@@ -4,6 +4,10 @@ import pandas as pd
 from datetime import datetime, timezone
 import logging
 import time # Hinzugefügt: Import der time Bibliothek für sleep
+import os
+from decimal import Decimal, ROUND_CEILING, getcontext
+# Setze dezimale Genauigkeit ausreichend hoch
+getcontext().prec = 28
 
 # NEU: Logger für diese Datei holen
 logger = logging.getLogger(__name__)
@@ -162,8 +166,70 @@ class Exchange:
                 return True
             return False
 
-    def create_market_order(self, symbol, side, amount, params={}):
+    def create_market_order(self, symbol, side, amount, params=None):
+        # Standard-Params für USDT-Futures
+        if params is None:
+            params = {}
+        params.setdefault('productType', 'USDT-FUTURES')
+        params.setdefault('marginCoin', 'USDT')
+        params.setdefault('marginMode', os.getenv('JAEGER_MARGIN_MODE', 'isolated'))
+
+        # Berechne vorläufig gerundete Menge
+        # Sorgfältige Berechnung, so dass nach rounding der Order-Wert >= Exchange Minimum ist
         rounded_amount = float(self.exchange.amount_to_precision(symbol, amount))
+
+        # Prüfe auf Exchange Mindest-Notional und wenn nötig, berechne aufwärts gerundete Kontrakte
+        try:
+            min_notional = self.get_min_notional(symbol)
+        except Exception:
+            min_notional = None
+
+        if min_notional and min_notional > 0:
+            try:
+                ticker = self.fetch_ticker(symbol)
+                price = Decimal(str(ticker.get('last', ticker.get('close', 0))))
+                if price == 0:
+                    raise Exception('Unable to determine current price for min_notional check')
+
+                # Berechne benötigte Contracts (aufwärts runden entsprechend market precision)
+                market = self.markets.get(symbol, {}) if self.markets else {}
+                precision = None
+                try:
+                    precision = market.get('precision', {}).get('amount')
+                except Exception:
+                    precision = None
+
+                if precision is None:
+                    step = Decimal('1')
+                else:
+                    step = Decimal(1) / (Decimal(10) ** Decimal(int(precision)))
+
+                required_contracts = (Decimal(str(min_notional)) / price / step).to_integral_value(rounding=ROUND_CEILING) * step
+
+                # Wandle zurück in float und zur exchange-precision
+                required_contracts_float = float(required_contracts)
+                rounded_required = float(self.exchange.amount_to_precision(symbol, required_contracts_float))
+
+                # Absicherung: falls nach exchange rounding der Wert kleiner ist als min_notional, erhöhe leicht
+                cost = Decimal(str(rounded_required)) * price
+                attempts = 0
+                max_attempts = 10000
+                while cost < Decimal(str(min_notional)) and attempts < max_attempts:
+                    # Erhöhe um einen Schritt
+                    required_contracts += step
+                    required_contracts_float = float(required_contracts)
+                    rounded_required = float(self.exchange.amount_to_precision(symbol, required_contracts_float))
+                    cost = Decimal(str(rounded_required)) * price
+                    attempts += 1
+
+                if cost >= Decimal(str(min_notional)):
+                    rounded_amount = rounded_required
+                    logger.info(f"Adjusted order size to {rounded_amount} contracts to meet min_notional {min_notional} USDT (cost {cost})")
+                else:
+                    logger.warning(f"Could not adjust order size to meet min_notional {min_notional} after {attempts} attempts; proceeding with rounded_amount={rounded_amount}")
+            except Exception as e:
+                logger.warning(f"Warnung bei min_notional check: {e}")
+
         return self.exchange.create_order(symbol, 'market', side, rounded_amount, params=params)
 
     def place_trigger_market_order(self, symbol, side, amount, trigger_price, params={}):
