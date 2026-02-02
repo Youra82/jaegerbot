@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.join(PROJECT_ROOT, 'src'))
 
 from jaegerbot.utils.exchange import Exchange
 from jaegerbot.utils.trade_manager import check_and_open_new_position, housekeeper_routine
+from jaegerbot.utils.telegram import send_message
 
 # Pfade für Lock-Dateien
 LOCK_FILE_PATH = os.path.join(PROJECT_ROOT, 'artifacts', 'db', 'trade_lock.json')
@@ -317,6 +318,25 @@ def test_full_jaegerbot_workflow_on_bitget(test_setup):
                 try:
                     exchange.place_trailing_stop_order(symbol, 'sell', final_amount, activation_price, callback_rate, {'reduceOnly': True})
                     # Kurze Pause nach TSL-Platzierung, damit der Exchange die Order registriert
+                    # --- Sende Telegram-Benachrichtigung bei Fallback-Positionseröffnung ---
+                    account_name = exchange.account.get('name', 'Account')
+                    final_amount = float(pos_info.get('contracts'))
+                    leverage = params['risk'].get('leverage', 20)
+                    tsl_msg = "TSL aktiv (Aktivierung @ ${:.4f})".format(activation_price) if 'activation_price' in locals() else "KEIN TSL aktiv (nur fixer SL)"
+                    message = (
+                        f"🧠 ANN Signal für *{account_name}* ({symbol}, BUY)\n"
+                        f"- Entry @ Market (≈${current_price:.4f})\n"
+                        f"- Positionswert: ${position_value:.2f} | Menge: {final_amount:.4f} Contracts\n"
+                        f"- SL: ${sl_price:.4f} (DYNAMISCHE SICHERHEIT)\n"
+                        f"- TP: , {tsl_msg}\n"
+                        f"- Hebel: {leverage}x | Margin Mode: {params['risk'].get('margin_mode', 'isolated')}"
+                    )
+                    sent = send_message(telegram_config.get('bot_token'), telegram_config.get('chat_id'), message)
+                    if sent:
+                        print("-> Telegram-Benachrichtigung für Fallback-Order gesendet.")
+                    else:
+                        print("-> WARNUNG: Telegram-Benachrichtigung für Fallback-Order konnte nicht gesendet werden.")
+
                     time.sleep(2)
                 except Exception as e:
                     logger.warning(f"Fallback: TSL-Platzierung fehlgeschlagen: {e}")
