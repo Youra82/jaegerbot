@@ -309,12 +309,17 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
             # --- Erfolgsnachricht senden ---
             set_trade_lock(strategy_id, last_candle_timestamp)
 
-            tsl_status = f", TSL aktiv (Aktivierung @ ${activation_price_rounded:.4f})" if tsl_placed else " - KEIN TSL aktiv (nur fixer SL)"
+            tsl_status = f"TSL aktiv (Aktivierung @ ${activation_price_rounded:.4f})" if tsl_placed else "KEIN TSL aktiv (nur fixer SL)"
 
-            message = (f"🧠 ANN Signal für *{account_name}* ({symbol}, {side.upper()})\n"
-                        f"- Entry @ Market (≈${entry_price:.4f})\n"
-                        f"- SL: ${sl_rounded:.4f} (DYNAMISCHE SICHERHEIT)\n"
-                        f"- TP: {tsl_status}")
+            # Erweiterte Telegram-Nachricht (ähnlich der gewünschten Vorlage)
+            message = (
+                f"🧠 ANN Signal für *{account_name}* ({symbol}, {side.upper()})\n"
+                f"- Entry @ Market (≈${entry_price:.4f})\n"
+                f"- Positionswert: ${notional_value:.2f} | Menge: {final_amount:.4f} Contracts\n"
+                f"- SL: ${sl_rounded:.4f} (DYNAMISCHE SICHERHEIT)\n"
+                f"- TP: , {tsl_status}\n"
+                f"- Hebel: {leverage}x | Margin Mode: {p.get('margin_mode', 'isolated')}"
+            )
             sent = send_message(telegram_config.get('bot_token'), telegram_config.get('chat_id'), message)
             if sent:
                 logger.info("Telegram-Benachrichtigung: Trade-Eröffnung gesendet.")
