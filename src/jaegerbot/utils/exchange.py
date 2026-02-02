@@ -117,19 +117,33 @@ class Exchange:
         return self.exchange.fetch_ticker(symbol)
 
     def set_margin_mode(self, symbol, mode='isolated'):
+        """Versuche Margin Mode zu setzen. Auf manchen ccxt-Versionen benötigt Bitget zusätzliche params.
+
+        Wir versuchen zuerst mit Produkt-Params (empfohlen), und falls das fehlschlägt, versuchen wir eine einfache Signatur.
+        """
         if not self.markets: return False
+        params = {
+            'productType': 'USDT-FUTURES',
+            'marginCoin': 'USDT'
+        }
         try:
-            # Bitget/ccxt: call set_margin_mode with (mode, symbol) as in UTBot2 implementation
-            self.exchange.set_margin_mode(mode, symbol)
-            logger.info(f"Margin-Modus auf '{mode}' gesetzt für {symbol}")
+            # Versuche mit params (sicher für viele ccxt-Versionen)
+            self.exchange.set_margin_mode(mode, symbol, params)
+            logger.info(f"Margin-Modus auf '{mode}' gesetzt für {symbol} (mit params)")
             return True
-        except Exception as e:
-            if 'Margin mode is the same' not in str(e):
-                logger.warning(f"Warnung: Margin-Modus konnte nicht gesetzt werden: {e}")
-            else:
-                logger.info(f"Margin-Modus ist bereits '{mode}' für {symbol}")
+        except Exception as e1:
+            # Fallback: Versuche einfache Signatur (einige Implementierungen erwarten nur mode+symbol)
+            try:
+                self.exchange.set_margin_mode(mode, symbol)
+                logger.info(f"Margin-Modus auf '{mode}' gesetzt für {symbol} (ohne params, Fallback)")
                 return True
-            return False
+            except Exception as e2:
+                # Spezielles Handling wenn Meldung besagt, dass Modus bereits gesetzt ist
+                if 'Margin mode is the same' in str(e1) or 'Margin mode is the same' in str(e2):
+                    logger.info(f"Margin-Modus ist bereits '{mode}' für {symbol}")
+                    return True
+                logger.warning(f"Warnung: Margin-Modus konnte nicht gesetzt werden: {e1} | {e2}")
+                return False
 
     def set_leverage(self, symbol, level=10, margin_mode=None):
         try:
