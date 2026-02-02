@@ -1,21 +1,34 @@
 #!/bin/bash
-# Dieses Skript führt das komplette Test-Sicherheitsnetz aus.
 echo "--- Starte JaegerBot-Sicherheitsnetz ---"
 
-# Stell sicher, dass beim Live-Test PEPE mit sehr kleinem Notional getestet wird
-# Setzt das Notional (USDT) für PEPE auf 0.1 USDT (sicherheitsorientiert) und übergibt den Margin-Mode an die Tests
-export JAEGER_PEPE_NOTIONAL_USDT=${JAEGER_PEPE_NOTIONAL_USDT:-0.1}
+if [ ! -f ".venv/bin/activate" ]; then
+    echo "Fehler: Virtuelle Umgebung nicht gefunden. Bitte install.sh ausführen."
+    exit 1
+fi
+source .venv/bin/activate
+
+# Standard-Defaults: Notional 5 USDT, Margin Mode isolated
+export JAEGER_PEPE_NOTIONAL_USDT=${JAEGER_PEPE_NOTIONAL_USDT:-5}
 export JAEGER_MARGIN_MODE=${JAEGER_MARGIN_MODE:-isolated}
 
 echo "-> Test-Umgebungsvariablen: JAEGER_PEPE_NOTIONAL_USDT=${JAEGER_PEPE_NOTIONAL_USDT}, JAEGER_MARGIN_MODE=${JAEGER_MARGIN_MODE}"
 
-# Aktiviere die virtuelle Umgebung
-source .venv/bin/activate
+echo "Führe Pytest aus (inkl. Live-Workflow-Test)..."
+if python3 -m pytest -v -s; then
+    echo "Pytest erfolgreich durchgelaufen. Alle Tests bestanden."
+    EXIT_CODE=0
+else
+    PYTEST_EXIT_CODE=$?
+    if [ $PYTEST_EXIT_CODE -eq 5 ]; then
+        echo "Pytest beendet: Keine Tests zum Ausführen gefunden."
+        EXIT_CODE=0
+    else
+        echo "Pytest fehlgeschlagen (Exit Code: $PYTEST_EXIT_CODE)."
+        EXIT_CODE=$PYTEST_EXIT_CODE
+    fi
+fi
 
-# Führe pytest aus. -v für mehr Details, -s um print() Ausgaben anzuzeigen.
-python3 -m pytest -v -s
-
-# Deaktiviere die Umgebung wieder
 deactivate
 
 echo "--- Sicherheitscheck abgeschlossen ---"
+exit $EXIT_CODE

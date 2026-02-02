@@ -256,10 +256,29 @@ def test_full_jaegerbot_workflow_on_bitget(test_setup):
 
             ticker = exchange.fetch_ticker(symbol)
             current_price = ticker['last']
-            # Verwende den im Test konfigurierten Risiko-Prozentsatz
-            rpct = params['risk'].get('risk_per_trade_pct', 50.0) / 100.0
-            leverage = params['risk'].get('leverage', 20)
-            position_value = bal * rpct * leverage
+            # Verwende erzwungenes Notional (params > ENV), falls vorhanden, ansonsten das Balance-basierte Fallback
+            force_notional = None
+            try:
+                force_notional = params['risk'].get('force_notional_usdt') if isinstance(params.get('risk'), dict) else None
+            except Exception:
+                force_notional = None
+
+            if not force_notional:
+                env_force = os.getenv('JAEGER_PEPE_NOTIONAL_USDT') or os.getenv('JAEGER_FORCE_NOTIONAL_USDT')
+                if env_force:
+                    try:
+                        force_notional = float(env_force)
+                    except Exception:
+                        force_notional = None
+
+            if force_notional and float(force_notional) > 0:
+                position_value = float(force_notional)
+            else:
+                # Verwende den im Test konfigurierten Risiko-Prozentsatz
+                rpct = params['risk'].get('risk_per_trade_pct', 50.0) / 100.0
+                leverage = params['risk'].get('leverage', 20)
+                position_value = bal * rpct * leverage
+
             contracts = position_value / current_price
 
             print(f"-> Fallback Market-Order: contracts={contracts:.6f} @ {current_price}")
