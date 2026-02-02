@@ -210,27 +210,84 @@ class Exchange:
                 required_contracts_float = float(required_contracts)
                 rounded_required = float(self.exchange.amount_to_precision(symbol, required_contracts_float))
 
-                # Absicherung: falls nach exchange rounding der Wert kleiner ist als min_notional, erhöhe leicht
+                # Absicherung: falls nach exchange rounding der Wert kleiner ist als min_notional, erhöhe iterativ und versuche Order
                 cost = Decimal(str(rounded_required)) * price
                 attempts = 0
-                max_attempts = 10000
-                while cost < Decimal(str(min_notional)) and attempts < max_attempts:
-                    # Erhöhe um einen Schritt
-                    required_contracts += step
-                    required_contracts_float = float(required_contracts)
-                    rounded_required = float(self.exchange.amount_to_precision(symbol, required_contracts_float))
-                    cost = Decimal(str(rounded_required)) * price
+                max_attempts = 20
+                adjusted = False
+                candidate = required_contracts
+                while attempts < max_attempts:
+                    candidate_float = float(candidate)
+                    candidate_rounded = float(self.exchange.amount_to_precision(symbol, candidate_float))
+                    cost = Decimal(str(candidate_rounded)) * price
+                    if cost >= Decimal(str(min_notional)):
+                        rounded_amount = candidate_rounded
+                        adjusted = True
+                        logger.info(f"Adjusted order size to {rounded_amount} contracts to meet min_notional {min_notional} USDT (cost {cost})")
+                        break
+                    # Erhöhe um einen Schritt und probiere erneut
+                    candidate += step
                     attempts += 1
 
-                if cost >= Decimal(str(min_notional)):
-                    rounded_amount = rounded_required
-                    logger.info(f"Adjusted order size to {rounded_amount} contracts to meet min_notional {min_notional} USDT (cost {cost})")
-                else:
-                    logger.warning(f"Could not adjust order size to meet min_notional {min_notional} after {attempts} attempts; proceeding with rounded_amount={rounded_amount}")
+                if not adjusted:
+                    logger.warning(f"Could not adjust order size to meet min_notional {min_notional} after {attempts} attempts; will try placement and retry on explicit 'min amount' error. Applying safety buffer on retries.")
+                    # Safety buffer: try with slightly larger notional to account for price/contract differences
+                    buffered_min_notional = Decimal(str(min_notional)) * Decimal('1.05')
+                    try:
+                        buffered_contracts = (buffered_min_notional / price / step).to_integral_value(rounding=ROUND_CEILING) * step
+                        rounded_buffered = float(self.exchange.amount_to_precision(symbol, float(buffered_contracts)))
+                        rounded_amount = rounded_buffered
+                        logger.info(f"Applying buffered min_notional: using rounded_amount={rounded_amount} for placement (buffered_min_notional={buffered_min_notional})")
+                    except Exception as e:
+                        logger.warning(f"Could not apply buffered min_notional: {e}")
             except Exception as e:
                 logger.warning(f"Warnung bei min_notional check: {e}")
 
-        return self.exchange.create_order(symbol, 'market', side, rounded_amount, params=params)
+        # Versuche die Order zu platzieren; bei 'less than the minimum amount' Retry mit leicht erhöhtem Size
+        try:
+            return self.exchange.create_order(symbol, 'market', side, rounded_amount, params=params)
+        except Exception as e:
+            msg = str(e)
+            if 'less than the minimum' in msg.lower() or 'minimum amount' in msg.lower():
+                logger.warning(f"Order rejected for min amount: {e}. Retrying with incremental increases.")
+                # Versuche inkrementelle Erhöhungen basierend auf USDT-Notional (robuster für ContractSize-Abweichungen)
+                try:
+                    ticker = self.fetch_ticker(symbol)
+                    price = Decimal(str(ticker.get('last', ticker.get('close', 0))))
+                    if price == 0:
+                        raise Exception('Unable to determine current price for retry logic')
+
+                    # Start-USDT basierend auf bisherigen gerundeten Amount
+                    usdt_value = Decimal(str(rounded_amount)) * price
+                    increment = max(Decimal('0.1'), Decimal(str(min_notional)) * Decimal('0.1'))
+
+                    retries = 0
+                    max_retries = 20
+                    while retries < max_retries:
+                        usdt_value += increment
+                        # Berechne benötigte Contracts für dieses USDT-Value
+                        candidate_contracts = (usdt_value / price)
+                        amount_try = float(self.exchange.amount_to_precision(symbol, float(candidate_contracts)))
+                        try:
+                            order = self.exchange.create_order(symbol, 'market', side, amount_try, params=params)
+                            logger.info(f"Order succeeded after {retries+1} incremental retries with amount {amount_try} (USDT {usdt_value})")
+                            return order
+                        except Exception as inner_e:
+                            inner_msg = str(inner_e)
+                            if 'less than the minimum' in inner_msg.lower() or 'minimum amount' in inner_msg.lower():
+                                retries += 1
+                                continue
+                            else:
+                                # andere Fehler: weiterreichen
+                                raise inner_e
+
+                    # alle retries fehlgeschlagen
+                    logger.error(f"Alle Incremental-Retries fehlgeschlagen (max {max_retries}). Letzter Fehler: {e}")
+                    raise e
+                except Exception:
+                    raise e
+            else:
+                raise e
 
     def place_trigger_market_order(self, symbol, side, amount, trigger_price, params={}):
         rounded_price = float(self.exchange.price_to_precision(symbol, trigger_price))
