@@ -14,6 +14,8 @@ export JAEGER_MARGIN_MODE=${JAEGER_MARGIN_MODE:-isolated}
 echo "-> Test-Umgebungsvariablen: JAEGER_PEPE_NOTIONAL_USDT=${JAEGER_PEPE_NOTIONAL_USDT}, JAEGER_MARGIN_MODE=${JAEGER_MARGIN_MODE}"
 
 echo "Führe Pytest aus (inkl. Live-Workflow-Test)..."
+# Ensure tests can import the package from the src directory
+export PYTHONPATH=${PYTHONPATH:-src}
 if python3 -m pytest -v -s; then
     echo "Pytest erfolgreich durchgelaufen. Alle Tests bestanden."
     EXIT_CODE=0
