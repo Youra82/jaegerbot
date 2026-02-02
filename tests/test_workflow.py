@@ -148,11 +148,19 @@ def test_setup():
             'risk_reward_ratio': 2.0,
             'initial_sl_pct': 4.0,            # 4% SL wie StBot/KBot
             'leverage': 20,
-            'margin_mode': 'isolated',
+                'margin_mode': os.getenv('JAEGER_MARGIN_MODE', 'isolated'),
             'trailing_stop_activation_rr': 1.0,
             'trailing_stop_callback_rate_pct': 0.5
         }
     }
+
+        # Optional: Force Notional via Env (z.B. JAEGER_PEPE_NOTIONAL_USDT=2)
+        force_notional = os.getenv('JAEGER_PEPE_NOTIONAL_USDT')
+        if force_notional:
+            try:
+                params['risk']['force_notional_usdt'] = float(force_notional)
+            except Exception:
+                pass
 
     model = FakeModel()
     scaler = FakeScaler()
