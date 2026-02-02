@@ -315,7 +315,11 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
                         f"- Entry @ Market (≈${entry_price:.4f})\n"
                         f"- SL: ${sl_rounded:.4f} (DYNAMISCHE SICHERHEIT)\n"
                         f"- TP: {tsl_status}")
-            send_message(telegram_config.get('bot_token'), telegram_config.get('chat_id'), message)
+            sent = send_message(telegram_config.get('bot_token'), telegram_config.get('chat_id'), message)
+            if sent:
+                logger.info("Telegram-Benachrichtigung: Trade-Eröffnung gesendet.")
+            else:
+                logger.warning("Telegram-Benachrichtigung konnte nicht gesendet werden.")
             logger.info(f"Trade-Eröffnungsprozess abgeschlossen (SL gesetzt{tsl_status}).")
 
 
@@ -332,7 +336,11 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
                 fallback_msg = (f"❌ *Kritisch: Position geschlossen*\n"
                                 f"SL-Platzierung/Trade-Eröffnung fehlgeschlagen für *{symbol}*. "
                                 f"Die Position wurde ZUR SICHERHEIT geschlossen.")
-                send_message(telegram_config.get('bot_token'), telegram_config.get('chat_id'), fallback_msg)
+                sent = send_message(telegram_config.get('bot_token'), telegram_config.get('chat_id'), fallback_msg)
+                if sent:
+                    logger.info("Telegram-Benachrichtigung (Fallback): Nachricht gesendet.")
+                else:
+                    logger.warning("Telegram-Benachrichtigung (Fallback) konnte nicht gesendet werden.")
             else:
                 logger.info("Keine Position nach Fehler gefunden. Alles geschlossen.")
 
