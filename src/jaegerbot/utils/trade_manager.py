@@ -236,6 +236,27 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
 
         # Neuberechnung der Positionsgröße basierend auf der DYNAMISCHEN SL-Distanz
         notional_value = risk_amount_usd / (sl_distance / entry_price)
+
+        # Override: Für Tests/CI kann ein fixes Notional (in USDT) per ENV oder params erzwungen werden
+        # Priorität: params['risk']['force_notional_usdt'] > ENV JAEGER_PEPE_NOTIONAL_USDT
+        force_notional = None
+        try:
+            force_notional = p.get('force_notional_usdt') if isinstance(p, dict) else None
+        except Exception:
+            force_notional = None
+
+        if not force_notional:
+            env_force = os.getenv('JAEGER_PEPE_NOTIONAL_USDT') or os.getenv('JAEGER_FORCE_NOTIONAL_USDT')
+            if env_force:
+                try:
+                    force_notional = float(env_force)
+                except Exception:
+                    force_notional = None
+
+        if force_notional and 'PEPE' in symbol.upper():
+            # Verwende das erzwungene Notional (USDT) statt Risiko-basiertem Notional
+            notional_value = float(force_notional)
+
         amount = notional_value / entry_price
 
         # Berechnung der Trigger-Preise
