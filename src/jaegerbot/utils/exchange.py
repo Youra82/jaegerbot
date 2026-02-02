@@ -208,6 +208,39 @@ class Exchange:
             logger.error(f"Fehler beim Abrufen des Kontostandes: {e}")
             return 0
 
+    def get_min_notional(self, symbol):
+        """
+        Versucht den kleinsten erlaubten Notional/Cost für den Markt (z.B. Mindestbetrag in USDT) zu bestimmen.
+        Gibt None zurück, wenn nicht ermittelbar.
+        """
+        if not self.markets:
+            return None
+        market = self.markets.get(symbol)
+        if not market:
+            try:
+                # Versuche Märkte neu zu laden
+                self.markets = self.exchange.load_markets()
+                market = self.markets.get(symbol)
+            except Exception:
+                return None
+        # 1) ccxt normalized limit: limits.cost.min
+        try:
+            cost_min = market.get('limits', {}).get('cost', {}).get('min')
+            if cost_min:
+                return float(cost_min)
+        except Exception:
+            pass
+        # 2) Exchange-spezifische info keys
+        info = market.get('info', {}) if isinstance(market.get('info', {}), dict) else {}
+        for key in ('minNotional', 'min_notional', 'min_notional_value', 'minQty', 'min_qty', 'min_quantity', 'minTradeSize', 'minVolume'):
+            v = info.get(key) or market.get(key)
+            if v:
+                try:
+                    return float(v)
+                except Exception:
+                    continue
+        return None
+
     def cleanup_all_open_orders(self, symbol):
         # ... (Unveränderter Code von Zeile 248 bis 284)
         cancelled_count = 0

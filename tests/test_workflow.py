@@ -279,9 +279,20 @@ def test_full_jaegerbot_workflow_on_bitget(test_setup):
                 leverage = params['risk'].get('leverage', 20)
                 position_value = bal * rpct * leverage
 
+            # Berücksichtige Exchange Mindest-Notional (z.B. 5 USDT bei Bitget)
+            min_notional = None
+            try:
+                min_notional = exchange.get_min_notional(symbol)
+            except Exception:
+                min_notional = None
+
+            if min_notional and float(position_value) < float(min_notional):
+                print(f"-> Hinweis: Exchange erwartet mindestens {min_notional} USDT; setze position_value auf Mindestbetrag.")
+                position_value = float(min_notional)
+
             contracts = position_value / current_price
 
-            print(f"-> Fallback Market-Order: contracts={contracts:.6f} @ {current_price}")
+            print(f"-> Fallback Market-Order: contracts={contracts:.6f} @ {current_price} (position_value={position_value} USDT)")
             order = exchange.create_market_order(symbol, 'buy', contracts)
             if not order or 'id' not in order:
                 pytest.fail("FEHLER: Fallback Market Order fehlgeschlagen")
