@@ -25,8 +25,9 @@ sys.path.insert(0, os.path.join(PROJECT_ROOT, 'src'))
 CACHE_DIR        = os.path.join(PROJECT_ROOT, 'data', 'cache')
 LOG_DIR          = os.path.join(PROJECT_ROOT, 'logs')
 SETTINGS_FILE    = os.path.join(PROJECT_ROOT, 'settings.json')
-TRAINER_SCRIPT   = os.path.join(PROJECT_ROOT, 'src', 'jaegerbot', 'analysis', 'trainer.py')
-OPTIMIZER_SCRIPT = os.path.join(PROJECT_ROOT, 'src', 'jaegerbot', 'analysis', 'optimizer.py')
+TRAINER_SCRIPT    = os.path.join(PROJECT_ROOT, 'src', 'jaegerbot', 'analysis', 'trainer.py')
+THRESHOLD_SCRIPT  = os.path.join(PROJECT_ROOT, 'src', 'jaegerbot', 'analysis', 'find_best_threshold.py')
+OPTIMIZER_SCRIPT  = os.path.join(PROJECT_ROOT, 'src', 'jaegerbot', 'analysis', 'optimizer.py')
 SECRET_FILE      = os.path.join(PROJECT_ROOT, 'secret.json')
 LAST_RUN_FILE    = os.path.join(CACHE_DIR, '.last_optimization_run')
 IN_PROGRESS_FILE = os.path.join(CACHE_DIR, '.optimization_in_progress')
@@ -244,7 +245,12 @@ def _send_end_telegram(elapsed_seconds: float):
 # ---------------------------------------------------------------------------
 
 def _run_bash_pipeline() -> int:
-    cmd = ['bash', '-lc', f"cd '{PROJECT_ROOT}' && ./run_pipeline_automated.sh"]
+    # Pfad für bash normalisieren (Windows-Backslashes → Forward-Slashes)
+    bash_root = PROJECT_ROOT.replace('\\', '/')
+    # Auf Windows: C:\Users\... → /c/Users/...
+    if len(bash_root) > 1 and bash_root[1] == ':':
+        bash_root = '/' + bash_root[0].lower() + bash_root[2:]
+    cmd = ['bash', '-lc', f"cd '{bash_root}' && ./run_pipeline_automated.sh"]
     _log(f"PIPELINE_EXEC method=bash cmd={cmd}")
     result = subprocess.run(cmd)
     rc = result.returncode
@@ -252,53 +258,89 @@ def _run_bash_pipeline() -> int:
     return rc
 
 
-def _run_python_pipeline(symbols: list, timeframes: list,
-                         lookback: int, opt_settings: dict) -> int:
-    """Direkter Python-Aufruf: erst trainer.py, dann optimizer.py (Fallback)."""
-    python_exe   = sys.executable
-    start_date   = (date.today() - timedelta(days=lookback)).strftime('%Y-%m-%d')
-    end_date     = date.today().strftime('%Y-%m-%d')
-    symbols_str  = ' '.join(symbols)
-    tfs_str      = ' '.join(timeframes)
-    constraints  = opt_settings.get('constraints', {})
-
-    _log(f"FALLBACK method=python interpreter={python_exe} symbols={symbols} tfs={timeframes}")
-
-    # Stufe 1: LSTM-Training
-    trainer_cmd = [
-        python_exe, TRAINER_SCRIPT,
-        '--symbols',    symbols_str,
-        '--timeframes', tfs_str,
+def _find_threshold(python_exe: str, sym: str, tf: str,
+                    start_date: str, end_date: str) -> float:
+    """Ruft find_best_threshold.py auf und gibt den besten Threshold zurück."""
+    cmd = [
+        python_exe, THRESHOLD_SCRIPT,
+        '--symbol',     sym,
+        '--timeframe',  tf,
         '--start_date', start_date,
         '--end_date',   end_date,
     ]
-    _log(f"TRAINER_EXEC cmd={trainer_cmd}")
-    rc = subprocess.run(trainer_cmd).returncode
-    if rc != 0:
-        _log(f"TRAINER_EXIT rc={rc} — Abbruch")
-        return rc
-    _log("TRAINER_EXIT rc=0")
+    _log(f"THRESHOLD_EXEC sym={sym} tf={tf}")
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
+    # Letzter Output-Zeileninhalt, der wie ein Float aussieht
+    for line in reversed(result.stdout.strip().split('\n')):
+        line = line.strip()
+        try:
+            val = float(line)
+            _log(f"THRESHOLD_FOUND sym={sym} tf={tf} threshold={val}")
+            return val
+        except ValueError:
+            continue
+    _log(f"THRESHOLD_FALLBACK sym={sym} tf={tf} using=0.65")
+    return 0.65
 
-    # Stufe 2: Hyperparameter-Optimierung
-    optimizer_cmd = [
-        python_exe, OPTIMIZER_SCRIPT,
-        '--symbols',       symbols_str,
-        '--timeframes',    tfs_str,
-        '--start_date',    start_date,
-        '--end_date',      end_date,
-        '--jobs',          str(opt_settings.get('cpu_cores', -1)),
-        '--max_drawdown',  str(constraints.get('max_drawdown_pct', 30)),
-        '--start_capital', str(opt_settings.get('start_capital', 1000)),
-        '--min_win_rate',  str(constraints.get('min_win_rate_pct', 45)),
-        '--trials',        str(opt_settings.get('num_trials', 100)),
-        '--min_pnl',       str(constraints.get('min_pnl_pct', 0)),
-        '--mode',          opt_settings.get('mode', 'strict'),
-        '--top_n',         str(opt_settings.get('top_n', 5)),
-    ]
-    _log(f"OPTIMIZER_EXEC cmd={optimizer_cmd}")
-    rc = subprocess.run(optimizer_cmd).returncode
-    _log(f"OPTIMIZER_EXIT rc={rc}")
-    return rc
+
+def _run_python_pipeline(pairs: list, lookback: int, opt_settings: dict) -> int:
+    """Direkter Python-Aufruf pro Paar: trainer → find_threshold → optimizer."""
+    python_exe  = sys.executable
+    end_date    = date.today().strftime('%Y-%m-%d')
+    constraints = opt_settings.get('constraints', {})
+
+    _log(f"FALLBACK method=python interpreter={python_exe} pairs={pairs}")
+
+    any_failed = False
+    for sym, tf in pairs:
+        lookback_tf  = LOOKBACK_MAP.get(tf, lookback)
+        start_date   = (date.today() - timedelta(days=lookback_tf)).strftime('%Y-%m-%d')
+
+        _log(f"PAIR_START sym={sym} tf={tf} start={start_date} end={end_date}")
+
+        # --- Stufe 1: LSTM-Training ---
+        trainer_cmd = [
+            python_exe, TRAINER_SCRIPT,
+            '--symbols',    sym,
+            '--timeframes', tf,
+            '--start_date', start_date,
+            '--end_date',   end_date,
+        ]
+        _log(f"TRAINER_EXEC sym={sym} tf={tf}")
+        rc = subprocess.run(trainer_cmd).returncode
+        if rc != 0:
+            _log(f"TRAINER_FAIL sym={sym} tf={tf} rc={rc} — Ueberspringe")
+            any_failed = True
+            continue
+        _log(f"TRAINER_OK sym={sym} tf={tf}")
+
+        # --- Stufe 2: Besten Threshold finden ---
+        threshold = _find_threshold(python_exe, sym, tf, start_date, end_date)
+
+        # --- Stufe 3: Hyperparameter-Optimierung ---
+        optimizer_cmd = [
+            python_exe, OPTIMIZER_SCRIPT,
+            '--symbols',       sym,
+            '--timeframes',    tf,
+            '--start_date',    start_date,
+            '--end_date',      end_date,
+            '--jobs',          str(opt_settings.get('cpu_cores', -1)),
+            '--max_drawdown',  str(constraints.get('max_drawdown_pct', 30)),
+            '--start_capital', str(opt_settings.get('start_capital', 1000)),
+            '--min_win_rate',  str(constraints.get('min_win_rate_pct', 45)),
+            '--trials',        str(opt_settings.get('num_trials', 100)),
+            '--min_pnl',       str(constraints.get('min_pnl_pct', 0)),
+            '--mode',          opt_settings.get('mode', 'strict'),
+            '--threshold',     str(threshold),
+            '--top_n',         str(opt_settings.get('top_n', 5)),
+        ]
+        _log(f"OPTIMIZER_EXEC sym={sym} tf={tf} threshold={threshold}")
+        rc = subprocess.run(optimizer_cmd).returncode
+        _log(f"OPTIMIZER_EXIT sym={sym} tf={tf} rc={rc}")
+        if rc != 0:
+            any_failed = True
+
+    return 1 if any_failed else 0
 
 
 # ---------------------------------------------------------------------------
@@ -313,14 +355,17 @@ def run_optimization(schedule: dict, opt_settings: dict,
                or opt_settings.get('timeframes_to_optimize') == 'auto')
 
     if is_auto:
-        pairs        = _resolve_pairs_auto(live_settings)
-        pair_display = [f"{sym.split('/')[0]}/{tf}" for sym, tf in pairs]
-        symbols      = list(dict.fromkeys(sym.split('/')[0] for sym, _ in pairs))
-        timeframes   = list(dict.fromkeys(tf for _, tf in pairs))
+        pairs_full   = _resolve_pairs_auto(live_settings)
+        pair_display = [f"{sym.split('/')[0]}/{tf}" for sym, tf in pairs_full]
+        timeframes   = list(dict.fromkeys(tf for _, tf in pairs_full))
     else:
         symbols      = _resolve_symbols(opt_settings.get('symbols_to_optimize'), live_settings)
         timeframes   = _resolve_timeframes(opt_settings.get('timeframes_to_optimize'), live_settings)
-        pair_display = [f"{s}/{tf}" for s in symbols for tf in timeframes]
+        pairs_full   = [(f"{sym}/USDT:USDT", tf) for sym in symbols for tf in timeframes]
+        pair_display = [f"{sym}/{tf}" for sym in symbols for tf in timeframes]
+
+    # Für den Python-Fallback: nur Basisname des Symbols (ohne /USDT:USDT)
+    pairs_base = [(sym.split('/')[0], tf) for sym, tf in pairs_full]
 
     lookback   = _resolve_lookback(opt_settings.get('lookback_days', 'auto'), timeframes)
     start_time = datetime.now()
@@ -343,7 +388,7 @@ def run_optimization(schedule: dict, opt_settings: dict,
         rc = _run_bash_pipeline()
         if rc != 0:
             _log("PIPELINE_WARNING Bash exit != 0 — attempting Python fallback")
-            rc = _run_python_pipeline(symbols, timeframes, lookback, opt_settings)
+            rc = _run_python_pipeline(pairs_base, lookback, opt_settings)
         success = (rc == 0)
     except Exception as e:
         _log(f"ERROR {e}")
