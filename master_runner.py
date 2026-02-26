@@ -4,7 +4,6 @@ import subprocess
 import sys
 import os
 import time
-from datetime import datetime, timedelta
 
 # Pfad anpassen, damit die utils importiert werden können
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -12,99 +11,6 @@ PROJECT_ROOT = SCRIPT_DIR
 sys.path.append(os.path.join(PROJECT_ROOT, 'src'))
 
 from jaegerbot.utils.exchange import Exchange
-
-
-def check_and_run_optimizer():
-    """
-    Prüft ob die automatische Optimierung fällig ist und führt sie ggf. aus.
-    
-    Wird bei jedem Cron-Job Aufruf einmal geprüft. Die Logik ist tolerant gegenüber
-    Cron-Intervallen: Wenn der geplante Zeitpunkt in der Vergangenheit liegt (aber
-    noch am selben Tag in der geplanten Stunde), wird die Optimierung gestartet.
-    """
-    now = datetime.now()
-    
-    try:
-        settings_file = os.path.join(SCRIPT_DIR, 'settings.json')
-        with open(settings_file, 'r') as f:
-            settings = json.load(f)
-        
-        opt_settings = settings.get('optimization_settings', {})
-        
-        # Prüfe ob aktiviert
-        if not opt_settings.get('enabled', False):
-            return False
-        
-        schedule = opt_settings.get('schedule', {})
-        day_of_week = schedule.get('day_of_week', 0)
-        hour = schedule.get('hour', 3)
-        minute = schedule.get('minute', 0)
-        interval_days = schedule.get('interval_days', 7)
-        
-        # Prüfe ob heute der richtige Tag ist
-        if now.weekday() != day_of_week:
-            return False
-        
-        # Prüfe ob wir in der geplanten Stunde sind (oder danach, aber am gleichen Tag)
-        if now.hour < hour:
-            return False
-        
-        # Wenn wir in der richtigen Stunde sind, prüfe ob die Minute erreicht wurde
-        if now.hour == hour and now.minute < minute:
-            return False
-        
-        # Ab hier: Wir sind am richtigen Tag und der geplante Zeitpunkt ist erreicht oder überschritten
-        
-        # Prüfe ob heute schon gelaufen (oder innerhalb des Intervalls)
-        cache_dir = os.path.join(SCRIPT_DIR, 'data', 'cache')
-        cache_file = os.path.join(cache_dir, '.last_optimization_run')
-        
-        if os.path.exists(cache_file):
-            with open(cache_file, 'r') as f:
-                last_run = datetime.fromtimestamp(int(f.read().strip()))
-                
-                # Wenn heute schon gelaufen, nicht nochmal
-                if last_run.date() == now.date():
-                    return False
-                
-                # Wenn innerhalb des Intervalls, nicht nochmal
-                if (now - last_run).days < interval_days:
-                    return False
-        
-        # Zeit für Optimierung!
-        print(f"\n[{now.strftime('%Y-%m-%d %H:%M:%S')}] 🔄 Auto-Optimizer: Geplanter Zeitpunkt erreicht!")
-        print(f"    Geplant war: {['Mo','Di','Mi','Do','Fr','Sa','So'][day_of_week]} {hour:02d}:{minute:02d}")
-        print(f"    Starte Optimierung...")
-        
-        python_executable = os.path.join(SCRIPT_DIR, '.venv', 'bin', 'python3')
-        optimizer_script = os.path.join(SCRIPT_DIR, 'auto_optimizer_scheduler.py')
-        log_file = os.path.join(SCRIPT_DIR, 'logs', 'optimizer_output.log')
-        
-        if os.path.exists(optimizer_script):
-            # Stelle sicher, dass logs/ Verzeichnis existiert
-            os.makedirs(os.path.dirname(log_file), exist_ok=True)
-            
-            # Starte den Optimizer SYNCHRON (wartet auf Ende)
-            # So wird die Telegram-Nachricht garantiert gesendet bevor wir weitermachen
-            print(f"    Starte Optimizer im Hintergrund...")
-            with open(log_file, 'a') as log:
-                # Starte als Hintergrundprozess - Bots haben Priorität!
-                subprocess.Popen(
-                    [python_executable, optimizer_script, '--force'],
-                    stdout=log,
-                    stderr=subprocess.STDOUT,
-                    cwd=SCRIPT_DIR,  # Wichtig: Arbeitsverzeichnis setzen!
-                    start_new_session=True  # Läuft unabhängig weiter
-                )
-            return True
-        else:
-            print(f"    Fehler: {optimizer_script} nicht gefunden!")
-            return False
-        
-    except Exception as e:
-        print(f"Optimizer-Check Fehler: {e}")
-        return False
-
 
 def main():
     """
@@ -208,14 +114,23 @@ def main():
             subprocess.Popen(command)
             time.sleep(2)
 
+        # --- Auto-Optimizer im Hintergrund starten ---
+        auto_opt_script = os.path.join(SCRIPT_DIR, 'auto_optimizer_scheduler.py')
+        if os.path.exists(auto_opt_script):
+            print("[Auto-Optimizer] Prüfe ob Optimierung fällig...")
+            logs_dir = os.path.join(SCRIPT_DIR, 'logs')
+            os.makedirs(logs_dir, exist_ok=True)
+            log_path = os.path.join(logs_dir, 'auto_optimizer_trigger.log')
+            subprocess.Popen(
+                [sys.executable, auto_opt_script],
+                stdout=open(log_path, 'a'),
+                stderr=subprocess.STDOUT,
+            )
+
     except FileNotFoundError as e:
         print(f"Fehler: Eine wichtige Datei wurde nicht gefunden: {e}")
     except Exception as e:
         print(f"Ein unerwarteter Fehler im Master Runner ist aufgetreten: {e}")
 
 if __name__ == "__main__":
-    # ZUERST: Normale Bot-Starts (Trades haben Priorität!)
     main()
-    
-    # DANACH: Auto-Optimizer Check (läuft im Hintergrund)
-    check_and_run_optimizer()
