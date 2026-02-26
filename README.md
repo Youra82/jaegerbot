@@ -461,62 +461,12 @@ pip install --upgrade tensorflow
 
 ---
 
-## 🤖 Auto-Optimizer Scheduler
-
-Automatische Optimierung der Strategie-Konfigurationen nach Zeitplan mit Telegram-Benachrichtigungen.
-
-### Schnellstart-Befehle
-
-```bash
-# Status prüfen (wann ist die nächste Optimierung fällig?)
-python3 auto_optimizer_scheduler.py --check-only
-
-# Sofort optimieren (ignoriert Zeitplan)
-python3 auto_optimizer_scheduler.py --force
-
-# Als Daemon laufen (prüft alle 60 Sekunden)
-python3 auto_optimizer_scheduler.py --daemon
-```
-
-### Konfiguration (settings.json)
-
-```json
-{
-    "optimization_settings": {
-        "enabled": true,
-        "schedule": {
-            "day_of_week": 0,
-            "hour": 3,
-            "minute": 0,
-            "interval_days": 7
-        },
-        "symbols_to_optimize": "auto",
-        "timeframes_to_optimize": "auto",
-        "num_trials": 500,
-        "send_telegram_on_completion": true
-    }
-}
-```
-
-| Parameter | Beschreibung |
-|-----------|--------------|
-| `enabled` | Automatische Optimierung aktivieren |
-| `day_of_week` | 0=Montag, 6=Sonntag |
-| `hour` | Stunde (0-23, 24h Format) |
-| `symbols_to_optimize` | `"auto"` = aus active_strategies |
-| `timeframes_to_optimize` | `"auto"` = aus active_strategies |
-
----
-
 ## 📊 Monitoring & Status
 
 ### Status-Dashboard
 
 ```bash
-# Einmalig ausführbar machen
-chmod +x show_status.sh
-
-# Status anzeigen
+# Zeigt alle wichtigen Informationen
 ./show_status.sh
 ```
 
@@ -528,13 +478,10 @@ chmod +x show_status.sh
 - 💰 Kontostand und verfügbares Kapital
 - 📝 Letzte Logs
 
-### Trading-Ergebnisse anzeigen
+### Live-Status anzeigen
 
 ```bash
-# Einmalig ausführbar machen
-chmod +x show_results.sh
-
-# Ergebnisse anzeigen
+# Aktuelle Positionen und Performance
 ./show_results.sh
 ```
 
@@ -613,21 +560,29 @@ bash ./update.sh
 
 
 
-### Modell-Neutrainierung
-
-```bash
-# LSTM-Modelle neu trainieren
-python -c "from src.jaegerbot.ml.lstm_trainer import train_models; train_models()"
-
-# Trainingsergebnisse ansehen
-tail -f logs/model_training.log
-```
-
 ---
 
 ## 🔄 Auto-Optimizer Verwaltung
 
-Der Bot verfügt über einen automatischen Optimizer, der wöchentlich die besten Parameter für alle aktiven Strategien sucht.
+Der Bot verfügt über einen automatischen Optimizer, der wöchentlich neue LSTM-Modelle trainiert und die besten Handelsparameter für alle aktiven Strategien sucht. Die folgenden Befehle helfen beim manuellen Triggern, Debugging und Monitoring des Optimizers.
+
+### Optimizer aktivieren
+
+Bearbeite `settings.json` und setze `optimization_settings.enabled` auf `true`:
+
+```json
+{
+  "optimization_settings": {
+    "enabled": true,
+    "symbols_to_optimize": "auto",
+    "timeframes_to_optimize": "auto",
+    "num_trials": 100,
+    "send_telegram_on_completion": true
+  }
+}
+```
+
+Mit `"symbols_to_optimize": "auto"` werden die Symbole und Timeframes automatisch aus den `active_strategies` übernommen.
 
 ### Optimizer manuell triggern
 
@@ -641,21 +596,27 @@ rm ~/jaegerbot/data/cache/.last_optimization_run
 cd ~/jaegerbot && .venv/bin/python3 master_runner.py
 ```
 
+Oder direkt per `--force`:
+
+```bash
+cd ~/jaegerbot && .venv/bin/python3 auto_optimizer_scheduler.py --force
+```
+
 ### Optimizer-Logs überwachen
 
 ```bash
 # Optimizer-Log live mitverfolgen
-tail -f ~/jaegerbot/logs/optimizer_output.log
+tail -f ~/jaegerbot/logs/auto_optimizer_trigger.log
 
 # Letzte 50 Zeilen des Optimizer-Logs anzeigen
-tail -50 ~/jaegerbot/logs/optimizer_output.log
+tail -50 ~/jaegerbot/logs/auto_optimizer_trigger.log
 ```
 
 ### Optimierungsergebnisse ansehen
 
 ```bash
-# Beste gefundene Parameter anzeigen (erste 50 Zeilen)
-cat ~/jaegerbot/artifacts/results/optimization_results.json | head -50
+# Beste gefundene Parameter anzeigen
+cat ~/jaegerbot/artifacts/results/last_optimizer_run.json | head -50
 ```
 
 ### Optimizer-Prozess überwachen
@@ -665,60 +626,30 @@ cat ~/jaegerbot/artifacts/results/optimization_results.json | head -50
 watch -n 1 "ps aux | grep optimizer"
 ```
 
-### ⚡ Paralleler Betrieb: Trading & Optimizer
+### Optimizer stoppen
 
-Der Optimizer läuft **vollständig parallel** zum Trading und blockiert keine Trades:
+```bash
+# Alle Optimizer-Prozesse auf einmal stoppen
+pkill -f "auto_optimizer_scheduler" ; pkill -f "run_pipeline_automated" ; pkill -f "optimizer.py" ; pkill -f "trainer.py"
 
+# Prüfen ob alles gestoppt ist
+pgrep -fa "optimizer" && echo "Noch aktiv!" || echo "Alle gestoppt."
+
+# In-Progress-Marker aufräumen (sauberer Neustart danach)
+rm -f ~/jaegerbot/data/cache/.optimization_in_progress
 ```
-Cron (jede Stunde)
-│
-├─► master_runner.py startet
-│   │
-│   ├─► main() → Startet Bot-Prozesse (z.B. 7 Strategien)
-│   │            Jeder Bot ist ein eigener Prozess
-│   │
-│   └─► check_and_run_optimizer() → Startet Optimizer im Hintergrund
-│
-└─► master_runner.py BEENDET SICH (nach ~15 Sekunden)
-
-═══════════════════════════════════════════════════════════════
-
-Jetzt laufen PARALLEL und UNABHÄNGIG:
-
-┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│ Bot: BTC/USDT   │  │ Bot: ETH/USDT   │  │ Bot: SOL/USDT   │
-│ (Prozess 1234)  │  │ (Prozess 1235)  │  │ (Prozess 1236)  │
-│                 │  │                 │  │                 │
-│ ✅ Handelt      │  │ ✅ Handelt      │  │ ✅ Handelt      │
-│ ✅ Öffnet Pos.  │  │ ✅ Öffnet Pos.  │  │ ✅ Öffnet Pos.  │
-│ ✅ Schließt     │  │ ✅ Schließt     │  │ ✅ Schließt     │
-└─────────────────┘  └─────────────────┘  └─────────────────┘
-        ↑                    ↑                    ↑
-        │                    │                    │
-        └────────────────────┴────────────────────┘
-                    Handeln weiter normal!
-
-┌─────────────────────────────────────────────────────────────┐
-│              OPTIMIZER (Prozess 9999)                       │
-│                                                             │
-│  Läuft im Hintergrund (kann 1-3 Stunden dauern)            │
-│  - Testet Parameter                                         │
-│  - Berechnet Backtests                                      │
-│  - Nutzt CPU, aber stört Trading nicht                     │
-│                                                             │
-│  ➡️ Sendet Telegram wenn fertig                            │
-└─────────────────────────────────────────────────────────────┘
-```
-
-| Aspekt | Trading-Bots | Optimizer |
-|--------|--------------|-----------|  
-| **Prozess** | Eigene Prozesse pro Strategie | Eigener Hintergrundprozess |
-| **API-Calls** | Ja (Exchange API) | Nur historische Daten |
-| **Blockiert?** | Nein | Nein |
-| **Dauer** | Läuft und beendet sich schnell | Kann Stunden dauern |
-| **Nächster Cron** | Startet neue Bot-Instanzen | Prüft ob schon läuft |
 
 ---
+
+### Modell-Neutrainierung
+
+```bash
+# LSTM-Modelle neu trainieren
+python -c "from src.jaegerbot.ml.lstm_trainer import train_models; train_models()"
+
+# Trainingsergebnisse ansehen
+tail -f logs/model_training.log
+```
 
 ### Tests ausführen
 
