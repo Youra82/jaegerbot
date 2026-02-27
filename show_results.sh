@@ -20,13 +20,14 @@ echo "  4) Interaktive Charts (Entry/Exit-Signale nur, keine Indikatoren)"
 read -p "Auswahl (1-4) [Standard: 1]: " MODE
 MODE=${MODE:-1}
 
-python3 "$RESULTS_SCRIPT" --mode "$MODE"
+# Mode 4 braucht show_results.py nicht — interactive_status.py fragt selbst ab
+if [ "$MODE" != "4" ]; then
+    python3 "$RESULTS_SCRIPT" --mode "$MODE"
+fi
 
 # --- OPTION 4: INTERAKTIVE CHARTS ---
 if [ "$MODE" == "4" ]; then
     echo -e "\n${YELLOW}========== INTERAKTIVE CHARTS ===========${NC}"
-    echo ""
-    echo "Wähle Konfigurationsdateien von der liste oben"
     echo ""
     python3 src/jaegerbot/analysis/interactive_status.py
     

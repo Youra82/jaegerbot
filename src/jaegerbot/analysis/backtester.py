@@ -59,7 +59,7 @@ def calculate_supertrend_direction(data):
     return st_indicator.get_supertrend_direction().shift(1) # Shift, um den ST der VORHERIGEN Kerze zu verwenden
 
 # *** KORRIGIERTE BACKTESTER FUNKTION (SuperTrend-Filter) ***
-def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_filter=False, htf_data=None, timeframe=None, verbose=False, params_for_htf_load=None, return_equity=False):
+def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_filter=False, htf_data=None, timeframe=None, verbose=False, params_for_htf_load=None):
 
     model, scaler = load_model_and_scaler(model_paths['model'], model_paths['scaler'])
     if not model or not scaler: raise Exception("Modell/Scaler nicht gefunden!")
@@ -69,17 +69,17 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
 
     data_with_features = create_ann_features(data.copy())
     data_with_features.dropna(inplace=True)
-    
+
+    if data_with_features.empty or len(data_with_features) < 10:
+        return {"total_pnl_pct": 0, "trades_count": 0, "win_rate": 0, "max_drawdown_pct": 1.0, "end_capital": start_capital}
+
     # --- NEU: SuperTrend Richtung hinzufügen (ST-Richtung der VORHERIGEN Kerze) ---
     data_with_features['supertrend_direction'] = calculate_supertrend_direction(data_with_features)
     data_with_features.dropna(inplace=True)
     # ---
 
     if data_with_features.empty:
-        base_result = {"total_pnl_pct": 0, "trades_count": 0, "win_rate": 0, "max_drawdown_pct": 1.0, "end_capital": start_capital, "trades": []}
-        if return_equity:
-            return base_result, []
-        return base_result
+        return {"total_pnl_pct": 0, "trades_count": 0, "win_rate": 0, "max_drawdown_pct": 1.0, "end_capital": start_capital}
 
     # *** ERWEITERTE FEATURE-LISTE FÜR BACKTEST ***
     # Feature 'ema_cross_20_50' entfernt (konsistent mit ann_model.py)
@@ -122,7 +122,6 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
     peak_capital, max_drawdown_pct = start_capital, 0.0
     position = None
     trades = []  # Sammle alle Trades für Chart-Darstellung
-    equity_snapshots = []  # Equity-Snapshots für Chart
 
     # --- KORREKTUR: ADX / HTF-Filter-Initialisierung entfernt ---
     # Entferne die Lade-Logik für HTF-Daten, da der ADX-Filter entfernt wurde
@@ -193,10 +192,6 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
                     drawdown = (peak_capital - current_capital) / peak_capital
                     max_drawdown_pct = max(max_drawdown_pct, drawdown)
                 if current_capital <= 0: break
-        
-        # Equity-Snapshot für Chart
-        if return_equity:
-            equity_snapshots.append({'timestamp': data_with_features.index[i], 'equity': current_capital})
 
         if not position:
             side = 'long' if current['prediction'] >= pred_threshold else 'short' if current['prediction'] <= (1 - pred_threshold) else None
@@ -262,8 +257,4 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
 
     win_rate = (wins_count / trades_count * 100) if trades_count > 0 else 0
     final_pnl_pct = ((current_capital - start_capital) / start_capital) * 100 if start_capital > 0 else 0
-    stats = {"total_pnl_pct": final_pnl_pct, "trades_count": trades_count, "win_rate": win_rate, "max_drawdown_pct": max_drawdown_pct, "end_capital": current_capital, "trades": trades}
-    
-    if return_equity:
-        return stats, equity_snapshots
-    return stats
+    return {"total_pnl_pct": final_pnl_pct, "trades_count": trades_count, "win_rate": win_rate, "max_drawdown_pct": max_drawdown_pct, "end_capital": current_capital, "trades": trades}
