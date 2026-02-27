@@ -100,12 +100,28 @@ def main():
     symbols, timeframes = args.symbols.split(), args.timeframes.split()
     TASKS = [{'symbol': f"{s}/USDT:USDT", 'timeframe': tf} for s in symbols for tf in timeframes]
 
-    run_results = {
-        'run_start': _dt.now().isoformat(timespec='seconds'),
-        'run_end': None,
-        'saved': [],
-        'failed': [],
-    }
+    # Bestehende Datei lesen falls vorhanden (bash-Pipeline ruft optimizer.py
+    # einmal pro Paar auf — wir haengen an statt die Datei zu ueberschreiben)
+    if os.path.exists(RESULTS_FILE):
+        try:
+            with open(RESULTS_FILE, 'r', encoding='utf-8') as f:
+                run_results = json.load(f)
+            run_results.setdefault('saved', [])
+            run_results.setdefault('failed', [])
+        except Exception:
+            run_results = {
+                'run_start': _dt.now().isoformat(timespec='seconds'),
+                'run_end': None,
+                'saved': [],
+                'failed': [],
+            }
+    else:
+        run_results = {
+            'run_start': _dt.now().isoformat(timespec='seconds'),
+            'run_end': None,
+            'saved': [],
+            'failed': [],
+        }
 
     for task in TASKS:
         symbol, timeframe = task['symbol'], task['timeframe']
