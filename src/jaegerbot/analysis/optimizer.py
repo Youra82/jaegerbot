@@ -5,6 +5,7 @@ import json
 import optuna
 import numpy as np
 import argparse
+from datetime import datetime as _dt
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import logging
@@ -15,6 +16,8 @@ warnings.filterwarnings('ignore', category=UserWarning, module='keras')
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 sys.path.append(os.path.join(PROJECT_ROOT, 'src'))
+
+RESULTS_FILE = os.path.join(PROJECT_ROOT, 'artifacts', 'results', 'last_optimizer_run.json')
 
 from jaegerbot.analysis.backtester import load_data, run_ann_backtest
 from jaegerbot.utils.telegram import send_message
@@ -64,6 +67,7 @@ def objective(trial, symbol):
         raise optuna.exceptions.TrialPruned()
 
     drawdown_safe = max(drawdown, 0.01)
+    trial.set_user_attr('pnl_pct', round(pnl, 2))
     return pnl / drawdown_safe
 
 def create_safe_filename(symbol, timeframe):
@@ -96,6 +100,13 @@ def main():
     symbols, timeframes = args.symbols.split(), args.timeframes.split()
     TASKS = [{'symbol': f"{s}/USDT:USDT", 'timeframe': tf} for s in symbols for tf in timeframes]
 
+    run_results = {
+        'run_start': _dt.now().isoformat(timespec='seconds'),
+        'run_end': None,
+        'saved': [],
+        'failed': [],
+    }
+
     for task in TASKS:
         symbol, timeframe = task['symbol'], task['timeframe']
         CURRENT_TIMEFRAME = timeframe
@@ -106,7 +117,9 @@ def main():
         CURRENT_MODEL_PATHS = {'model': os.path.join(PROJECT_ROOT, 'artifacts', 'models', f'ann_predictor_{safe_filename}.h5'), 'scaler': os.path.join(PROJECT_ROOT, 'artifacts', 'models', f'ann_scaler_{safe_filename}.joblib')}
 
         HISTORICAL_DATA = load_data(symbol, timeframe, args.start_date, args.end_date)
-        if HISTORICAL_DATA.empty: continue
+        if HISTORICAL_DATA.empty:
+            run_results['failed'].append({'symbol': symbol, 'timeframe': timeframe, 'reason': 'no_data'})
+            continue
 
         print("\n--- Bewertung der Datensatz-Qualität ---")
         evaluation = evaluate_dataset(HISTORICAL_DATA.copy(), timeframe)
@@ -124,7 +137,10 @@ def main():
         study.optimize(objective_wrapper, n_trials=N_TRIALS, n_jobs=args.jobs, show_progress_bar=True)
 
         valid_trials = [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]
-        if not valid_trials: print(f"\n❌ FEHLER: Für {symbol} ({timeframe}) konnte keine Konfiguration gefunden werden."); continue
+        if not valid_trials:
+            print(f"\n❌ FEHLER: Für {symbol} ({timeframe}) konnte keine Konfiguration gefunden werden.")
+            run_results['failed'].append({'symbol': symbol, 'timeframe': timeframe, 'reason': 'no_valid_trials'})
+            continue
 
         best_trial = max(valid_trials, key=lambda t: t.value)
         best_params = best_trial.params
@@ -136,8 +152,11 @@ def main():
 
         behavior_config = {"use_longs": True, "use_shorts": True}
 
+        best_pnl_pct = best_trial.user_attrs.get('pnl_pct', 0)
+
         # --- KORRIGIERT: Speichere ATR-basierte Parameter (anstelle des alten initial_sl_pct) ---
         config_output = {
+            "_meta": {"pnl_pct": best_pnl_pct},
             "market": {"symbol": symbol, "timeframe": timeframe},
             "strategy": {"prediction_threshold": FIXED_THRESHOLD},
             "risk": {
@@ -155,14 +174,24 @@ def main():
             "behavior": behavior_config
         }
         # --- ENDE KORRIGIERT ---
+        config_filename = f'config_{safe_filename}.json'
         with open(config_output_path, 'w') as f: json.dump(config_output, f, indent=4)
         print(f"\n✔ Beste Konfiguration wurde in '{config_output_path}' gespeichert.")
+        run_results['saved'].append({
+            'symbol': symbol,
+            'timeframe': timeframe,
+            'pnl_pct': best_pnl_pct,
+            'config_file': config_filename,
+        })
 
+    run_results['run_end'] = _dt.now().isoformat(timespec='seconds')
     try:
-        with open(os.path.join(PROJECT_ROOT, 'secret.json'), "r") as f: secrets = json.load(f)
-        telegram_config = secrets.get('telegram', {})
-    except Exception:
-        pass
+        os.makedirs(os.path.dirname(RESULTS_FILE), exist_ok=True)
+        with open(RESULTS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(run_results, f, indent=2)
+        print(f"\n[Optimizer] Ergebnisse gespeichert: {len(run_results['saved'])} gespeichert, {len(run_results['failed'])} fehlgeschlagen.")
+    except Exception as e:
+        print(f"[Optimizer] Warnung: Konnte Ergebnisse nicht speichern: {e}")
 
 
 if __name__ == "__main__":
