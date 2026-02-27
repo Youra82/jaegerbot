@@ -53,7 +53,10 @@ def _log(msg: str):
     line = f"{datetime.now().isoformat()} AUTO-OPTIMIZER {msg}"
     with open(TRIGGER_LOG, 'a', encoding='utf-8') as f:
         f.write(line + '\n')
-    print(line, flush=True)
+    try:
+        print(line, flush=True)
+    except (OSError, ValueError):
+        pass  # stdout kann fehlen wenn als Hintergrundprozess gestartet
 
 
 # ---------------------------------------------------------------------------

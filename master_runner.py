@@ -118,13 +118,13 @@ def main():
         auto_opt_script = os.path.join(SCRIPT_DIR, 'auto_optimizer_scheduler.py')
         if os.path.exists(auto_opt_script):
             print("[Auto-Optimizer] Prüfe ob Optimierung fällig...")
-            logs_dir = os.path.join(SCRIPT_DIR, 'logs')
-            os.makedirs(logs_dir, exist_ok=True)
-            log_path = os.path.join(logs_dir, 'auto_optimizer_trigger.log')
+            # Scheduler schreibt selbst in logs/auto_optimizer_trigger.log.
+            # Stdout auf DEVNULL umleiten, damit kein gebrochener Dateihandle
+            # an Kindprozesse vererbt wird (verhindert rc=120 auf Windows).
             subprocess.Popen(
                 [sys.executable, auto_opt_script],
-                stdout=open(log_path, 'a'),
-                stderr=subprocess.STDOUT,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
 
     except FileNotFoundError as e:
