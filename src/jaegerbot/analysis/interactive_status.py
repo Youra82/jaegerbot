@@ -53,19 +53,29 @@ def get_config_files():
 def select_configs():
     """Zeigt durchnummerierte Konfigurationsdateien und lässt User wählen"""
     configs = get_config_files()
-    
+
     if not configs:
         logger.error("Keine Konfigurationsdateien gefunden!")
         sys.exit(1)
-    
-    print("\n" + "="*60)
+
+    print("\n" + "="*70)
     print("Verfügbare Konfigurationen:")
-    print("="*60)
-    for idx, (filename, _) in enumerate(configs, 1):
-        # Extrahiere Symbol/Timeframe aus Dateiname
+    print("="*70)
+    for idx, (filename, filepath) in enumerate(configs, 1):
         clean_name = filename.replace('config_', '').replace('.json', '')
-        print(f"{idx:2d}) {clean_name}")
-    print("="*60)
+        # Lade _meta.pnl_pct aus Config-Datei
+        pnl_str = ""
+        try:
+            with open(filepath, 'r') as f:
+                cfg = json.load(f)
+            pnl_pct = cfg.get('_meta', {}).get('pnl_pct')
+            if pnl_pct is not None:
+                sign = "+" if pnl_pct >= 0 else ""
+                pnl_str = f"  [{sign}{pnl_pct:.1f}%]"
+        except Exception:
+            pass
+        print(f"{idx:2d}) {clean_name}{pnl_str}")
+    print("="*70)
     
     print("\nWähle Konfiguration(en) zum Anzeigen:")
     print("  Einzeln: z.B. '1' oder '5'")
@@ -208,17 +218,47 @@ def create_interactive_chart(symbol, timeframe, df, trades, equity_df, stats,
             ),
             secondary_y=True,
         )
+    else:
+        # Keine Trades → flache Linie bei start_capital
+        if not df.empty:
+            fig.add_trace(
+                go.Scatter(
+                    x=[df.index[0], df.index[-1]],
+                    y=[start_capital, start_capital],
+                    name='Kontostand',
+                    line=dict(color='#94a3b8', width=1.5, dash='dot'),
+                    hovertemplate='<b>Kontostand</b><br>$%{y:.2f}<extra></extra>',
+                    showlegend=True,
+                ),
+                secondary_y=True,
+            )
 
     # === Titel mit Stats ===
     end_capital  = stats.get('end_capital', start_capital)
     pnl_pct      = stats.get('total_pnl_pct', 0)
-    max_dd       = stats.get('max_drawdown_pct', 0) * 100
     total_trades = stats.get('trades_count', 0)
     win_rate     = stats.get('win_rate', 0)
+    # DD: Sentinel 1.0 vom Backtester (keine Trades) → als 0% anzeigen
+    raw_dd = stats.get('max_drawdown_pct', 0)
+    max_dd = raw_dd * 100 if total_trades > 0 else 0.0
     title = (f"{symbol} {timeframe} - JaegerBot (ANN) | "
              f"${start_capital:.0f}→${end_capital:.0f} | "
              f"PnL: {pnl_pct:+.2f}% | DD: {max_dd:.1f}% | "
              f"Trades: {total_trades} | WR: {win_rate:.1f}%")
+
+    # Annotation wenn keine Trades
+    annotations = []
+    if stats.get('trades_count', 0) == 0:
+        annotations.append(dict(
+            text="⚠ Keine Signale im gewählten Zeitraum",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5,
+            showarrow=False,
+            font=dict(size=18, color="#94a3b8"),
+            bgcolor="rgba(255,255,255,0.7)",
+            bordercolor="#94a3b8",
+            borderwidth=1,
+        ))
 
     fig.update_layout(
         title=title,
@@ -229,6 +269,7 @@ def create_interactive_chart(symbol, timeframe, df, trades, equity_df, stats,
         xaxis=dict(rangeslider=dict(visible=True, thickness=0.05), fixedrange=False),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         showlegend=True,
+        annotations=annotations,
     )
     fig.update_yaxes(title_text="Preis",      secondary_y=False, fixedrange=False)
     fig.update_yaxes(title_text="Kontostand ($)", secondary_y=True,  fixedrange=False, showgrid=False)
@@ -266,33 +307,44 @@ def main():
     exchange = Exchange(account)
     telegram_config = secrets.get('telegram', {})
     
+    # Warmup-Tage je Timeframe (damit Indikatoren/Features genug History haben)
+    WARMUP_DAYS = {
+        '1m': 3, '3m': 5, '5m': 7, '15m': 10, '30m': 14,
+        '1h': 20, '2h': 25, '4h': 30, '6h': 40, '8h': 45,
+        '12h': 60, '1d': 90,
+    }
+
     # Generiere Chart für jede gewählte Config
     for filename, filepath in selected_configs:
         try:
             logger.info(f"\nVerarbeite {filename}...")
-            
+
             config = load_config(filepath)
             symbol = config['market']['symbol']
             timeframe = config['market']['timeframe']
-            
+
             logger.info(f"Lade OHLCV-Daten für {symbol} {timeframe}...")
-            
-            # Nutze historische Daten basierend auf Start/End Datum
-            # Falls keine Daten angefordert: letzte 30 Tage
+
+            # Berechne Lade-Startdatum (inkl. Warmup-Puffer für Feature-Engineering)
+            warmup = WARMUP_DAYS.get(timeframe, 30)
+
             if not start_date:
-                start_date_for_load = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d")
+                display_start = datetime.now(timezone.utc) - timedelta(days=30)
             else:
-                start_date_for_load = start_date
-            
+                display_start = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+
+            # Warmup-Datum: genug History vor dem eigentlichen Startdatum
+            load_start = (display_start - timedelta(days=warmup)).strftime("%Y-%m-%d")
+
             if not end_date:
                 end_date_for_load = datetime.now(timezone.utc).strftime("%Y-%m-%d")
             else:
                 end_date_for_load = end_date
-            
-            df = exchange.fetch_historical_ohlcv(symbol, timeframe, start_date_for_load, end_date_for_load)
+
+            df = exchange.fetch_historical_ohlcv(symbol, timeframe, load_start, end_date_for_load)
             
             if df is None or len(df) == 0:
-                logger.warning(f"Keine Daten für {symbol} {timeframe} im Zeitraum {start_date_for_load} bis {end_date_for_load}")
+                logger.warning(f"Keine Daten für {symbol} {timeframe} im Zeitraum {load_start} bis {end_date_for_load}")
                 continue
             
             logger.info("Verarbeite Daten...")
