@@ -316,14 +316,6 @@ def main():
     except ValueError:
         logger.warning(f"Ungültiges Startkapital '{capital_input}', verwende $1000.")
         start_capital = 1000.0
-    threshold_input = input("Prediction Threshold [leer=Config-Wert, z.B. 0.5 für mehr Signale]: ").strip()
-    threshold_override = None
-    if threshold_input:
-        try:
-            threshold_override = float(threshold_input)
-            logger.info(f"Threshold-Override aktiv: {threshold_override}")
-        except ValueError:
-            logger.warning(f"Ungültiger Threshold-Wert '{threshold_input}', verwende Config-Wert.")
     send_telegram = input("Telegram versenden? (j/n) [Standard: n]: ").strip().lower() in ['j', 'y', 'yes']
     
     try:
@@ -397,8 +389,6 @@ def main():
 
             # Config-JSON in flache Backtest-Parameter umwandeln
             params = _params_from_config(config)
-            if threshold_override is not None:
-                params['prediction_threshold'] = threshold_override
 
             backtest_result = run_ann_backtest(
                 df,
