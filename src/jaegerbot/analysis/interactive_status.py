@@ -143,9 +143,9 @@ def build_equity_curve(equity_snapshots: list, start_capital: float) -> pd.DataF
 
 def create_interactive_chart(symbol, timeframe, df, trades, equity_df, stats,
                               start_date, end_date, window=None, start_capital=1000):
-    """Erstellt interaktiven Chart mit Candlesticks, Trade-Signalen und Equity-Kurve."""
+    """Erstellt interaktiven Chart mit separatem Equity-Panel (oben) und Candlestick (unten)."""
 
-    # Filter auf Fenster / Datum
+    # Filter df auf Anzeige-Zeitraum
     if window:
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=window)
         df = df[df.index >= cutoff_date].copy()
@@ -154,9 +154,49 @@ def create_interactive_chart(symbol, timeframe, df, trades, equity_df, stats,
     if end_date:
         df = df[df.index <= pd.to_datetime(end_date, utc=True)]
 
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    # Zeitgrenzen für Trades-Filter
+    t_min = df.index[0] if not df.empty else None
+    t_max = df.index[-1] if not df.empty else None
 
-    # === Candlestick Chart (primäre Y-Achse) ===
+    # === 2 Subplots: Equity oben (30%), Candlestick unten (70%) ===
+    fig = make_subplots(
+        rows=2, cols=1,
+        row_heights=[0.3, 0.7],
+        shared_xaxes=True,
+        vertical_spacing=0.04,
+        subplot_titles=("Kontostand ($)", f"{symbol} {timeframe}"),
+    )
+
+    # === Equity-Kurve (oben, Row 1) ===
+    if not equity_df.empty and 'equity' in equity_df.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=equity_df.index, y=equity_df['equity'],
+                name='Kontostand',
+                line=dict(color='#2563eb', width=2),
+                fill='tozeroy',
+                fillcolor='rgba(37,99,235,0.10)',
+                hovertemplate='<b>Kontostand</b>: $%{y:.2f}<extra></extra>',
+                showlegend=True,
+            ),
+            row=1, col=1,
+        )
+    else:
+        # Keine Trades → flache Startkapital-Linie
+        if not df.empty:
+            fig.add_trace(
+                go.Scatter(
+                    x=[df.index[0], df.index[-1]],
+                    y=[start_capital, start_capital],
+                    name='Kontostand',
+                    line=dict(color='#94a3b8', width=1.5, dash='dot'),
+                    hovertemplate='Kontostand: $%{y:.2f}<extra></extra>',
+                    showlegend=True,
+                ),
+                row=1, col=1,
+            )
+
+    # === Candlestick (unten, Row 2) ===
     fig.add_trace(
         go.Candlestick(
             x=df.index,
@@ -166,10 +206,10 @@ def create_interactive_chart(symbol, timeframe, df, trades, equity_df, stats,
             decreasing_line_color="#dc2626",
             showlegend=True,
         ),
-        secondary_y=False,
+        row=2, col=1,
     )
 
-    # === Trade-Signale ===
+    # === Trade-Signale (Row 2, nur innerhalb Anzeige-Zeitraum) ===
     entry_long_x, entry_long_y   = [], []
     exit_long_x,  exit_long_y    = [], []
     entry_short_x, entry_short_y = [], []
@@ -178,101 +218,81 @@ def create_interactive_chart(symbol, timeframe, df, trades, equity_df, stats,
     for trade in trades:
         if 'entry_long' in trade:
             t = trade['entry_long']
-            entry_long_x.append(pd.to_datetime(t['time'])); entry_long_y.append(t['price'])
+            ts = pd.to_datetime(t['time'])
+            if t_min is None or (ts >= t_min and ts <= t_max):
+                entry_long_x.append(ts); entry_long_y.append(t['price'])
         if 'exit_long' in trade:
             t = trade['exit_long']
-            exit_long_x.append(pd.to_datetime(t['time']));  exit_long_y.append(t['price'])
+            ts = pd.to_datetime(t['time'])
+            if t_min is None or (ts >= t_min and ts <= t_max):
+                exit_long_x.append(ts); exit_long_y.append(t['price'])
         if 'entry_short' in trade:
             t = trade['entry_short']
-            entry_short_x.append(pd.to_datetime(t['time'])); entry_short_y.append(t['price'])
+            ts = pd.to_datetime(t['time'])
+            if t_min is None or (ts >= t_min and ts <= t_max):
+                entry_short_x.append(ts); entry_short_y.append(t['price'])
         if 'exit_short' in trade:
             t = trade['exit_short']
-            exit_short_x.append(pd.to_datetime(t['time'])); exit_short_y.append(t['price'])
+            ts = pd.to_datetime(t['time'])
+            if t_min is None or (ts >= t_min and ts <= t_max):
+                exit_short_x.append(ts); exit_short_y.append(t['price'])
 
     if entry_long_x:
         fig.add_trace(go.Scatter(x=entry_long_x, y=entry_long_y, mode="markers",
             marker=dict(color="#16a34a", symbol="triangle-up", size=14, line=dict(width=1.2, color="#0f5132")),
-            name="Entry Long", showlegend=True), secondary_y=False)
+            name="Entry Long", showlegend=True), row=2, col=1)
     if exit_long_x:
         fig.add_trace(go.Scatter(x=exit_long_x, y=exit_long_y, mode="markers",
             marker=dict(color="#22d3ee", symbol="circle", size=12, line=dict(width=1.1, color="#0e7490")),
-            name="Exit Long", showlegend=True), secondary_y=False)
+            name="Exit Long", showlegend=True), row=2, col=1)
     if entry_short_x:
         fig.add_trace(go.Scatter(x=entry_short_x, y=entry_short_y, mode="markers",
             marker=dict(color="#f59e0b", symbol="triangle-down", size=14, line=dict(width=1.2, color="#92400e")),
-            name="Entry Short", showlegend=True), secondary_y=False)
+            name="Entry Short", showlegend=True), row=2, col=1)
     if exit_short_x:
         fig.add_trace(go.Scatter(x=exit_short_x, y=exit_short_y, mode="markers",
             marker=dict(color="#ef4444", symbol="diamond", size=12, line=dict(width=1.1, color="#7f1d1d")),
-            name="Exit Short", showlegend=True), secondary_y=False)
-
-    # === Equity-Kurve (sekundäre Y-Achse rechts) ===
-    if not equity_df.empty and 'equity' in equity_df.columns:
-        fig.add_trace(
-            go.Scatter(
-                x=equity_df.index, y=equity_df['equity'],
-                name='Kontostand',
-                line=dict(color='#2563eb', width=2),
-                hovertemplate='<b>Kontostand</b><br>Zeit: %{x}<br>$%{y:.2f}<extra></extra>',
-                showlegend=True,
-            ),
-            secondary_y=True,
-        )
-    else:
-        # Keine Trades → flache Linie bei start_capital
-        if not df.empty:
-            fig.add_trace(
-                go.Scatter(
-                    x=[df.index[0], df.index[-1]],
-                    y=[start_capital, start_capital],
-                    name='Kontostand',
-                    line=dict(color='#94a3b8', width=1.5, dash='dot'),
-                    hovertemplate='<b>Kontostand</b><br>$%{y:.2f}<extra></extra>',
-                    showlegend=True,
-                ),
-                secondary_y=True,
-            )
+            name="Exit Short", showlegend=True), row=2, col=1)
 
     # === Titel mit Stats ===
     end_capital  = stats.get('end_capital', start_capital)
     pnl_pct      = stats.get('total_pnl_pct', 0)
     total_trades = stats.get('trades_count', 0)
     win_rate     = stats.get('win_rate', 0)
-    # DD: Sentinel 1.0 vom Backtester (keine Trades) → als 0% anzeigen
-    raw_dd = stats.get('max_drawdown_pct', 0)
-    max_dd = raw_dd * 100 if total_trades > 0 else 0.0
+    raw_dd       = stats.get('max_drawdown_pct', 0)
+    max_dd       = raw_dd * 100 if total_trades > 0 else 0.0
     title = (f"{symbol} {timeframe} - JaegerBot (ANN) | "
              f"${start_capital:.0f}→${end_capital:.0f} | "
              f"PnL: {pnl_pct:+.2f}% | DD: {max_dd:.1f}% | "
              f"Trades: {total_trades} | WR: {win_rate:.1f}%")
 
-    # Annotation wenn keine Trades
+    # Annotation wenn keine Trades (im unteren Panel)
     annotations = []
-    if stats.get('trades_count', 0) == 0:
+    if total_trades == 0:
         annotations.append(dict(
             text="⚠ Keine Signale im gewählten Zeitraum",
-            xref="paper", yref="paper",
-            x=0.5, y=0.5,
+            xref="paper", yref="y2",
+            x=0.5, y=(df['close'].mean() if not df.empty else 0),
             showarrow=False,
-            font=dict(size=18, color="#94a3b8"),
-            bgcolor="rgba(255,255,255,0.7)",
+            font=dict(size=16, color="#94a3b8"),
+            bgcolor="rgba(255,255,255,0.8)",
             bordercolor="#94a3b8",
             borderwidth=1,
         ))
 
     fig.update_layout(
         title=title,
-        height=650,
+        height=750,
         hovermode='x unified',
         template='plotly_white',
         dragmode='zoom',
-        xaxis=dict(rangeslider=dict(visible=True, thickness=0.05), fixedrange=False),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         showlegend=True,
         annotations=annotations,
+        xaxis2=dict(rangeslider=dict(visible=True, thickness=0.04)),
     )
-    fig.update_yaxes(title_text="Preis",      secondary_y=False, fixedrange=False)
-    fig.update_yaxes(title_text="Kontostand ($)", secondary_y=True,  fixedrange=False, showgrid=False)
+    fig.update_yaxes(title_text="Kontostand ($)", row=1, col=1, fixedrange=False)
+    fig.update_yaxes(title_text="Preis", row=2, col=1, fixedrange=False)
     fig.update_xaxes(fixedrange=False)
 
     return fig
@@ -290,6 +310,14 @@ def main():
     end_date = input("Enddatum (YYYY-MM-DD) [leer=heute]: ").strip() or None
     window_input = input("Letzten N Tage anzeigen [leer=alle]: ").strip()
     window = int(window_input) if window_input.isdigit() else None
+    threshold_input = input("Prediction Threshold [leer=Config-Wert, z.B. 0.5 für mehr Signale]: ").strip()
+    threshold_override = None
+    if threshold_input:
+        try:
+            threshold_override = float(threshold_input)
+            logger.info(f"Threshold-Override aktiv: {threshold_override}")
+        except ValueError:
+            logger.warning(f"Ungültiger Threshold-Wert '{threshold_input}', verwende Config-Wert.")
     send_telegram = input("Telegram versenden? (j/n) [Standard: n]: ").strip().lower() in ['j', 'y', 'yes']
     
     try:
@@ -363,6 +391,8 @@ def main():
 
             # Config-JSON in flache Backtest-Parameter umwandeln
             params = _params_from_config(config)
+            if threshold_override is not None:
+                params['prediction_threshold'] = threshold_override
 
             backtest_result = run_ann_backtest(
                 df,
