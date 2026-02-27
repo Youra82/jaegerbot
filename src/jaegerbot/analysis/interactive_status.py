@@ -310,6 +310,12 @@ def main():
     end_date = input("Enddatum (YYYY-MM-DD) [leer=heute]: ").strip() or None
     window_input = input("Letzten N Tage anzeigen [leer=alle]: ").strip()
     window = int(window_input) if window_input.isdigit() else None
+    capital_input = input("Startkapital in $ [Standard: 1000]: ").strip()
+    try:
+        start_capital = float(capital_input) if capital_input else 1000.0
+    except ValueError:
+        logger.warning(f"Ungültiges Startkapital '{capital_input}', verwende $1000.")
+        start_capital = 1000.0
     threshold_input = input("Prediction Threshold [leer=Config-Wert, z.B. 0.5 für mehr Signale]: ").strip()
     threshold_override = None
     if threshold_input:
@@ -398,16 +404,16 @@ def main():
                 df,
                 params,
                 model_paths,
-                start_capital=1000,
+                start_capital=start_capital,
                 use_macd_filter=config.get('behavior', {}).get('use_macd_filter', False),
                 timeframe=timeframe,
                 verbose=False,
             )
 
             # Trades + Equity aus Backtest-Ergebnis
-            trades          = backtest_result.get('trades', [])
+            trades           = backtest_result.get('trades', [])
             equity_snapshots = backtest_result.get('equity_snapshots', [])
-            equity_df       = build_equity_curve(equity_snapshots, start_capital=1000)
+            equity_df        = build_equity_curve(equity_snapshots, start_capital=start_capital)
 
             # Erstelle Chart
             logger.info("Erstelle Chart...")
@@ -421,7 +427,7 @@ def main():
                 start_date,
                 end_date,
                 window,
-                start_capital=1000,
+                start_capital=start_capital,
             )
             
             # Speichere HTML
