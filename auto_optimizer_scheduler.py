@@ -198,6 +198,20 @@ def _send_telegram_plain(message: str):
         _log(f"TELEGRAM ERROR {e}")
 
 
+def _init_results_file(start_time: datetime):
+    """Initialisiert last_optimizer_run.json vor dem Pipeline-Start.
+    optimizer.py haengt pro Paar Ergebnisse an statt die Datei zu ueberschreiben."""
+    os.makedirs(os.path.dirname(OPTIMIZER_RESULTS_FILE), exist_ok=True)
+    init_data = {
+        'run_start': start_time.isoformat(timespec='seconds'),
+        'run_end': None,
+        'saved': [],
+        'failed': [],
+    }
+    with open(OPTIMIZER_RESULTS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(init_data, f, indent=2)
+
+
 def _send_start_telegram(pair_display: list, num_trials: int, start_time: datetime):
     msg = (
         f"\U0001f680 JaegerBot Auto-Optimizer GESTARTET\n"
@@ -386,6 +400,9 @@ def run_optimization(schedule: dict, opt_settings: dict,
 
     start_perf = time.time()
     success    = False
+
+    # Ergebnisdatei leeren, damit optimizer.py pro Paar anhängen kann
+    _init_results_file(start_time)
 
     try:
         rc = _run_bash_pipeline()
