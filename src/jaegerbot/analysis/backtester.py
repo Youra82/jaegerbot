@@ -121,7 +121,8 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
     current_capital, trades_count, wins_count = start_capital, 0, 0
     peak_capital, max_drawdown_pct = start_capital, 0.0
     position = None
-    trades = []  # Sammle alle Trades für Chart-Darstellung
+    trades = []           # Sammle alle Trades für Chart-Darstellung
+    equity_snapshots = [] # Kapitalverlauf für Equity-Kurve
 
     # --- KORREKTUR: ADX / HTF-Filter-Initialisierung entfernt ---
     # Entferne die Lade-Logik für HTF-Daten, da der ADX-Filter entfernt wurde
@@ -187,6 +188,7 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
                 if net_pnl > 0: wins_count += 1
                 trades_count += 1
                 position = None
+                equity_snapshots.append({'timestamp': data_with_features.index[i], 'equity': current_capital})
                 peak_capital = max(peak_capital, current_capital)
                 if peak_capital > 0:
                     drawdown = (peak_capital - current_capital) / peak_capital
@@ -257,4 +259,4 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
 
     win_rate = (wins_count / trades_count * 100) if trades_count > 0 else 0
     final_pnl_pct = ((current_capital - start_capital) / start_capital) * 100 if start_capital > 0 else 0
-    return {"total_pnl_pct": final_pnl_pct, "trades_count": trades_count, "win_rate": win_rate, "max_drawdown_pct": max_drawdown_pct, "end_capital": current_capital, "trades": trades}
+    return {"total_pnl_pct": final_pnl_pct, "trades_count": trades_count, "win_rate": win_rate, "max_drawdown_pct": max_drawdown_pct, "end_capital": current_capital, "trades": trades, "equity_snapshots": equity_snapshots}
