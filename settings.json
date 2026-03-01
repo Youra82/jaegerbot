@@ -1,6 +1,6 @@
 {
   "live_trading_settings": {
-    "use_auto_optimizer_results": false,
+    "use_auto_optimizer_results": true,
     "top_n_strategies_to_trade": 5,
     "active_strategies": [
       {
