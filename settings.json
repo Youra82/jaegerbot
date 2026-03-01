@@ -29,8 +29,8 @@
     "symbols_to_optimize": "auto",
     "timeframes_to_optimize": "auto",
     "lookback_days": "auto",
-    "start_capital": 1000,
-    "num_trials": 10,
+    "start_capital": 50,
+    "num_trials": 500,
     "cpu_cores": -1,
     "mode": "strict",
     "top_n": 5,
@@ -43,8 +43,8 @@
     },
     "schedule": {
       "_info": "day_of_week: 0=Montag, 6=Sonntag | hour: 0-23 (24h Format)",
-      "day_of_week": 0,
-      "hour": 3,
+      "day_of_week": 6,
+      "hour": 23,
       "minute": 0,
       "interval": {
         "value": 7,
