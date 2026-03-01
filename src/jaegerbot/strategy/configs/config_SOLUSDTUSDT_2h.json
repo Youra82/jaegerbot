@@ -1,23 +1,23 @@
 {
     "_meta": {
-        "pnl_pct": 0
+        "pnl_pct": 184.09
     },
     "market": {
-        "symbol": "ETH/USDT:USDT",
-        "timeframe": "6h"
+        "symbol": "SOL/USDT:USDT",
+        "timeframe": "2h"
     },
     "strategy": {
         "prediction_threshold": 0.6
     },
     "risk": {
         "margin_mode": "isolated",
-        "risk_per_trade_pct": 2.0,
-        "risk_reward_ratio": 2.46,
+        "risk_per_trade_pct": 1.94,
+        "risk_reward_ratio": 2.08,
         "leverage": 17,
-        "trailing_stop_activation_rr": 1.01,
+        "trailing_stop_activation_rr": 1.0,
         "trailing_stop_callback_rate_pct": 0.5,
-        "atr_multiplier_sl": 1.14,
-        "min_sl_pct": 1.88
+        "atr_multiplier_sl": 1.57,
+        "min_sl_pct": 1.11
     },
     "behavior": {
         "use_longs": true,

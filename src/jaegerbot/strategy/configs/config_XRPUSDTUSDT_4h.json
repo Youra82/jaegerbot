@@ -1,4 +1,7 @@
 {
+    "_meta": {
+        "pnl_pct": 0
+    },
     "market": {
         "symbol": "XRP/USDT:USDT",
         "timeframe": "4h"
