@@ -14,6 +14,7 @@ sys.path.append(os.path.join(PROJECT_ROOT, 'src'))
 from jaegerbot.utils.exchange import Exchange
 from jaegerbot.utils.ann_model import prepare_data_for_ann, load_model_and_scaler, create_ann_features
 from jaegerbot.utils.supertrend_indicator import SuperTrendLocal
+from jaegerbot.utils.signal_scorer import SignalScorer, DEFAULT_WEIGHTS, DEFAULT_MIN_SIGNAL_SCORE
 
 # --- load_data und get_higher_timeframe sind unverändert ---
 def load_data(symbol, timeframe, start_date_str, end_date_str):
@@ -73,10 +74,11 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
     if data_with_features.empty or len(data_with_features) < 10:
         return {"total_pnl_pct": 0, "trades_count": 0, "win_rate": 0, "max_drawdown_pct": 1.0, "end_capital": start_capital}
 
-    # --- NEU: SuperTrend Richtung hinzufügen (ST-Richtung der VORHERIGEN Kerze) ---
+    # SuperTrend Richtung der VORHERIGEN Kerze vorberechnen
     data_with_features['supertrend_direction'] = calculate_supertrend_direction(data_with_features)
+    # Rolling-Mittel für Scorer vorberechnen (spart Loop-Overhead)
+    data_with_features['avg_atr_normalized'] = data_with_features['atr_normalized'].rolling(50).mean()
     data_with_features.dropna(inplace=True)
-    # ---
 
     if data_with_features.empty:
         return {"total_pnl_pct": 0, "trades_count": 0, "win_rate": 0, "max_drawdown_pct": 1.0, "end_capital": start_capital}
@@ -114,7 +116,14 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
     activation_rr = params.get('trailing_stop_activation_rr', 2.0)
     callback_rate = params.get('trailing_stop_callback_rate_pct', 1.0) / 100
 
-    initial_sl_pct = params.get('initial_sl_pct', 1.0) / 100.0 # Der initiale SL ist noch prozentbasiert
+    # Dynamische ATR-basierte SL-Parameter (konsistent mit trade_manager.py)
+    atr_multiplier_sl = params.get('atr_multiplier_sl', 2.0)
+    min_sl_pct = params.get('min_sl_pct', 0.5) / 100.0
+
+    # Signal-Scoring Parameter
+    min_signal_score = params.get('min_signal_score', DEFAULT_MIN_SIGNAL_SCORE)
+    scorer = SignalScorer(weights=DEFAULT_WEIGHTS)
+
     leverage = params.get('leverage', 10)
     fee_pct = 0.05 / 100
 
@@ -197,65 +206,60 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
 
         if not position:
             side = 'long' if current['prediction'] >= pred_threshold else 'short' if current['prediction'] <= (1 - pred_threshold) else None
-            trade_allowed = True # Wird für den SuperTrend-Filter verwendet
 
             if side:
-                # --- NEUER SUPER TREND FILTER ---
-                st_direction = current['supertrend_direction']
-                
-                if st_direction == 1.0 and side == 'short':
-                    trade_allowed = False # Nur Longs bei Long-Trend
-                elif st_direction == -1.0 and side == 'long':
-                    trade_allowed = False # Nur Shorts bei Short-Trend
-                # Alle anderen Kombinationen werden erlaubt, wenn das ANN ein Signal gibt.
-                # --- ENDE NEUER SUPER TREND FILTER ---
-                
-                # *** NEUE FILTER: ADX & VOLUME (wie in trade_manager) ***
-                if trade_allowed:
-                    # ADX-Filter
-                    current_adx = current.get('adx', 0)
-                    if current_adx < 20:
-                        trade_allowed = False
-                    
-                    # Volume-Filter (wenn vorhanden)
-                    if 'volume_ratio' in current.index:
-                        if current['volume_ratio'] < 0.8:
-                            trade_allowed = False
-                    
-                    # Volatilitäts-Filter
-                    if i >= 50:  # Genug Daten für Rolling Mean
-                        avg_atr = data_with_features['atr_normalized'].iloc[i-50:i].mean()
-                        if current['atr_normalized'] > avg_atr * 2.0:
-                            trade_allowed = False
-                # *** ENDE NEUE FILTER ***
+                # --- SIGNAL SCORING (konsistent mit trade_manager.py) ---
+                breakdown = scorer.score(
+                    prediction=current['prediction'],
+                    pred_threshold=pred_threshold,
+                    side=side,
+                    st_direction=current['supertrend_direction'],
+                    adx=current.get('adx', 0.0),
+                    volume_ratio=current.get('volume_ratio', 1.0),
+                    atr_normalized=current.get('atr_normalized', 0.0),
+                    avg_atr_normalized=current.get('avg_atr_normalized', current.get('atr_normalized', 0.0)),
+                )
+                trade_allowed = breakdown.total >= min_signal_score
+                # --- ENDE SIGNAL SCORING ---
 
-                if side and trade_allowed:
+                if trade_allowed:
                     entry_price = current['close']
-                    entry_time = data_with_features.index[i]  # Speichere Entry-Zeit
+                    entry_time = data_with_features.index[i]
                     risk_amount_usd = current_capital * risk_per_trade_pct
 
-                    sl_distance = entry_price * initial_sl_pct
-                    if sl_distance == 0: continue
+                    # Dynamische ATR-basierte SL-Berechnung (konsistent mit trade_manager.py)
+                    current_atr = current.get('atr', 0.0)
+                    if current_atr <= 0:
+                        continue
 
-                    notional_value = risk_amount_usd / initial_sl_pct
+                    sl_distance_atr = current_atr * atr_multiplier_sl
+                    sl_distance_min = entry_price * min_sl_pct
+                    sl_distance = max(sl_distance_atr, sl_distance_min)
+                    if sl_distance == 0:
+                        continue
+
+                    notional_value = risk_amount_usd / (sl_distance / entry_price)
                     margin_used = notional_value / leverage
-                    if margin_used > current_capital: continue
+                    if margin_used > current_capital:
+                        continue
 
-                    stop_loss_distance = entry_price * initial_sl_pct
-                    stop_loss = entry_price - stop_loss_distance if side == 'long' else entry_price + stop_loss_distance
+                    stop_loss = entry_price - sl_distance if side == 'long' else entry_price + sl_distance
+                    take_profit = entry_price + sl_distance * risk_reward_ratio if side == 'long' else entry_price - sl_distance * risk_reward_ratio
+                    activation_price = entry_price + sl_distance * activation_rr if side == 'long' else entry_price - sl_distance * activation_rr
 
-                    take_profit = entry_price + (entry_price - stop_loss) * risk_reward_ratio if side == 'long' else entry_price - (stop_loss - entry_price) * risk_reward_ratio
-
-                    # TSL-Aktivierungspreis basierend auf Activation RR
-                    activation_price = entry_price + stop_loss_distance * activation_rr if side == 'long' else entry_price - stop_loss_distance * activation_rr
-
-                    position = {'side': side, 'entry_price': entry_price, 'entry_time': entry_time, 'stop_loss': stop_loss,
-                                'take_profit': take_profit, 'margin_used': margin_used,
-                                'notional_value': notional_value,
-                                'trailing_active': False,
-                                'activation_price': activation_price,
-                                'peak_price': entry_price,
-                                'callback_rate': callback_rate} # Speichern der Callback Rate für den TSL-Update
+                    position = {
+                        'side': side,
+                        'entry_price': entry_price,
+                        'entry_time': entry_time,
+                        'stop_loss': stop_loss,
+                        'take_profit': take_profit,
+                        'margin_used': margin_used,
+                        'notional_value': notional_value,
+                        'trailing_active': False,
+                        'activation_price': activation_price,
+                        'peak_price': entry_price,
+                        'callback_rate': callback_rate,
+                    }
 
     win_rate = (wins_count / trades_count * 100) if trades_count > 0 else 0
     final_pnl_pct = ((current_capital - start_capital) / start_capital) * 100 if start_capital > 0 else 0

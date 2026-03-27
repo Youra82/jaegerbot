@@ -1,93 +1,127 @@
-# 🎯 JaegerBot - LSTM AI Trading System
+# JaegerBot — ANN Signal Scoring Trading System
 
 <div align="center">
 
-![JaegerBot Logo](https://img.shields.io/badge/JaegerBot-v1.0-blue?style=for-the-badge)
-[![Python](https://img.shields.io/badge/Python-3.8+-green?style=for-the-badge&logo=python)](https://www.python.org/)
-[![TensorFlow](https://img.shields.io/badge/TensorFlow-2.16.1-orange?style=for-the-badge&logo=tensorflow)](https://www.tensorflow.org/)
-[![CCXT](https://img.shields.io/badge/CCXT-4.3.5-red?style=for-the-badge)](https://github.com/ccxt/ccxt)
+![JaegerBot](https://img.shields.io/badge/JaegerBot-v2.0-blue?style=for-the-badge)
+[![Python](https://img.shields.io/badge/Python-3.10+-green?style=for-the-badge&logo=python)](https://www.python.org/)
+[![TensorFlow](https://img.shields.io/badge/TensorFlow-2.16+-orange?style=for-the-badge&logo=tensorflow)](https://www.tensorflow.org/)
+[![Optuna](https://img.shields.io/badge/Optuna-Hyperparameter--Optimierung-purple?style=for-the-badge)](https://optuna.org/)
+[![CCXT](https://img.shields.io/badge/CCXT-Bitget-red?style=for-the-badge)](https://github.com/ccxt/ccxt)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
 
-**Ein vollautomatisiertes Deep-Learning Trading-System mit LSTM-Prognosen und Multi-Indikator-Kombination für präzise Signale**
+**Vollautomatisches Deep-Learning Trading-System mit ANN-Signalen und gewichtetem Score-Filter**
 
-[Features](#-features) • [Installation](#-installation) • [Konfiguration](#-konfiguration) • [Live-Trading](#-live-trading) • [Pipeline](#-interaktives-pipeline-script) • [Monitoring](#-monitoring--status) • [Wartung](#-wartung)
+[Architektur](#architektur) • [Installation](#installation) • [Konfiguration](#konfiguration) • [Live-Trading](#live-trading) • [Pipeline](#pipeline) • [Monitoring](#monitoring) • [Wartung](#wartung)
 
 </div>
 
 ---
 
-## 📊 Übersicht
+## Übersicht
 
-JaegerBot ist ein hochmodernes, KI-gesteuertes Trading-System, das Deep Learning (LSTM mit TensorFlow) mit technischen Indikatoren kombiniert. Das System nutzt mehrschichtige LSTM-Modelle für mehrtägige Trend-Prognosen und kombiniert diese mit klassischen Indikatoren (RSI, MACD, ATR, Bollinger Bands) für präzise Ein- und Ausstiegssignale.
+JaegerBot ist ein KI-gesteuertes Futures-Trading-System für Bitget. Das Herzstück ist ein **ANN (Artificial Neural Network)** mit 34 Features, das Trendrichtungen auf Basis historischer Marktdaten prognostiziert. In Version 2.0 ersetzt ein **gewichtetes Signal-Scoring-System** die alte binäre Filter-Kaskade — kein einzelner Indikator kann einen Trade mehr alleine blockieren.
 
-### 🧭 Trading-Logik (Kurzfassung)
-- **LSTM-Trend-Prognose**: Deep Learning Modelle prognostizieren den Trend mehrere Tage im Voraus (Mid-Term Bias) und glätten Intraday-Rauschen
-- **Feature-Engine**: RSI + MACD + ATR + Bollinger Bands werden gewichtet kombiniert
-- **Signal-Score**: LSTM-Vorhersagen werden mit klassischen Indikatoren zu einem Score verschmolzen
-- **Regime-Filter**: Optionaler MACD-Filter unterdrückt Trades in trendlosen Phasen (MACD < 0)
-- **Risk Layer**: Dynamisches Stop-Loss/Take-Profit Management mit ATR-basiertem Sizing
-- **Execution**: CCXT für Order-Platzierung mit realistischer Slippage-Simulation
+### Was ist neu in v2.0
 
-### 🔍 Strategie-Visualisierung
-```mermaid
-flowchart LR
-    A["OHLCV Marktdaten"]
-    B["Feature-Engine<br/>RSI + MACD + ATR + Bollinger"]
-    C["LSTM-Prognose<br/>Mehrtägiger Trend"]
-    D["Signal-Score<br/>Kombination"]
-    E["Regime-Filter<br/>MACD-Check"]
-    F["Risk Engine<br/>ATR-SL/TP"]
-    G["Order Router (CCXT)"]
+| Komponente | Alt (v1.x) | Neu (v2.0) |
+|---|---|---|
+| SuperTrend | Hard-Block bei Gegentrend | Score-Beitrag: 0–2 Punkte |
+| ADX | Hard-Block bei ADX < 20 | Score-Beitrag: 0–2 Punkte (graduiert) |
+| Volumen | Hard-Block bei < 80% Avg | Score-Beitrag: 0–1 Punkte |
+| Volatilität | Hard-Block bei ATR-Spike | Score-Beitrag: 0–1 Punkte |
+| ANN-Signal | Reiner On/Off-Trigger | Score-Beitrag: 0–4 Punkte (Konfidenz-gewichtet) |
+| Schwelle | Fest (keine Optimierung) | `min_signal_score` per Symbol/Timeframe optimiert |
+| Backtester SL | `initial_sl_pct` (fest %) | ATR-basiert (konsistent mit Live-Bot) |
 
-    A --> B --> C --> D --> E
-    E --> F --> G
+### Signal-Scoring-System
+
+Jeder Trade wird auf einer Skala von 0–10 Punkten bewertet. Ein Trade wird nur eröffnet, wenn der Gesamt-Score `>= min_signal_score`:
+
+```
+ANN-Konfidenz   : 0–4 Punkte  (Abstand der Vorhersage von der Schwelle)
+SuperTrend      : 0–2 Punkte  (Trend ausgerichtet = 2, Gegentrend = 0)
+ADX-Trendstärke : 0–2 Punkte  (ADX >= 35 = 2, >= 25 = 1.5, >= 20 = 1, >= 15 = 0.5)
+Volumen         : 0–1 Punkte  (volume_ratio >= 1.2 = 1, >= 1.0 = 0.75, >= 0.8 = 0.5)
+Volatilität     : 0–1 Punkte  (ruhiger Markt = 1, Spike > 2× Avg = 0)
+─────────────────────────────────
+Gesamt          : 0–10 Punkte → Trade wenn >= min_signal_score (z.B. 5.5)
 ```
 
-### 📈 Trade-Beispiel (Entry/SL/TP)
-- **Bias**: LSTM-Modell prognostiziert Aufwärtstrend für die nächsten 3-5 Tage; MACD > 0 bestätigt Regime
-- **Entry**: Long bei lokaler Pullback-Kerze (30m/1h), sobald Signal-Score > Schwelle
-- **Initial SL**: 1.5×ATR unter letztem Swing-Low zur Vermeidung von Fehlausbrüchen
-- **TP**: 2.5×ATR über Entry oder strukturelles Ziel
-- **Trailing**: Nach +1×ATR im Profit zieht der Trail unter das letzte Higher Low; TP bleibt als Hard Cap
+**Praxisbeispiel:**
+- Starkes ANN-Signal (0.85) im Bärenmarkt, ST bearisch → Score 6.3 → **Trade** (vorher geblockt)
+- Schwaches ANN-Signal (0.61), ADX=8, kein Volumen → Score 0.6 → **kein Trade** (richtig gefiltert)
 
 ---
 
-## 🚀 Features
+## Architektur
 
-### Trading Features
-- ✅ LSTM Deep Learning Prognosen (mehrtägiger Trend)
-- ✅ Unterstützt mehrere Kryptowährungspaare (BTC, ETH, SOL, DOGE, etc.)
-- ✅ Flexible Timeframe-Unterstützung (15m, 30m, 1h, 4h, 1d)
-- ✅ Automatische Positionsgröße basierend auf verfügbarem Kapital
-- ✅ ATR-basiertes Stop-Loss und Take-Profit Management
-- ✅ Telegram-Benachrichtigungen bei neuen Signalen und Trades
+```
+OHLCV Marktdaten (500 Kerzen)
+        │
+        ▼
+Feature-Engine (34 Features)
+  ├── Volatilität: BB-Width, BB-Band, ATR, Keltner, Donchian
+  ├── Momentum:    RSI, MACD, Stochastic, Williams %R, ROC, CCI
+  ├── Volumen:     OBV, Volume-Ratio, MFI, CMF, VWAP
+  ├── Trend:       ADX, ADX+/-, EMA20/50, Price-to-EMA
+  ├── Preisstruktur: High-Low-Range, Support/Resistance
+  └── Zeit:        Day-of-Week, Hour-of-Day, Lag-Returns
+        │
+        ▼
+ANN-Modell (Dense 256→128→64→32→1, Sigmoid)
+  └── Output: 0.0 (stark SHORT) … 1.0 (stark LONG)
+        │
+        ▼
+Signal-Scorer (signal_scorer.py)
+  ├── ANN-Konfidenz (0–4 Pts)
+  ├── SuperTrend    (0–2 Pts)
+  ├── ADX           (0–2 Pts)
+  ├── Volumen       (0–1 Pt)
+  └── Volatilität   (0–1 Pt)
+        │
+  Score >= min_signal_score?
+        │
+        ├── NEIN → kein Trade
+        └── JA  ──▶ Trade-Eröffnung
+                      ├── Leverage + Margin Mode setzen
+                      ├── Market-Order platzieren
+                      ├── Dynamischer ATR-Stop-Loss
+                      └── Trailing Stop (aktiviert bei Profit)
+```
 
-### Technical Features
-- ✅ TensorFlow LSTM Neural Networks
-- ✅ RSI, MACD, Bollinger Bands, ATR Integration
-- ✅ Optuna Hyperparameter-Optimierung
-- ✅ Backtesting mit realistischer Slippage-Simulation
-- ✅ Robust Error-Handling und Logging
-- ✅ Walk-Forward-Analyse für Modell-Validation
+### Dateistruktur
+
+```
+jaegerbot/
+├── src/jaegerbot/
+│   ├── strategy/
+│   │   ├── run.py                        # Entry-Point pro Strategie
+│   │   └── configs/
+│   │       └── config_*.json             # Optimierte Konfigurationen
+│   ├── utils/
+│   │   ├── signal_scorer.py              # Signal-Scoring-System (v2.0)
+│   │   ├── trade_manager.py              # Trading-Logik, Positionsverwaltung
+│   │   ├── ann_model.py                  # Feature-Engineering & ANN
+│   │   ├── supertrend_indicator.py       # SuperTrend-Implementierung
+│   │   ├── exchange.py                   # Bitget CCXT-Wrapper
+│   │   └── telegram.py                   # Telegram-Benachrichtigungen
+│   └── analysis/
+│       ├── backtester.py                 # Backtesting (ATR-SL, Signal-Scoring)
+│       ├── optimizer.py                  # Optuna-Optimierung (inkl. min_signal_score)
+│       ├── trainer.py                    # ANN-Training
+│       ├── find_best_threshold.py        # Threshold-Finder
+│       └── show_results.py              # Ergebnisvisualisierung
+├── master_runner.py                      # Haupt-Orchestrator
+├── auto_optimizer_scheduler.py           # Automatische Reoptimierung
+├── push_configs.sh                       # Optimierte Configs pushen
+├── run_pipeline.sh                       # Manueller Pipeline-Run
+├── update.sh                             # VPS-Update-Script
+└── settings.json                         # Live-Trading-Konfiguration
+```
 
 ---
 
-## 📋 Systemanforderungen
-
-### Hardware
-- **CPU**: Multi-Core Prozessor (Intel i7 oder besser empfohlen für LSTM)
-- **RAM**: Minimum 4GB, empfohlen 8GB+
-- **GPU**: Optional aber empfohlen für schnellere LSTM-Inferenz
-- **Speicher**: 2GB freier Speicherplatz
-
-### Software
-- **OS**: Linux (Ubuntu 20.04+), macOS, Windows 10/11
-- **Python**: Version 3.8 oder höher
-- **Git**: Für Repository-Verwaltung
-
----
-
-## 💻 Installation
+## Installation
 
 ### 1. Repository klonen
 
@@ -96,744 +130,372 @@ git clone https://github.com/Youra82/jaegerbot.git
 cd jaegerbot
 ```
 
-### 2. Automatische Installation (empfohlen)
+### 2. Virtuelle Umgebung & Abhängigkeiten
 
 ```bash
-# Linux/macOS
 chmod +x install.sh
 ./install.sh
+```
 
-# Windows (PowerShell)
-python -m venv .venv
-.venv\Scripts\activate
+Oder manuell:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Das Installations-Script führt folgende Schritte aus:
-- ✅ Erstellt eine virtuelle Python-Umgebung (`.venv`)
-- ✅ Installiert alle erforderlichen Abhängigkeiten (TensorFlow, CCXT, etc.)
-- ✅ Erstellt notwendige Verzeichnisse (`data/`, `logs/`, `artifacts/`, `models/`)
-- ✅ Initialisiert Konfigurationsdateien
-- ✅ Trainiert initiale LSTM-Modelle (optional)
-
 ### 3. API-Credentials konfigurieren
 
-Erstelle eine `secret.json` Datei im Root-Verzeichnis:
+`secret.json` im Root-Verzeichnis erstellen (wird **nicht** ins Repo committed):
 
 ```json
 {
   "jaegerbot": [
     {
-      "name": "Binance Trading Account",
-      "exchange": "binance",
+      "name": "Mein Bitget Account",
+      "exchange": "bitget",
       "apiKey": "DEIN_API_KEY",
       "secret": "DEIN_SECRET_KEY",
+      "password": "DEIN_PASSPHRASE",
       "options": {
-        "defaultType": "future"
+        "defaultType": "swap"
       }
     }
-  ]
-}
-```
-
-⚠️ **Wichtig**: 
-- Niemals `secret.json` committen oder teilen!
-- Verwende nur API-Keys mit eingeschränkten Rechten (Nur Trading, keine Withdrawals)
-- Aktiviere IP-Whitelist auf der Exchange
-
-### 4. Trading-Strategien konfigurieren
-
-Bearbeite `settings.json` für deine gewünschten Handelspaare:
-
-```json
-{
-  "live_trading_settings": {
-    "active_strategies": [
-      {
-        "symbol": "BTC/USDT:USDT",
-        "timeframe": "4h",
-        "use_macd_filter": true,
-        "active": true
-      },
-      {
-        "symbol": "ETH/USDT:USDT",
-        "timeframe": "1h",
-        "use_macd_filter": true,
-        "active": true
-      }
-    ]
+  ],
+  "telegram": {
+    "bot_token": "DEIN_BOT_TOKEN",
+    "chat_id": "DEINE_CHAT_ID"
   }
 }
 ```
 
-**Parameter-Erklärung**:
-- `symbol`: Handelspaar (Format: BASE/QUOTE:SETTLE)
-- `timeframe`: Zeitrahmen (15m, 30m, 1h, 4h, 1d)
-- `use_macd_filter`: MACD-Filter für Regime-Check aktivieren (true/false)
-- `active`: Strategie aktiv (true/false)
+> **Wichtig:** Nur Trading-Rechte vergeben, keine Withdrawal-Rechte. IP-Whitelist aktivieren.
 
 ---
 
-## 🔴 Live Trading
+## Konfiguration
 
-### Start des Live-Trading
+### settings.json
 
-```bash
-# Master Runner starten (verwaltet alle aktiven Strategien)
-cd /home/ubuntu/jaegerbot && .venv/bin/python3 master_runner.py
+```json
+{
+  "live_trading_settings": {
+    "use_auto_optimizer_results": false,
+    "active_strategies": [
+      {
+        "symbol": "BTC/USDT:USDT",
+        "timeframe": "4h",
+        "use_macd_filter": false,
+        "active": true
+      },
+      {
+        "symbol": "ETH/USDT:USDT",
+        "timeframe": "6h",
+        "use_macd_filter": false,
+        "active": true
+      }
+    ]
+  },
+  "optimization_settings": {
+    "enabled": true,
+    "num_trials": 500,
+    "send_telegram_on_completion": true,
+    "constraints": {
+      "max_drawdown_pct": 30,
+      "min_win_rate_pct": 45,
+      "min_pnl_pct": 0
+    },
+    "schedule": {
+      "day_of_week": 6,
+      "hour": 23,
+      "minute": 0,
+      "interval": { "value": 7, "unit": "days" }
+    }
+  }
+}
 ```
 
-### Manuell starten / Cronjob testen
-Ausführung sofort anstoßen (ohne auf den 15-Minuten-Cron zu warten):
+### Config-Dateien (pro Symbol/Timeframe)
 
-```bash
-cd /home/ubuntu/jaegerbot && .venv/bin/python3 master_runner.py
+Die Configs werden vom Optimizer generiert und in `src/jaegerbot/strategy/configs/` gespeichert:
+
+```json
+{
+  "_meta": { "pnl_pct": 2616.68 },
+  "market": {
+    "symbol": "BTC/USDT:USDT",
+    "timeframe": "4h"
+  },
+  "strategy": {
+    "prediction_threshold": 0.65,
+    "min_signal_score": 5.5
+  },
+  "risk": {
+    "margin_mode": "isolated",
+    "risk_per_trade_pct": 1.5,
+    "risk_reward_ratio": 2.8,
+    "leverage": 12,
+    "atr_multiplier_sl": 2.8,
+    "min_sl_pct": 0.8,
+    "trailing_stop_activation_rr": 1.5,
+    "trailing_stop_callback_rate_pct": 0.8
+  },
+  "behavior": {
+    "use_longs": true,
+    "use_shorts": true
+  }
+}
 ```
 
-Der Master Runner:
-- ✅ Lädt Konfigurationen aus `settings.json`
-- ✅ Startet separate Prozesse für jede aktive Strategie
-- ✅ Lädt trainierte LSTM-Modelle aus `artifacts/models/`
-- ✅ Generiert Signale basierend auf LSTM + Indikatoren
-- ✅ Überwacht Kontostand und verfügbares Kapital
-- ✅ Managed Positionen und Risk-Limits
-- ✅ Loggt alle Trading-Aktivitäten
-- ✅ Sendet Telegram-Benachrichtigungen
+**Parameter-Erklärung:**
 
-### Automatischer Start (Produktions-Setup)
+| Parameter | Beschreibung |
+|---|---|
+| `prediction_threshold` | ANN-Schwelle für Long-Signal (Short = 1 - threshold) |
+| `min_signal_score` | Mindest-Score 0–10 für Trade-Eröffnung (Optimizer-Ergebnis) |
+| `atr_multiplier_sl` | ATR-Multiplikator für Stop-Loss-Distanz |
+| `min_sl_pct` | Minimaler SL in % (Untergrenze für ATR-SL) |
+| `trailing_stop_activation_rr` | RR-Ratio bei dem der Trailing Stop aktiviert wird |
+| `trailing_stop_callback_rate_pct` | Callback-Rate des Trailing Stops in % |
 
-Richte den automatischen Prozess für den Live-Handel ein.
+### Signal-Scoring anpassen
+
+Der Scorer verwendet Standardgewichte (Summe = 10). Diese können per `scoring`-Sektion in der Config überschrieben werden:
+
+```json
+{
+  "scoring": {
+    "ann_weight": 4.0,
+    "st_weight": 2.0,
+    "adx_weight": 2.0,
+    "volume_weight": 1.0,
+    "volatility_weight": 1.0
+  }
+}
+```
+
+> In der Regel reicht es, nur `min_signal_score` zu tunen. Die Gewichte werden standardmäßig nicht verändert.
+
+---
+
+## Live-Trading
+
+### Starten
+
+```bash
+# Einzelner Zyklus (für Cron)
+source .venv/bin/activate
+python master_runner.py
+
+# Dauerbetrieb mit Screen
+screen -S jaegerbot
+source .venv/bin/activate
+python master_runner.py
+# Ctrl+A, D zum Detachen
+```
+
+### Cron-Setup (empfohlen)
 
 ```bash
 crontab -e
 ```
 
-Füge die folgende **eine Zeile** am Ende der Datei ein. Passe den Pfad an, falls dein Bot nicht unter `/home/ubuntu/jaegerbot` liegt.
-
-```
-# Starte den JaegerBot Master-Runner alle 15 Minuten
-*/15 * * * * /usr/bin/flock -n /home/ubuntu/jaegerbot/jaegerbot.lock /bin/sh -c "cd /home/ubuntu/jaegerbot && .venv/bin/python3 master_runner.py >> /home/ubuntu/jaegerbot/logs/cron.log 2>&1"
+```cron
+# Alle 15 Minuten ausführen
+*/15 * * * * /usr/bin/flock -n /path/to/jaegerbot/jaegerbot.lock /bin/sh -c "cd /path/to/jaegerbot && .venv/bin/python master_runner.py >> logs/cron.log 2>&1"
 ```
 
-*(Hinweis: `flock` ist eine gute Ergänzung, um Überlappungen zu verhindern, aber für den Start nicht zwingend notwendig.)*
+### Telegram-Benachrichtigungen
 
-Logverzeichnis anlegen:
-
-```bash
-mkdir -p /home/ubuntu/jaegerbot/logs
-```
-
-### 🔧 Config-Management
-
-#### Konfigurationsdateien löschen
-
-Bei Bedarf können alle generierten Konfigurationen und Modelle gelöscht werden:
-
-```bash
-rm -f src/jaegerbot/strategy/configs/config_*.json
-```
-
-#### Löschung verifizieren
-
-```bash
-ls -la src/jaegerbot/strategy/configs/config_*.json 2>&1 || echo "✅ Alle Konfigurationsdateien wurden gelöscht"
-```
-
-
+Der Bot sendet bei jedem Trade eine Nachricht mit:
+- Signal-Score-Breakdown (ANN/ST/ADX/Vol/Vola)
+- Entry-Preis, Positionsgröße
+- Stop-Loss (ATR-basiert) und Trailing-Stop-Aktivierungspreis
+- Hebel und Margin-Mode
 
 ---
 
-## 📊 Interaktives Pipeline-Script
+## Pipeline
 
-Das **`run_pipeline.sh`** Script automatisiert die Parameter-Optimierung und das LSTM-Modell-Training. Es führt einen Grid-Search über Parameter durch und trainiert neue Modelle für deine Handelsstrategien.
+Die Pipeline trainiert das ANN-Modell neu und optimiert alle Parameter inklusive `min_signal_score`.
 
-### Features des Pipeline-Scripts
-
-✅ **Interaktive Eingabe** - Einfache Menü-Navigation  
-✅ **Automatische Datumswahl** - Zeitrahmen-basierte Lookback-Berechnung  
-✅ **LSTM-Training** - Automatisches Trainieren neuer Modelle  
-✅ **Ladebalken** - Visueller Fortschritt mit tqdm  
-✅ **Batch-Optimierung** - Mehrere Symbol/Timeframe-Kombinationen  
-✅ **Automatisches Speichern** - Optimale Konfigurationen und Modelle  
-✅ **Integrierte Backtests** - Sofort nach Optimierung testen  
-
-### Verwendung
+### Manueller Run
 
 ```bash
-# Pipeline starten
 chmod +x run_pipeline.sh
 ./run_pipeline.sh
 ```
 
-### Interaktive Eingaben
+Der Pipeline-Run umfasst:
+1. **Trainer** → ANN-Modell auf historischen Daten trainieren
+2. **Threshold-Finder** → optimalen `prediction_threshold` bestimmen
+3. **Optimizer** → Optuna optimiert 8 Parameter:
+   - `risk_reward_ratio`, `risk_per_trade_pct`, `leverage`
+   - `atr_multiplier_sl`, `min_sl_pct`
+   - `trailing_stop_activation_rr`, `trailing_stop_callback_rate_pct`
+   - **`min_signal_score`** (neu in v2.0)
+4. **Config-Dateien** → werden automatisch überschrieben
 
-Das Script fragt dich nach folgende Informationen:
-
-#### 1. Symbol eingeben
-```
-Welche(s) Symbol(e) möchtest du optimieren?
-(z.B. BTC oder: BTC ETH SOL)
-> BTC
-```
-
-#### 2. Timeframe eingeben
-```
-Welche(s) Timeframe(s)?
-(z.B. 1d oder: 1d 4h 1h)
-> 1d
-```
-
-#### 3. Startdatum eingeben
-```
-Startdatum (YYYY-MM-DD oder 'a' für automatisch)?
-Automatische Optionen pro Timeframe:
-  5m/15m    → 60 Tage Lookback
-  30m/1h    → 180 Tage Lookback
-  4h/2h     → 365 Tage Lookback
-  6h/1d     → 730 Tage Lookback
-> a
-```
-
-**Automatisches Datum**: Das Script berechnet das Startdatum basierend auf dem Timeframe:
-- **5m/15m**: Letzte 60 Tage
-- **30m/1h**: Letzte 180 Tage (6 Monate)
-- **4h/2h**: Letzte 365 Tage (1 Jahr)
-- **6h/1d**: Letzte 730 Tage (2 Jahre)
-
-Oder gib manuell ein Datum ein:
-```
-Startdatum (YYYY-MM-DD oder 'a' für automatisch)?
-> 2024-01-01
-```
-
-#### 4. Startkapital eingeben
-```
-Mit wieviel USD starten? (Standard: 100)
-> 100
-```
-
-### Beispiel-Session
+### Optimizer-Modus wählen
 
 ```bash
-$ ./run_pipeline.sh
+# Strict-Modus: Drawdown < 30%, Win-Rate > 45%, PnL > 0
+./run_pipeline.sh --mode strict
 
-═══════════════════════════════════════════════════════════
-     🤖 JaegerBot - Interaktives Optimierungs-Pipeline
-═══════════════════════════════════════════════════════════
-
-Welche(s) Symbol(e) möchtest du optimieren?
-(z.B. BTC oder: BTC ETH SOL)
-> BTC ETH
-
-Welche(s) Timeframe(s)?
-(z.B. 1d oder: 1d 4h 1h)
-> 1d 4h
-
-Startdatum (YYYY-MM-DD oder 'a' für automatisch)?
-> a
-
-Mit wieviel USD starten? (Standard: 100)
-> 500
-
-═══════════════════════════════════════════════════════════
-Starte Optimierung für folgende Strategien:
-  • BTC (1d) - LSTM Training + Hyperparameter Optimization
-  • ETH (1d) - LSTM Training + Hyperparameter Optimization
-  • BTC (4h) - LSTM Training + Hyperparameter Optimization
-  • ETH (4h) - LSTM Training + Hyperparameter Optimization
-═══════════════════════════════════════════════════════════
-
-[1/4] Trainiere LSTM für BTC (1d)...
-[LSTM] Epoch 1/50: loss=0.0042, val_loss=0.0051
-[LSTM] Epoch 50/50: loss=0.0018, val_loss=0.0023
-✅ LSTM-Modell gespeichert: artifacts/models/BTCUSDT_1d.h5
-
-[1/4] Optimiere Parameter für BTC (1d) vom 2023-01-02...
-Optimiere BTC (1d): 100%|█████████████| 243/243 [00:02<00:00, 110.65combo/s]
-
-✅ OPTIMALE PARAMETER GEFUNDEN für BTC (1d)
-  • Endkapital: $512.25
-  • Gesamtrendite: 2.45%
-  • Anzahl Trades: 3
-  • Gewinnquote: 66.7%
-  • Max Drawdown: -8.38%
-
-[2/4] Trainiere LSTM für ETH (1d)...
-[LSTM] Modell trainiert erfolgreich
-
-[2/4] Optimiere Parameter für ETH (1d)...
-Optimiere ETH (1d): 100%|█████████████| 243/243 [00:02<00:00, 115.32combo/s]
-
-✅ OPTIMALE PARAMETER GEFUNDEN für ETH (1d)
-  • Endkapital: $545.80
-  • Gesamtrendite: 9.16%
-  • Anzahl Trades: 5
-  • Gewinnquote: 80.0%
-  • Max Drawdown: -5.12%
-
-═══════════════════════════════════════════════════════════
-✅ Optimierung abgeschlossen!
-✅ LSTM-Modelle trainiert und gespeichert
-Konfigurationen gespeichert unter: artifacts/optimal_configs/
-═══════════════════════════════════════════════════════════
-
-Möchtest du die Ergebnisse jetzt anschauen?
-> y
-
-[Startet show_results.sh...]
+# Best-Profit: Nur Drawdown begrenzt, maximaler Gewinn
+./run_pipeline.sh --mode best_profit
 ```
 
-### Optimierte Modelle und Konfigurationen
+### Optimierte Configs pushen
 
-Nach erfolgreicher Optimierung werden die besten Parameter und trainierte Modelle gespeichert:
-
-```
-artifacts/
-├── models/                          # Trainierte LSTM-Modelle
-│   ├── BTCUSDT_1d.h5
-│   ├── BTCUSDT_4h.h5
-│   ├── ETHUSDT_1d.h5
-│   └── ETHUSDT_4h.h5
-└── optimal_configs/                 # Optimale Parameter
-    ├── optimal_BTCUSDT_1d.json
-    ├── optimal_BTCUSDT_4h.json
-    ├── optimal_ETHUSDT_1d.json
-    └── optimal_ETHUSDT_4h.json
-```
-
-**Beispiel-Konfiguration** (`optimal_BTCUSDT_1d.json`):
-
-```json
-{
-  "symbol": "BTCUSDT",
-  "timeframe": "1d",
-  "parameters": {
-    "lstm_lookback": 60,
-    "lstm_units": 128,
-    "rsi_period": 14,
-    "macd_fast": 12,
-    "macd_slow": 26,
-    "macd_signal": 9,
-    "bollinger_period": 20,
-    "bollinger_std": 2.0
-  },
-  "performance": {
-    "total_return": 2.45,
-    "win_rate": 66.7,
-    "num_trades": 3,
-    "max_drawdown": -8.38,
-    "end_capital": 512.25
-  },
-  "timestamp": "2025-01-01T20:17:35.833000"
-}
-```
-
-### Integration mit Live-Trading
-
-Die optimierten Modelle und Konfigurationen werden **automatisch geladen**, wenn du `show_results.sh` ausführst:
+Nach einem erfolgreichen Pipeline-Run die neuen Configs ins Repo:
 
 ```bash
-./show_results.sh
+./push_configs.sh
 ```
 
-Das Script lädt die optimalen Parameter und LSTM-Modelle für Live-Trading:
-- ✅ LSTM-Modelle werden für Inferenz geladen
-- ✅ Parameter werden aus optimal_configs angewendet
-- ✅ Konsistente Strategie-Ausführung
-- ✅ Einfaches A/B-Testing von Modellen
+Das Script:
+- Zeigt alle gefundenen Configs mit `min_signal_score` und PnL
+- Staged nur geänderte Config-Dateien
+- Committet mit Zeitstempel
+- Pusht auf `origin/main` (mit automatischem Rebase bei Konflikt)
 
-### Troubleshooting
+### Automatischer Optimizer
 
-**Problem**: Script funktioniert nicht  
-**Lösung**: Mache das Script ausführbar
+Der Auto-Optimizer läuft nach Zeitplan (konfigurierbar in `settings.json`):
+
 ```bash
-chmod +x run_pipeline.sh
-```
+# Manuelle Auslösung (sofort)
+python auto_optimizer_scheduler.py --force
 
-**Problem**: TensorFlow-Fehler  
-**Lösung**: Stelle sicher, dass TensorFlow installiert ist
-```bash
-pip install --upgrade tensorflow
+# Zeitplan-Check (wie der Cron es aufruft)
+python auto_optimizer_scheduler.py
 ```
-
-**Problem**: Keine Konfigurationen gefunden  
-**Lösung**: Überprüfe Logs mit `tail -f logs/cron.log`
 
 ---
 
-## 📊 Monitoring & Status
-
-### Status-Dashboard
-
-```bash
-# Zeigt alle wichtigen Informationen
-./show_status.sh
-```
-
-**Angezeigt**:
-- 📊 Aktuelle Konfiguration (`settings.json`)
-- 🤖 Geladene LSTM-Modelle
-- 🔐 API-Status (ohne Credentials)
-- 📈 Offene Positionen
-- 💰 Kontostand und verfügbares Kapital
-- 📝 Letzte Logs
+## Monitoring
 
 ### Live-Status anzeigen
 
 ```bash
-# Aktuelle Positionen und Performance
-./show_results.sh
+./show_status.sh
 ```
 
-### Log-Files
+### Logs
 
 ```bash
-# Live-Trading Logs (Zentrale Log-Datei)
+# Live-Trading-Log
 tail -f logs/cron.log
 
-# Fehler-Logs
-tail -f logs/error.log
-
-# Logs einer individuellen Strategie
-tail -n 100 logs/jaegerbot_BTCUSDTUSDT_4h.log
+# Optimizer-Log
+tail -f logs/auto_optimizer_trigger.log
 ```
 
-### Performance-Metriken
+### Backtest manuell ausführen
 
 ```bash
-# Trade-Analyse
-python analyze_real_trades_detailed.py
-
-# Vergleich Backtest vs. Live
-python compare_real_vs_backtest.py
+python run_backtest_direct.py
 ```
 
 ---
 
-## 🛠️ Wartung & Pflege
+## Wartung
 
-### Tägliche Verwaltung
-
-#### Logs ansehen
-
-Die zentrale `cron.log`-Datei enthält **alle** wichtigen Informationen vom Scheduler und den Handels-Entscheidungen.
-
-  * **Logs live mitverfolgen (der wichtigste Befehl):**
-
-    ```bash
-    tail -f logs/cron.log
-    ```
-
-    *(Mit `Strg + C` beenden)*
-
-  * **Die letzten 200 Zeilen der zentralen Log-Datei anzeigen:**
-
-    ```bash
-    tail -n 200 logs/cron.log
-    ```
-
-  * **Zentrale Log-Datei nach Fehlern durchsuchen:**
-
-    ```bash
-    grep -i "ERROR" logs/cron.log
-    ```
-
-#### Cronjob manuell testen
-
-Um den `master_runner` sofort auszuführen, ohne auf den nächsten 15-Minuten-Takt zu warten:
+### VPS-Update
 
 ```bash
-cd /home/ubuntu/jaegerbot && .venv/bin/python3 master_runner.py
-```
-
-### Bot aktualisieren
-
-Um die neueste Version des Codes von deinem Git-Repository zu holen:
-
-```bash
-# Update aktivieren (einmalig)
-chmod +x update.sh
-
-# Update ausführen
-bash ./update.sh
-```
-
-
-
----
-
-## 🔄 Auto-Optimizer Verwaltung
-
-Der Bot verfügt über einen automatischen Optimizer, der wöchentlich neue LSTM-Modelle trainiert und die besten Handelsparameter für alle aktiven Strategien sucht. Die folgenden Befehle helfen beim manuellen Triggern, Debugging und Monitoring des Optimizers.
-
-### Optimizer aktivieren
-
-Bearbeite `settings.json` und setze `optimization_settings.enabled` auf `true`:
-
-```json
-{
-  "optimization_settings": {
-    "enabled": true,
-    "symbols_to_optimize": "auto",
-    "timeframes_to_optimize": "auto",
-    "num_trials": 100,
-    "send_telegram_on_completion": true
-  }
-}
-```
-
-Mit `"symbols_to_optimize": "auto"` werden die Symbole und Timeframes automatisch aus den `active_strategies` übernommen.
-
-### Optimizer manuell triggern
-
-Um eine sofortige Optimierung zu starten (ignoriert das Zeitintervall):
-
-```bash
-# Letzten Optimierungszeitpunkt löschen (erzwingt Neustart)
-rm ~/jaegerbot/data/cache/.last_optimization_run
-
-# Master Runner starten (prüft ob Optimierung fällig ist)
-cd ~/jaegerbot && .venv/bin/python3 master_runner.py
-```
-
-Oder direkt per `--force`:
-
-```bash
-cd ~/jaegerbot && .venv/bin/python3 auto_optimizer_scheduler.py --force
-```
-
-### Optimizer-Logs überwachen
-
-```bash
-# Optimizer-Log live mitverfolgen
-tail -f ~/jaegerbot/logs/auto_optimizer_trigger.log
-
-# Letzte 50 Zeilen des Optimizer-Logs anzeigen
-tail -50 ~/jaegerbot/logs/auto_optimizer_trigger.log
-```
-
-### Optimierungsergebnisse ansehen
-
-```bash
-# Beste gefundene Parameter anzeigen
-cat ~/jaegerbot/artifacts/results/last_optimizer_run.json | head -50
-```
-
-### Optimizer-Prozess überwachen
-
-```bash
-# Prüfen ob Optimizer gerade läuft (aktualisiert jede Sekunde)
-watch -n 1 "ps aux | grep optimizer"
-```
-
-### Optimizer stoppen
-
-```bash
-# Alle Optimizer-Prozesse auf einmal stoppen
-pkill -f "auto_optimizer_scheduler" ; pkill -f "run_pipeline_automated" ; pkill -f "optimizer.py" ; pkill -f "trainer.py"
-
-# Prüfen ob alles gestoppt ist
-pgrep -fa "optimizer" && echo "Noch aktiv!" || echo "Alle gestoppt."
-
-# In-Progress-Marker aufräumen (sauberer Neustart danach)
-rm -f ~/jaegerbot/data/cache/.optimization_in_progress
-```
-
----
-
-### Modell-Neutrainierung
-
-```bash
-# LSTM-Modelle neu trainieren
-python -c "from src.jaegerbot.ml.lstm_trainer import train_models; train_models()"
-
-# Trainingsergebnisse ansehen
-tail -f logs/model_training.log
-```
-
-### Tests ausführen
-
-```bash
-# Alle Tests
-./run_tests.sh
-
-# Spezifische Tests
-pytest tests/test_strategy.py
-pytest tests/test_lstm_model.py -v
-
-# Mit Coverage
-pytest --cov=src tests/
-```
-
----
-
-## 📂 Projekt-Struktur
-
-```
-jaegerbot/
-├── src/
-│   └── jaegerbot/
-│       ├── ml/                    # Machine Learning
-│       │   ├── lstm_trainer.py
-│       │   └── lstm_model.py
-│       ├── strategy/              # Trading-Logik
-│       │   ├── run.py
-│       │   └── signal_generator.py
-│       ├── backtest/              # Backtesting
-│       │   └── backtester.py
-│       └── utils/                 # Hilfsfunktionen
-│           ├── exchange.py
-│           └── telegram.py
-├── scripts/                       # Hilfsskripte
-├── tests/                         # Unit-Tests
-├── data/                          # Marktdaten
-├── logs/                          # Log-Files
-├── artifacts/                     # Ergebnisse
-│   ├── models/                    # LSTM-Modelle
-│   └── backtest/
-├── master_runner.py              # Haupt-Entry-Point
-├── settings.json                 # Konfiguration
-├── secret.json                   # API-Credentials
-└── requirements.txt              # Dependencies
-```
-
----
-
-## ⚠️ Wichtige Hinweise
-
-### Risiko-Disclaimer
-
-⚠️ **Trading mit Kryptowährungen birgt erhebliche Risiken!**
-
-- Nur Kapital einsetzen, dessen Verlust Sie verkraften können
-- Keine Garantie für Gewinne
-- Vergangene Performance ist kein Indikator für zukünftige Ergebnisse
-- Testen Sie ausgiebig mit Demo-Accounts
-- Starten Sie mit kleinen Beträgen
-- ML-Modelle können überfittet sein - regelmäßig neutrainieren
-
-### Security Best Practices
-
-- 🔐 Niemals API-Keys mit Withdrawal-Rechten verwenden
-- 🔐 IP-Whitelist auf Exchange aktivieren
-- 🔐 2FA für Exchange-Account aktivieren
-- 🔐 `secret.json` niemals committen (in `.gitignore`)
-- 🔐 Regelmäßige Security-Updates durchführen
-- 🔐 LSTM-Modelle schützen (nicht mit sensiblen Daten teilen)
-
-### Performance-Tipps
-
-- 💡 Starten Sie mit 1-2 Strategien
-- 💡 Verwenden Sie längere Timeframes (4h+) für stabilere Signale
-- 💡 Monitoren Sie regelmäßig die LSTM-Model-Performance
-- 💡 Neutrainieren Sie Modelle alle 1-2 Wochen
-- 💡 Parameter regelmäßig mit Pipeline-Script optimieren
-- 💡 Position-Sizing angemessen konfigurieren
-
----
-
-## 🤝 Support & Community
-
-### Probleme melden
-
-Bei Problemen oder Fragen:
-
-1. Prüfen Sie die Logs in `logs/`
-2. Führen Sie Tests aus: `./run_tests.sh`
-3. Öffnen Sie ein Issue auf GitHub mit:
-   - Beschreibung des Problems
-   - Relevante Log-Auszüge
-   - System-Informationen
-   - Schritte zur Reproduktion
-
-### Updates erhalten
-
-```bash
-# Regelmäßig Updates prüfen
-git fetch origin
-git status
-
-# Updates installieren
 ./update.sh
 ```
 
-### Optimierte Konfigurationen auf Repo hochladen
+Das Script:
+1. Sichert `secret.json`
+2. `git fetch && git reset --hard origin/main`
+3. Stellt `secret.json` wieder her
+4. Bereinigt `.pyc`-Dateien
 
-Nach erfolgreicher Parameter-Optimierung können die Konfigurationsdateien auf das Repository hochgeladen werden:
+### Configs nach Update wiederherstellen
 
-```bash
-# Konfigurationsdateien und Modelle auf Repository hochladen
-git add artifacts/optimal_configs/*.json artifacts/models/*.h5
-git commit -m "Update: Optimierte LSTM-Modelle und Parameter"
-git push origin main
-```
-
-Dies sichert:
-- ✅ **Backup** der optimierten Parameter
-- ✅ **Versionierung** aller Modell-Versionen
-- ✅ **Deployment** auf mehrere Server mit konsistenten Modellen
-- ✅ **Nachvollziehbarkeit** welche Modelle zu welchem Zeitpunkt verwendet wurden
-
----
-
-## 📜 Lizenz
-
-Dieses Projekt ist lizenziert unter der MIT License - siehe [LICENSE](LICENSE) Datei für Details.
-
----
-
-## � Konfigurationsdateien & Modelle hochladen
-
-Wenn neue `config_*.json` Konfigurationsdateien oder LSTM-Modelle (`.h5`) aus der Optimierung generiert wurden, können diese ins Repository gepusht werden:
+Wenn Configs nach einem Update verloren gehen:
 
 ```bash
-cd ~/jaegerbot
 git pull origin main
-git add src/jaegerbot/strategy/configs/*.json
-git add artifacts/models/*.h5
-git commit -m "Add optimized jaegerbot LSTM configs and models"
-git push origin main
 ```
 
-Falls Sie die Dateien mit Force pushen müssen (lokale Versionen überschreiben):
+Oder manuell über `push_configs.sh` vor dem Update sichern.
+
+### Trade-Lock zurücksetzen
+
+Falls der Bot steckenbleibt und keine neuen Trades öffnet:
 
 ```bash
-cd ~/jaegerbot
-git add src/jaegerbot/strategy/configs/*.json artifacts/models/*.h5
-git commit -m "Force update jaegerbot configs and models"
-git push -f origin main
+rm artifacts/db/trade_lock.json
 ```
 
-Bei **Konflikten** (wenn Remote andere Versionen hat):
+### Stale Optimizer-Ergebnisse bereinigen
+
+Falls der Autopilot zu viele Strategien startet:
 
 ```bash
-cd ~/jaegerbot
-git checkout --ours src/jaegerbot/strategy/configs/ artifacts/models/
-git add src/jaegerbot/strategy/configs/ artifacts/models/
-git rebase --continue
-git push origin main
+rm artifacts/results/last_optimizer_run.json
 ```
-
-**Hinweis:** `.venv/` und TensorFlow Cache-Dateien sollten **nicht** gepusht werden. Ein `.gitignore` schließt diese aus. LSTM-Modelle können groß sein – nutzen Sie ggf. Git LFS für `*.h5` Dateien.
 
 ---
 
-## �🙏 Credits
+## Technische Details
 
-Entwickelt mit:
-- [TensorFlow](https://www.tensorflow.org/) - Deep Learning Framework
-- [CCXT](https://github.com/ccxt/ccxt) - Cryptocurrency Exchange Trading Library
-- [Pandas](https://pandas.pydata.org/) - Data Analysis Library
-- [TA-Lib](https://github.com/mrjbq7/ta-lib) - Technical Analysis Library
+### ANN-Modell
+
+- **Architektur:** Dense(256) → Dense(128) → Dense(64) → Dense(32) → Dense(1, Sigmoid)
+- **Regularisierung:** BatchNormalization + Dropout nach jeder Schicht
+- **Features:** 34 technische Indikatoren (standardisiert mit StandardScaler)
+- **Training:** 80/20 Train/Val-Split, EarlyStopping (patience=15)
+- **Output:** 0.0 = stark SHORT, 0.5 = neutral, 1.0 = stark LONG
+
+### Stop-Loss-Berechnung
+
+Der SL ist ATR-basiert und dynamisch:
+
+```
+sl_distance = max(ATR × atr_multiplier_sl, entry_price × min_sl_pct)
+stop_loss   = entry_price - sl_distance   (Long)
+stop_loss   = entry_price + sl_distance   (Short)
+```
+
+Gleiche Logik in Backtester und Live-Bot — keine Inkonsistenzen.
+
+### Trailing Stop
+
+1. Fixer SL wird sofort nach Entry gesetzt (Sicherheitsnetz)
+2. Trailing Stop aktiviert sich bei `entry_price ± sl_distance × activation_rr`
+3. Ab Aktivierung: TSL folgt dem Peak-Preis mit `callback_rate_pct` Abstand
+
+### Optuna-Optimierung
+
+```
+Zielfunktion: PnL% / max(Drawdown, 0.01)   → Maximierung
+Constraints (strict):
+  - max_drawdown_pct < 30%
+  - win_rate >= 45%
+  - pnl_pct > 0
+  - trades_count >= 50
+```
 
 ---
 
-<div align="center">
+## Systemanforderungen
 
-**Made with ❤️ by the JaegerBot Team**
+| Komponente | Minimum | Empfohlen |
+|---|---|---|
+| CPU | 2 Kerne | 4+ Kerne (für Optuna parallel) |
+| RAM | 4 GB | 8 GB+ |
+| Speicher | 2 GB | 5 GB (Modelle + Daten-Cache) |
+| Python | 3.10 | 3.11 |
+| OS | Ubuntu 20.04 | Ubuntu 22.04 |
 
-⭐ Star uns auf GitHub wenn dir dieses Projekt gefällt!
+---
 
-[🔝 Nach oben](#-jaegerbot---lstm-ai-trading-system)
+## Lizenz
 
-</div>
+MIT License — siehe [LICENSE](LICENSE)

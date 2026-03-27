@@ -12,6 +12,7 @@ from jaegerbot.utils.telegram import send_message
 from jaegerbot.utils.ann_model import create_ann_features
 from jaegerbot.utils.exchange import Exchange
 from jaegerbot.utils.supertrend_indicator import SuperTrendLocal
+from jaegerbot.utils.signal_scorer import SignalScorer, DEFAULT_WEIGHTS, DEFAULT_MIN_SIGNAL_SCORE
 
 # Pfade für die Lock-Datei definieren
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
@@ -160,40 +161,41 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
 
     logger.info(f"Signal-Entscheidung für {symbol} @ {last_candle_timestamp}: {side if side else 'NEUTRAL'} | Grund: {signal_reason}")
 
-    # --- SUPER TREND FILTER: Trendbestätigung und Richtung erzwingen ---
-    trade_allowed = True
-    if side == 'buy':
-        if st_direction != 1.0:
-            trade_allowed = False
-            logger.info(f"Signal (LONG) für {symbol} @ {last_candle_timestamp} deaktiviert durch SuperTrend-Filter: Kein Long-Trend (st_direction={st_direction})")
-    elif side == 'sell':
-        if st_direction != -1.0:
-            trade_allowed = False
-            logger.info(f"Signal (SHORT) für {symbol} @ {last_candle_timestamp} deaktiviert durch SuperTrend-Filter: Kein Short-Trend (st_direction={st_direction})")
-    # --- ENDE SUPER TREND FILTER ---
-
-    # *** NEUE FILTER: ADX & VOLUME & VOLATILITÄT ***
-    if side and trade_allowed:
+    # --- SIGNAL SCORING: Gewichtetes Punktesystem statt binärer Filter-Kaskade ---
+    # Kein Indikator kann einen Trade mehr alleine blockieren.
+    # SuperTrend, ADX, Volumen und Volatilität tragen zum Score bei.
+    # Ein starkes ANN-Signal kann einen Gegen-Trend-SuperTrend ausgleichen.
+    trade_allowed = False
+    if side:
         last_candle = data_with_features.iloc[-2]
-        # ADX-Filter: Nur bei ausreichender Trendstärke traden
-        current_adx = last_candle.get('adx', 0)
-        if current_adx < 20:
-            trade_allowed = False
-            logger.info(f"Signal ({side.upper()}) für {symbol} @ {last_candle_timestamp} deaktiviert durch ADX-Filter: ADX zu niedrig ({current_adx:.1f} < 20)")
-        # Volume-Filter: Mindestens 80% des Average Volume
-        if 'volume' in data_with_features.columns:
-            current_volume = last_candle['volume']
-            avg_volume = data_with_features['volume'].rolling(20).mean().iloc[-2]
-            if current_volume < avg_volume * 0.8:
-                trade_allowed = False
-                logger.info(f"Signal ({side.upper()}) für {symbol} @ {last_candle_timestamp} deaktiviert durch Volumen-Filter: Volume zu niedrig ({current_volume:.0f} < {avg_volume*0.8:.0f})")
-        # Volatilitäts-Filter: Keine extremen Spikes
-        current_atr_norm = last_candle.get('atr_normalized', 0)
+
+        scoring_weights = params.get('scoring', DEFAULT_WEIGHTS)
+        min_signal_score = params.get('strategy', {}).get('min_signal_score', DEFAULT_MIN_SIGNAL_SCORE)
+
+        volume_ratio = last_candle.get('volume_ratio', 1.0)
+        atr_normalized = last_candle.get('atr_normalized', 0.0)
         avg_atr_norm = data_with_features['atr_normalized'].rolling(50).mean().iloc[-2]
-        if current_atr_norm > avg_atr_norm * 2.0:
-            trade_allowed = False
-            logger.info(f"Signal ({side.upper()}) für {symbol} @ {last_candle_timestamp} deaktiviert durch Volatilitäts-Filter: ATR {current_atr_norm:.2f}% > {avg_atr_norm*2:.2f}%")
-    # *** ENDE NEUE FILTER ***
+        adx = last_candle.get('adx', 0.0)
+
+        scorer = SignalScorer(weights=scoring_weights)
+        breakdown = scorer.score(
+            prediction=prediction,
+            pred_threshold=pred_threshold,
+            side=side,
+            st_direction=st_direction,
+            adx=adx,
+            volume_ratio=volume_ratio,
+            atr_normalized=atr_normalized,
+            avg_atr_normalized=avg_atr_norm,
+        )
+
+        trade_allowed = breakdown.total >= min_signal_score
+        decision = "ERLAUBT" if trade_allowed else "ABGELEHNT"
+        logger.info(
+            f"Signal-Score für {symbol} @ {last_candle_timestamp} "
+            f"({side.upper()}): {breakdown} | Min: {min_signal_score:.1f} → {decision}"
+        )
+    # --- ENDE SIGNAL SCORING ---
 
     if side and trade_allowed:
         logger.info(f"Gültiges Signal '{side.upper()}' für {symbol} @ {last_candle_timestamp} erkannt (Grund: {signal_reason}). Trade-Eröffnung wird gestartet.")
@@ -272,7 +274,9 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
             # Setze zuerst Margin Mode (isolated) bevor Hebel, damit Bitget den Modus korrekt übernimmt
             if not exchange.set_margin_mode(symbol, p.get('margin_mode', 'isolated')): return
             if not exchange.set_leverage(symbol, leverage, p.get('margin_mode', 'isolated')): return
-                # Circuit Breaker deaktiviert – kein Risk-Scaling
+
+            logger.info(f"Platziere Market-Order: {side.upper()} {amount:.6f} {symbol} @ Market")
+            exchange.create_market_order(symbol, side, amount)
 
             time.sleep(2)
 

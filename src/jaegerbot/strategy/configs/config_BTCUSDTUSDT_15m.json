@@ -7,7 +7,8 @@
         "timeframe": "15m"
     },
     "strategy": {
-        "prediction_threshold": 0.6
+        "prediction_threshold": 0.6,
+        "min_signal_score": 5.5
     },
     "risk": {
         "margin_mode": "isolated",
