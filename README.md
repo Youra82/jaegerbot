@@ -9,9 +9,9 @@
 [![CCXT](https://img.shields.io/badge/CCXT-Bitget-red?style=for-the-badge)](https://github.com/ccxt/ccxt)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
 
-**Vollautomatisches Deep-Learning Trading-System mit ANN-Signalen und gewichtetem Score-Filter**
+**Vollautomatisches KI-Trading-System — ANN-Signale, Walk-Forward-Optimierung, gewichtetes Signal-Scoring**
 
-[Architektur](#architektur) • [Installation](#installation) • [Konfiguration](#konfiguration) • [Live-Trading](#live-trading) • [Pipeline](#pipeline) • [Monitoring](#monitoring) • [Wartung](#wartung)
+[Übersicht](#übersicht) • [Architektur](#architektur) • [Installation](#installation) • [Konfiguration](#konfiguration) • [Pipeline](#pipeline) • [Live-Trading](#live-trading) • [Monitoring](#monitoring) • [Wartung](#wartung)
 
 </div>
 
@@ -19,7 +19,18 @@
 
 ## Übersicht
 
-JaegerBot ist ein KI-gesteuertes Futures-Trading-System für Bitget. Das Herzstück ist ein **ANN (Artificial Neural Network)** mit 34 Features, das Trendrichtungen auf Basis historischer Marktdaten prognostiziert. In Version 2.0 ersetzt ein **gewichtetes Signal-Scoring-System** die alte binäre Filter-Kaskade — kein einzelner Indikator kann einen Trade mehr alleine blockieren.
+JaegerBot ist ein vollautomatisches Futures-Trading-System für **Bitget**. Das Herzstück ist ein **Artificial Neural Network (ANN)** mit 34 technischen Features, das Kursbewegungen auf Basis historischer OHLCV-Daten prognostiziert.
+
+Der Bot entscheidet **nicht** binär auf Basis einzelner Indikatoren — stattdessen bewertet ein **gewichtetes Signal-Scoring-System** jeden potenziellen Trade auf einer Skala von 0–10 Punkten. Nur Trades mit ausreichend Gesamtqualität werden eröffnet.
+
+### Kernfunktionen
+
+- **ANN-Modell** (Dense 256→128→64→32→1) mit 34 Features pro Kerze
+- **Signal-Scoring** statt harter Filter — kein Indikator kann alleine blockieren
+- **Walk-Forward-Validierung (70/30)** im Optimizer — Out-of-Sample-Test verhindert Overfitting
+- **ATR-basierter Stop-Loss** + **Trailing Stop** — konsistent in Backtest und Live-Bot
+- **Portfolio-Optimierung** — `./show_results.sh` findet das beste Strategie-Team automatisch
+- **Vollständige Analyse-Exports** — `jaegerbot_portfolio_equity.html` + `jaegerbot_trades.xlsx` + Telegram-Versand
 
 ### Was ist neu in v2.0
 
@@ -30,10 +41,14 @@ JaegerBot ist ein KI-gesteuertes Futures-Trading-System für Bitget. Das Herzst�
 | Volumen | Hard-Block bei < 80% Avg | Score-Beitrag: 0–1 Punkte |
 | Volatilität | Hard-Block bei ATR-Spike | Score-Beitrag: 0–1 Punkte |
 | ANN-Signal | Reiner On/Off-Trigger | Score-Beitrag: 0–4 Punkte (Konfidenz-gewichtet) |
-| Schwelle | Fest (keine Optimierung) | `min_signal_score` per Symbol/Timeframe optimiert |
+| Schwelle | Fest | `min_signal_score` per Symbol/Timeframe optimiert |
 | Backtester SL | `initial_sl_pct` (fest %) | ATR-basiert (konsistent mit Live-Bot) |
+| Optimizer | Nur Training-Daten | Walk-Forward 70/30 (Out-of-Sample-Validierung) |
+| Analyse-Export | Nur CSV | HTML-Chart + Excel + CSV via Telegram |
 
-### Signal-Scoring-System
+---
+
+## Signal-Scoring-System
 
 Jeder Trade wird auf einer Skala von 0–10 Punkten bewertet. Ein Trade wird nur eröffnet, wenn der Gesamt-Score `>= min_signal_score`:
 
@@ -42,14 +57,14 @@ ANN-Konfidenz   : 0–4 Punkte  (Abstand der Vorhersage von der Schwelle)
 SuperTrend      : 0–2 Punkte  (Trend ausgerichtet = 2, Gegentrend = 0)
 ADX-Trendstärke : 0–2 Punkte  (ADX >= 35 = 2, >= 25 = 1.5, >= 20 = 1, >= 15 = 0.5)
 Volumen         : 0–1 Punkte  (volume_ratio >= 1.2 = 1, >= 1.0 = 0.75, >= 0.8 = 0.5)
-Volatilität     : 0–1 Punkte  (ruhiger Markt = 1, Spike > 2× Avg = 0)
-─────────────────────────────────
-Gesamt          : 0–10 Punkte → Trade wenn >= min_signal_score (z.B. 5.5)
+Volatilität     : 0–1 Punkte  (ruhiger Markt = 1, ATR-Spike > 2× Avg = 0)
+─────────────────────────────────────────────────────────────────────────────
+Gesamt          : 0–10 Punkte → Trade wenn >= min_signal_score (Optimizer-Ergebnis)
 ```
 
 **Praxisbeispiel:**
-- Starkes ANN-Signal (0.85) im Bärenmarkt, ST bearisch → Score 6.3 → **Trade** (vorher geblockt)
-- Schwaches ANN-Signal (0.61), ADX=8, kein Volumen → Score 0.6 → **kein Trade** (richtig gefiltert)
+- Starkes ANN-Signal (0.85) im Bärenmarkt, ST bearisch → Score 6.3 → **Trade** ✓ (vorher geblockt)
+- Schwaches ANN-Signal (0.61), ADX=8, kein Volumen → Score 0.6 → **kein Trade** ✓ (richtig gefiltert)
 
 ---
 
@@ -60,16 +75,19 @@ OHLCV Marktdaten (500 Kerzen)
         │
         ▼
 Feature-Engine (34 Features)
-  ├── Volatilität: BB-Width, BB-Band, ATR, Keltner, Donchian
-  ├── Momentum:    RSI, MACD, Stochastic, Williams %R, ROC, CCI
-  ├── Volumen:     OBV, Volume-Ratio, MFI, CMF, VWAP
-  ├── Trend:       ADX, ADX+/-, EMA20/50, Price-to-EMA
-  ├── Preisstruktur: High-Low-Range, Support/Resistance
-  └── Zeit:        Day-of-Week, Hour-of-Day, Lag-Returns
+  ├── Volatilität:    BB-Width, BB-Band, ATR (normalisiert), historische Vola
+  ├── Momentum:       RSI, MACD, MACD-Diff, Stochastic K/D, Williams %R, ROC, CCI
+  ├── Volumen:        OBV, Volume-Ratio, MFI, CMF
+  ├── Trend:          ADX, ADX+/-, Price-to-EMA20/50
+  ├── Preisstruktur:  High-Low-Range, Close-to-High/Low, Support/Resistance
+  ├── Zeit:           Day-of-Week, Hour-of-Day
+  └── Returns:        Lag 1/2/3
         │
         ▼
 ANN-Modell (Dense 256→128→64→32→1, Sigmoid)
-  └── Output: 0.0 (stark SHORT) … 1.0 (stark LONG)
+  ├── BatchNormalization + Dropout nach jeder Schicht
+  ├── EarlyStopping (patience=15), ReduceLROnPlateau
+  └── Output: 0.0 (stark SHORT) … 0.5 (neutral) … 1.0 (stark LONG)
         │
         ▼
 Signal-Scorer (signal_scorer.py)
@@ -86,7 +104,22 @@ Signal-Scorer (signal_scorer.py)
                       ├── Leverage + Margin Mode setzen
                       ├── Market-Order platzieren
                       ├── Dynamischer ATR-Stop-Loss
-                      └── Trailing Stop (aktiviert bei Profit)
+                      └── Trailing Stop (aktiviert bei Profit-Ziel)
+```
+
+### Walk-Forward-Validierung (Optimizer)
+
+```
+Historische Daten
+        │
+        ├── 70% Training ──▶ Optuna-Trial (Backtest)
+        │                    Prune wenn: DD > 30% oder Trades < 35
+        │
+        └── 30% Out-of-Sample ──▶ Validierung
+                                   Prune wenn: DD > 30% oder PnL ≤ 0
+
+Score = log1p(train_pnl) / DD × 0.30
+      + log1p(test_pnl)  / DD × 0.70   → Maximierung
 ```
 
 ### Dateistruktur
@@ -97,25 +130,31 @@ jaegerbot/
 │   ├── strategy/
 │   │   ├── run.py                        # Entry-Point pro Strategie
 │   │   └── configs/
-│   │       └── config_*.json             # Optimierte Konfigurationen
+│   │       └── config_*.json             # Optimierte Konfigurationen (pro Symbol/TF)
 │   ├── utils/
 │   │   ├── signal_scorer.py              # Signal-Scoring-System (v2.0)
-│   │   ├── trade_manager.py              # Trading-Logik, Positionsverwaltung
-│   │   ├── ann_model.py                  # Feature-Engineering & ANN
+│   │   ├── trade_manager.py              # Live-Trading-Logik, SL/TSL, Order-Platzierung
+│   │   ├── ann_model.py                  # Feature-Engineering & ANN-Hilfsfunktionen
 │   │   ├── supertrend_indicator.py       # SuperTrend-Implementierung
 │   │   ├── exchange.py                   # Bitget CCXT-Wrapper
 │   │   └── telegram.py                   # Telegram-Benachrichtigungen
 │   └── analysis/
-│       ├── backtester.py                 # Backtesting (ATR-SL, Signal-Scoring)
-│       ├── optimizer.py                  # Optuna-Optimierung (inkl. min_signal_score)
+│       ├── backtester.py                 # Backtesting-Engine (ATR-SL, Signal-Scoring)
+│       ├── optimizer.py                  # Optuna-Optimierung mit Walk-Forward-Validierung
 │       ├── trainer.py                    # ANN-Training
 │       ├── find_best_threshold.py        # Threshold-Finder
-│       └── show_results.py              # Ergebnisvisualisierung
-├── master_runner.py                      # Haupt-Orchestrator
-├── auto_optimizer_scheduler.py           # Automatische Reoptimierung
-├── push_configs.sh                       # Optimierte Configs pushen
-├── run_pipeline.sh                       # Manueller Pipeline-Run
-├── update.sh                             # VPS-Update-Script
+│       ├── show_results.py               # Analyse, Portfolio-Optimierung, Exports
+│       ├── portfolio_simulator.py        # Chronologische Portfolio-Simulation
+│       ├── portfolio_optimizer.py        # Greedy-Portfolio-Selektion
+│       └── evaluator.py                  # Datensatz-Qualitätsbewertung
+├── master_runner.py                      # Haupt-Orchestrator (startet alle aktiven Strategien)
+├── auto_optimizer_scheduler.py           # Automatische Reoptimierung nach Zeitplan
+├── run_pipeline.sh                       # Vollständiger Pipeline-Run (Train → Optimize)
+├── push_configs.sh                       # Optimierte Configs ins Repo pushen
+├── show_results.sh                       # Interaktive Analyse & Portfolio-Optimierung
+├── show_status.sh                        # Live-Status aller Strategien
+├── update.sh                             # VPS-Update (git reset + secret.json sichern)
+├── install.sh                            # Erstinstallation
 └── settings.json                         # Live-Trading-Konfiguration
 ```
 
@@ -186,13 +225,11 @@ pip install -r requirements.txt
       {
         "symbol": "BTC/USDT:USDT",
         "timeframe": "4h",
-        "use_macd_filter": false,
         "active": true
       },
       {
         "symbol": "ETH/USDT:USDT",
         "timeframe": "6h",
-        "use_macd_filter": false,
         "active": true
       }
     ]
@@ -222,7 +259,12 @@ Die Configs werden vom Optimizer generiert und in `src/jaegerbot/strategy/config
 
 ```json
 {
-  "_meta": { "pnl_pct": 2616.68 },
+  "_meta": {
+    "pnl_pct": 312.45,
+    "pnl_pct_oos": 312.45,
+    "pnl_pct_train": 489.10,
+    "wfv": "70/30"
+  },
   "market": {
     "symbol": "BTC/USDT:USDT",
     "timeframe": "4h"
@@ -252,14 +294,16 @@ Die Configs werden vom Optimizer generiert und in `src/jaegerbot/strategy/config
 
 | Parameter | Beschreibung |
 |---|---|
-| `prediction_threshold` | ANN-Schwelle für Long-Signal (Short = 1 - threshold) |
-| `min_signal_score` | Mindest-Score 0–10 für Trade-Eröffnung (Optimizer-Ergebnis) |
+| `pnl_pct_oos` | Out-of-Sample PnL (30% Test-Daten) — realistische Erwartung |
+| `pnl_pct_train` | Training-PnL (70% Train-Daten) — zum Vergleich |
+| `prediction_threshold` | ANN-Schwelle für Long-Signal (Short = 1 − threshold) |
+| `min_signal_score` | Mindest-Score 0–10 für Trade-Eröffnung (per Optimizer gefunden) |
 | `atr_multiplier_sl` | ATR-Multiplikator für Stop-Loss-Distanz |
 | `min_sl_pct` | Minimaler SL in % (Untergrenze für ATR-SL) |
-| `trailing_stop_activation_rr` | RR-Ratio bei dem der Trailing Stop aktiviert wird |
+| `trailing_stop_activation_rr` | RR-Vielfaches, bei dem der Trailing Stop aktiviert wird |
 | `trailing_stop_callback_rate_pct` | Callback-Rate des Trailing Stops in % |
 
-### Signal-Scoring anpassen
+### Signal-Scoring-Gewichte anpassen
 
 Der Scorer verwendet Standardgewichte (Summe = 10). Diese können per `scoring`-Sektion in der Config überschrieben werden:
 
@@ -276,6 +320,70 @@ Der Scorer verwendet Standardgewichte (Summe = 10). Diese können per `scoring`-
 ```
 
 > In der Regel reicht es, nur `min_signal_score` zu tunen. Die Gewichte werden standardmäßig nicht verändert.
+
+---
+
+## Pipeline
+
+Die Pipeline trainiert das ANN-Modell neu und optimiert alle Parameter für jedes Symbol/Timeframe-Paar.
+
+### Ablauf
+
+```bash
+./run_pipeline.sh
+```
+
+Der Pipeline-Run umfasst interaktiv konfigurierbare Schritte:
+
+1. **Trainer** → ANN-Modell auf historischen Daten trainieren (Mindest-Accuracy prüfbar)
+2. **Threshold-Finder** → optimalen `prediction_threshold` bestimmen
+3. **Optimizer** → Optuna optimiert 8 Parameter mit Walk-Forward-Validierung (70/30):
+   - `risk_reward_ratio`, `risk_per_trade_pct`, `leverage`
+   - `atr_multiplier_sl`, `min_sl_pct`
+   - `trailing_stop_activation_rr`, `trailing_stop_callback_rate_pct`
+   - `min_signal_score`
+4. **Config-Dateien** → werden in `src/jaegerbot/strategy/configs/` gespeichert
+
+**Konfigurierbare Parameter beim Start:**
+
+| Parameter | Beschreibung |
+|---|---|
+| Symbole | z.B. `BTC ETH XRP SOL` (ohne /USDT) |
+| Timeframes | z.B. `15m 1h 4h` (mehrere möglich) |
+| Startkapital | Simulationskapital für den Optimizer |
+| Trials | Anzahl Optuna-Versuche pro Pair |
+| Modus | `strict` (Win-Rate + DD-Filter) oder `best_profit` (nur DD) |
+| Startdatum | Historischer Datenzeitraum |
+
+### Optimizer-Modi
+
+```bash
+# Strict-Modus: Drawdown < X%, Win-Rate > Y%, PnL > 0 (Standard)
+./run_pipeline.sh
+
+# Best-Profit: nur Drawdown begrenzt, maximaler Gewinn
+# → Auswahl 2 beim Modus-Dialog
+```
+
+### Optimierte Configs pushen
+
+Nach einem erfolgreichen Pipeline-Run die neuen Configs ins Repo:
+
+```bash
+./push_configs.sh
+```
+
+Das Script staged nur geänderte Config-Dateien, committet mit Zeitstempel und pusht auf `origin/main` (mit automatischem Rebase bei Konflikt).
+
+### Automatischer Optimizer
+
+```bash
+# Manuelle Auslösung (sofort)
+python auto_optimizer_scheduler.py --force
+
+# Zeitplan-Check (wie der Cron es aufruft)
+python auto_optimizer_scheduler.py
+```
 
 ---
 
@@ -303,75 +411,15 @@ crontab -e
 
 ```cron
 # Alle 15 Minuten ausführen
-*/15 * * * * /usr/bin/flock -n /path/to/jaegerbot/jaegerbot.lock /bin/sh -c "cd /path/to/jaegerbot && .venv/bin/python master_runner.py >> logs/cron.log 2>&1"
+*/15 * * * * /usr/bin/flock -n /pfad/zu/jaegerbot/jaegerbot.lock /bin/sh -c "cd /pfad/zu/jaegerbot && .venv/bin/python master_runner.py >> logs/cron.log 2>&1"
 ```
 
 ### Telegram-Benachrichtigungen
 
 Der Bot sendet bei jedem Trade eine Nachricht mit:
-- Signal-Score-Breakdown (ANN/ST/ADX/Vol/Vola)
-- Entry-Preis, Positionsgröße
+- Signal-Score-Breakdown (ANN / ST / ADX / Vol / Vola)
+- Entry-Preis, Positionsgröße, Hebel, Margin-Mode
 - Stop-Loss (ATR-basiert) und Trailing-Stop-Aktivierungspreis
-- Hebel und Margin-Mode
-
----
-
-## Pipeline
-
-Die Pipeline trainiert das ANN-Modell neu und optimiert alle Parameter inklusive `min_signal_score`.
-
-### Manueller Run
-
-```bash
-chmod +x run_pipeline.sh
-./run_pipeline.sh
-```
-
-Der Pipeline-Run umfasst:
-1. **Trainer** → ANN-Modell auf historischen Daten trainieren
-2. **Threshold-Finder** → optimalen `prediction_threshold` bestimmen
-3. **Optimizer** → Optuna optimiert 8 Parameter:
-   - `risk_reward_ratio`, `risk_per_trade_pct`, `leverage`
-   - `atr_multiplier_sl`, `min_sl_pct`
-   - `trailing_stop_activation_rr`, `trailing_stop_callback_rate_pct`
-   - **`min_signal_score`** (neu in v2.0)
-4. **Config-Dateien** → werden automatisch überschrieben
-
-### Optimizer-Modus wählen
-
-```bash
-# Strict-Modus: Drawdown < 30%, Win-Rate > 45%, PnL > 0
-./run_pipeline.sh --mode strict
-
-# Best-Profit: Nur Drawdown begrenzt, maximaler Gewinn
-./run_pipeline.sh --mode best_profit
-```
-
-### Optimierte Configs pushen
-
-Nach einem erfolgreichen Pipeline-Run die neuen Configs ins Repo:
-
-```bash
-./push_configs.sh
-```
-
-Das Script:
-- Zeigt alle gefundenen Configs mit `min_signal_score` und PnL
-- Staged nur geänderte Config-Dateien
-- Committet mit Zeitstempel
-- Pusht auf `origin/main` (mit automatischem Rebase bei Konflikt)
-
-### Automatischer Optimizer
-
-Der Auto-Optimizer läuft nach Zeitplan (konfigurierbar in `settings.json`):
-
-```bash
-# Manuelle Auslösung (sofort)
-python auto_optimizer_scheduler.py --force
-
-# Zeitplan-Check (wie der Cron es aufruft)
-python auto_optimizer_scheduler.py
-```
 
 ---
 
@@ -383,7 +431,7 @@ python auto_optimizer_scheduler.py
 ./show_status.sh
 ```
 
-### Backtest-Ergebnisse analysieren
+### Portfolio analysieren & Strategien wählen
 
 ```bash
 ./show_results.sh
@@ -391,12 +439,16 @@ python auto_optimizer_scheduler.py
 
 Das Script bietet vier Modi:
 
-| Modus | Beschreibung |
-|---|---|
-| `1` | **Einzel-Analyse** — jede Strategie isoliert backtesten und bewerten |
-| `2` | **Manuelle Portfolio-Simulation** — du wählst das Team der Strategien |
-| `3` | **Automatische Portfolio-Optimierung** — Bot wählt das beste Team, optional `settings.json` aktualisieren |
-| `4` | **Interaktive Charts** — Entry/Exit-Signale visuell darstellen |
+| Modus | Beschreibung | Export |
+|---|---|---|
+| `1` | **Einzel-Analyse** — jede Strategie isoliert backtesten | — |
+| `2` | **Manuelle Portfolio-Simulation** — du wählst das Team | HTML + Excel (auf Anfrage) |
+| `3` | **Automatische Portfolio-Optimierung** — Bot wählt bestes Team, `settings.json` aktualisierbar | HTML + Excel (automatisch) |
+| `4` | **Interaktive Charts** — Entry/Exit-Signale visuell darstellen | — |
+
+Modus 3 generiert automatisch und sendet via Telegram:
+- `artifacts/charts/jaegerbot_portfolio_equity.html` — Portfolio-Equity-Kurve mit TP/SL-Markern
+- `artifacts/charts/jaegerbot_trades.xlsx` — alle Portfolio-Trades tabellarisch mit Zusammenfassung
 
 ### Logs
 
@@ -432,13 +484,17 @@ Das Script:
 
 ### Configs nach Update wiederherstellen
 
-Wenn Configs nach einem Update verloren gehen:
+Configs werden im Repo versioniert. Nach einem Update:
 
 ```bash
 git pull origin main
 ```
 
-Oder manuell über `push_configs.sh` vor dem Update sichern.
+Vor einem Update absichern:
+
+```bash
+./push_configs.sh
+```
 
 ### Trade-Lock zurücksetzen
 
@@ -448,37 +504,19 @@ Falls der Bot steckenbleibt und keine neuen Trades öffnet:
 rm artifacts/db/trade_lock.json
 ```
 
-### Stale Optimizer-Ergebnisse bereinigen
+### Artefakte bereinigen
 
-Falls der Autopilot zu viele Strategien startet:
+| Situation | Befehl |
+|---|---|
+| Autopilot startet zu viele Strategien | `rm artifacts/results/last_optimizer_run.json` |
+| Optimizer mit neuer Logik neu starten | `rm artifacts/db/optuna_studies.db` |
+| ANN-Modelle neu trainieren (nach Feature-Änderung) | `rm -rf artifacts/models/` |
+| Gespeicherte Configs löschen (Pipeline-Ergebnisse) | `rm src/jaegerbot/strategy/configs/config_*.json` |
+| Kompletter Neustart aller Artefakte | `rm -rf artifacts/models/ artifacts/db/ artifacts/results/ && rm src/jaegerbot/strategy/configs/config_*.json` |
 
-```bash
-rm artifacts/results/last_optimizer_run.json
-```
+> **Wichtig:** `artifacts/models/` und `src/jaegerbot/strategy/configs/` sind **zwei getrennte Verzeichnisse**. Modelle löschen entfernt keine Configs — und umgekehrt. Für einen vollständigen Neustart müssen beide gelöscht werden.
 
-### Optuna-Datenbank zurücksetzen
-
-Falls die Optimierung mit neuen Parametern oder veränderter Logik neu starten soll (alte Trials sind sonst noch aktiv):
-
-```bash
-rm artifacts/db/optuna_studies.db
-```
-
-### Modelle neu trainieren
-
-Falls sich Features oder Trainingsdaten geändert haben:
-
-```bash
-rm -rf artifacts/models/
-```
-
-### Alles auf einmal löschen (kompletter Neustart)
-
-```bash
-rm -rf artifacts/models/ artifacts/db/ artifacts/results/
-```
-
-> Alternativ beim Pipeline-Start auf `j` antworten wenn gefragt wird ob alte Ergebnisse gelöscht werden sollen.
+> Alternativ beim Pipeline-Start auf `j` antworten — löscht Modelle und Configs automatisch.
 
 ---
 
@@ -489,20 +527,18 @@ rm -rf artifacts/models/ artifacts/db/ artifacts/results/
 - **Architektur:** Dense(256) → Dense(128) → Dense(64) → Dense(32) → Dense(1, Sigmoid)
 - **Regularisierung:** BatchNormalization + Dropout nach jeder Schicht
 - **Features:** 34 technische Indikatoren (standardisiert mit StandardScaler)
-- **Training:** 80/20 Train/Val-Split, EarlyStopping (patience=15)
+- **Training:** 80/20 Train/Val-Split, EarlyStopping (patience=15), ReduceLROnPlateau
 - **Output:** 0.0 = stark SHORT, 0.5 = neutral, 1.0 = stark LONG
 
 ### Stop-Loss-Berechnung
 
-Der SL ist ATR-basiert und dynamisch:
+Der SL ist ATR-basiert und dynamisch — gleiche Logik in Backtester und Live-Bot:
 
 ```
 sl_distance = max(ATR × atr_multiplier_sl, entry_price × min_sl_pct)
-stop_loss   = entry_price - sl_distance   (Long)
+stop_loss   = entry_price − sl_distance   (Long)
 stop_loss   = entry_price + sl_distance   (Short)
 ```
-
-Gleiche Logik in Backtester und Live-Bot — keine Inkonsistenzen.
 
 ### Trailing Stop
 
@@ -510,15 +546,19 @@ Gleiche Logik in Backtester und Live-Bot — keine Inkonsistenzen.
 2. Trailing Stop aktiviert sich bei `entry_price ± sl_distance × activation_rr`
 3. Ab Aktivierung: TSL folgt dem Peak-Preis mit `callback_rate_pct` Abstand
 
-### Optuna-Optimierung
+### Optuna Walk-Forward-Optimierung
 
 ```
-Zielfunktion: PnL% / max(Drawdown, 0.01)   → Maximierung
-Constraints (strict):
-  - max_drawdown_pct < 30%
-  - win_rate >= 45%
-  - pnl_pct > 0
-  - trades_count >= 50
+Zielfunktion:
+  train_score = log1p(train_pnl) / max(train_dd, 0.01)
+  test_score  = log1p(test_pnl)  / max(test_dd,  0.01)
+  final_score = train_score × 0.30 + test_score × 0.70   → Maximierung
+
+Pruning (strict-Modus):
+  - max_drawdown_pct > 30%   → Pruned
+  - trades_count < 35        → Pruned (Training) / < 15 (Test)
+  - test_pnl <= 0            → Pruned
+  - win_rate < min_win_rate  → Pruned
 ```
 
 ---
@@ -527,10 +567,10 @@ Constraints (strict):
 
 | Komponente | Minimum | Empfohlen |
 |---|---|---|
-| CPU | 2 Kerne | 4+ Kerne (für Optuna parallel) |
+| CPU | 2 Kerne | 4+ Kerne (Optuna parallel) |
 | RAM | 4 GB | 8 GB+ |
 | Speicher | 2 GB | 5 GB (Modelle + Daten-Cache) |
-| Python | 3.10 | 3.11 |
+| Python | 3.10 | 3.12 |
 | OS | Ubuntu 20.04 | Ubuntu 22.04 |
 
 ---
