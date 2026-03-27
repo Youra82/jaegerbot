@@ -23,6 +23,7 @@ RESULTS_FILE = os.path.join(PROJECT_ROOT, 'artifacts', 'results', 'last_optimize
 from jaegerbot.analysis.backtester import load_data, run_ann_backtest
 from jaegerbot.utils.telegram import send_message
 from jaegerbot.analysis.evaluator import evaluate_dataset
+from jaegerbot.utils.signal_scorer import DEFAULT_MIN_SIGNAL_SCORE
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 HISTORICAL_DATA = None
@@ -212,7 +213,7 @@ def main():
             "market": {"symbol": symbol, "timeframe": timeframe},
             "strategy": {
                 "prediction_threshold": FIXED_THRESHOLD,
-                "min_signal_score": round(best_params['min_signal_score'], 2),
+                "min_signal_score": round(best_params.get('min_signal_score', DEFAULT_MIN_SIGNAL_SCORE), 2),
             },
             "risk": {
                 "margin_mode": "isolated",
