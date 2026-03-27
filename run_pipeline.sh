@@ -102,3 +102,7 @@ done
 
 deactivate
 echo -e "\n${BLUE}✔ Alle Pipeline-Aufgaben erfolgreich abgeschlossen!${NC}"
+
+# Optimierte Configs automatisch ins Repo pushen
+echo ""
+bash push_configs.sh

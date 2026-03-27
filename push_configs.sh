@@ -10,7 +10,7 @@ cd "$SCRIPT_DIR"
 CONFIGS_DIR="src/jaegerbot/strategy/configs"
 
 echo ""
-echo -e "${YELLOW}========== JAEGERBOT CONFIGS PUSHEN ==========${NC}"
+echo -e "${YELLOW}========== CONFIGS PUSHEN ==========${NC}"
 echo ""
 
 # Pruefe ob Config-Dateien existieren
@@ -23,10 +23,7 @@ fi
 
 echo "Gefundene Konfigurationen ($CONFIG_COUNT):"
 for f in "$CONFIGS_DIR"/config_*.json; do
-    # min_signal_score und pnl_pct aus Config extrahieren (falls vorhanden)
-    SCORE=$(python -c "import json; d=json.load(open('$f')); print(d.get('strategy',{}).get('min_signal_score','?'))" 2>/dev/null)
-    PNL=$(python -c "import json; d=json.load(open('$f')); print(d.get('_meta',{}).get('pnl_pct','?'))" 2>/dev/null)
-    echo "  - $(basename "$f")  [min_score=$SCORE, pnl=$PNL%]"
+    echo "  - $(basename "$f")"
 done
 echo ""
 
@@ -58,11 +55,14 @@ if [ $? -eq 0 ]; then
 else
     echo ""
     echo -e "${YELLOW}Remote hat neuere Commits — fuehre Rebase durch...${NC}"
+    git stash
     git pull origin main --rebase
     if [ $? -ne 0 ]; then
+        git stash pop 2>/dev/null
         echo -e "${RED}Rebase fehlgeschlagen. Bitte manuell loesen.${NC}"
         exit 1
     fi
+    git stash pop 2>/dev/null
     git push origin HEAD:main
     if [ $? -eq 0 ]; then
         echo ""
