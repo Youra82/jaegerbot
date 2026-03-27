@@ -35,15 +35,44 @@ def _get_telegram_cfg():
         return '', ''
 
 
-def _generate_trades_excel(trade_history, portfolio_symbols, capital):
-    """Generiert jaegerbot_trades.xlsx — gleicher Stil wie vbot/fibot."""
+def _generate_trades_excel(final_sim, capital):
+    """Erstellt jaegerbot_trades.xlsx mit allen Portfolio-Trades — analog zu vbot/fibot."""
     try:
         import openpyxl
         from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
         from openpyxl.utils import get_column_letter
     except ImportError:
-        print(f"  {YELLOW}openpyxl nicht verfügbar — Excel-Export übersprungen.{NC}")
-        return None
+        print(f"  {YELLOW}openpyxl nicht installiert — Excel übersprungen. (pip install openpyxl){NC}")
+        return
+
+    trade_history = final_sim.get('trade_history', [])
+    if not trade_history:
+        print(f"  {YELLOW}Keine Trades — Excel übersprungen.{NC}")
+        return
+
+    equity = capital
+    rows   = []
+    for i, t in enumerate(trade_history):
+        pnl      = float(t['pnl'])
+        equity  += pnl
+        symbol   = t.get('symbol', '')
+        tf       = t.get('timeframe', '')
+        strat    = f"{symbol.split('/')[0]}/{tf}" if symbol else tf
+        dir_     = t.get('direction', '').upper()
+        entry    = round(float(t.get('entry', 0)), 6)
+        exit_p   = round(float(t.get('exit',  0)), 6)
+        ergebnis = 'TP erreicht' if pnl > 0 else 'SL erreicht'
+        rows.append({
+            'Nr':         i + 1,
+            'Datum':      str(t.get('entry_time', t.get('ts', '')))[:16].replace('T', ' '),
+            'Strategie':  strat,
+            'Richtung':   dir_,
+            'Entry':      entry,
+            'Exit':       exit_p,
+            'Ergebnis':   ergebnis,
+            'PnL (USDT)': round(pnl,    4),
+            'Kapital':    round(equity, 4),
+        })
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -57,189 +86,183 @@ def _generate_trades_excel(trade_history, portfolio_symbols, capital):
         left=Side(style='thin', color='CCCCCC'), right=Side(style='thin', color='CCCCCC'),
         top=Side(style='thin', color='CCCCCC'),  bottom=Side(style='thin', color='CCCCCC'),
     )
+    col_widths = {
+        'Nr': 5, 'Datum': 18, 'Strategie': 22, 'Richtung': 10,
+        'Entry': 14, 'Exit': 14, 'Ergebnis': 14, 'PnL (USDT)': 14, 'Kapital': 16,
+    }
 
-    headers = ['Nr', 'Datum', 'Strategie', 'Portfolio', 'Richtung', 'Entry', 'Exit', 'Ergebnis', 'PnL (USDT)', 'Kapital']
-    col_widths = {'Nr': 5, 'Datum': 18, 'Strategie': 28, 'Portfolio': 10, 'Richtung': 10,
-                  'Entry': 14, 'Exit': 14, 'Ergebnis': 14, 'PnL (USDT)': 14, 'Kapital': 16}
-
-    for col_idx, h in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col_idx, value=h)
-        cell.fill = header_fill
-        cell.font = Font(bold=True, color='FFFFFF', size=11)
+    headers = list(rows[0].keys())
+    for col, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=h)
+        cell.fill      = header_fill
+        cell.font      = Font(bold=True, color='FFFFFF', size=11)
         cell.alignment = Alignment(horizontal='center', vertical='center')
-        cell.border = thin_border
-        ws.column_dimensions[get_column_letter(col_idx)].width = col_widths.get(h, 14)
-    ws.row_dimensions[1].height = 24
+        cell.border    = thin_border
+        ws.column_dimensions[get_column_letter(col)].width = col_widths.get(h, 14)
+    ws.row_dimensions[1].height = 22
 
-    rows = []
-    equity = capital
-    for i, t in enumerate(trade_history):
-        pnl = float(t['pnl'])
-        equity += pnl
-        symbol = t.get('symbol', '')
-        timeframe = t.get('timeframe', '')
-        strat = f"{symbol} {timeframe}".strip()
-        in_port = '✔' if symbol in portfolio_symbols else '—'
-        dir_ = t.get('direction', '').upper()
-        entry = round(float(t.get('entry', 0)), 6)
-        exit_p = round(float(t.get('exit', 0)), 6)
-        ergebnis = 'TP erreicht' if pnl > 0 else 'SL erreicht'
-        rows.append({
-            'Nr': i + 1,
-            'Datum': str(t.get('entry_time', t.get('ts', '')))[:16].replace('T', ' '),
-            'Strategie': strat,
-            'Portfolio': in_port,
-            'Richtung': dir_,
-            'Entry': entry,
-            'Exit': exit_p,
-            'Ergebnis': ergebnis,
-            'PnL (USDT)': round(pnl, 4),
-            'Kapital': round(equity, 4),
-        })
+    for r_idx, row in enumerate(rows, 2):
+        if row['Ergebnis'] == 'TP erreicht':
+            fill = win_fill
+        elif r_idx % 2 == 0:
+            fill = loss_fill
+        else:
+            fill = alt_fill
+        for col, key in enumerate(headers, 1):
+            cell = ws.cell(row=r_idx, column=col, value=row[key])
+            cell.fill      = fill
+            cell.border    = thin_border
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            if key in ('Entry', 'Exit', 'PnL (USDT)', 'Kapital'):
+                cell.number_format = '#,##0.0000'
+        ws.row_dimensions[r_idx].height = 18
 
-    center_cols = {'Nr', 'Portfolio', 'Richtung', 'Ergebnis'}
-    for row_idx, row in enumerate(rows, 2):
-        is_win = row['Ergebnis'] == 'TP erreicht'
-        for col_idx, h in enumerate(headers, 1):
-            cell = ws.cell(row=row_idx, column=col_idx, value=row[h])
-            cell.fill = win_fill if is_win else (loss_fill if not is_win else (alt_fill if row_idx % 2 == 0 else PatternFill()))
-            cell.border = thin_border
-            cell.alignment = Alignment(horizontal='center' if h in center_cols else 'right')
-
-    if rows:
-        total = len(rows)
-        wins = sum(1 for r in rows if r['Ergebnis'] == 'TP erreicht')
-        pnl_total = rows[-1]['Kapital'] - capital
-        pnl_pct = pnl_total / capital * 100 if capital else 0.0
-        sr = total + 3
-        ws.cell(row=sr, column=1, value='Zusammenfassung').font = Font(bold=True, size=11)
+    total     = len(rows)
+    wins      = sum(1 for r in rows if r['Ergebnis'] == 'TP erreicht')
+    sr        = total + 3
+    pnl_total = rows[-1]['Kapital'] - capital if rows else 0.0
+    pnl_pct   = pnl_total / capital * 100 if capital else 0.0
+    ws.cell(row=sr, column=1, value='Zusammenfassung').font = Font(bold=True, size=11)
+    for label, value in [
+        ('Trades gesamt', total),
+        ('Win-Rate',      f"{wins / total * 100:.1f}%" if total else '—'),
+        ('PnL',           f"{pnl_pct:+.1f}%"),
+        ('Endkapital',    f"{rows[-1]['Kapital']:.2f} USDT" if rows else '—'),
+    ]:
+        ws.cell(row=sr, column=1, value=label).font = Font(bold=True)
+        ws.cell(row=sr, column=2, value=value)
         sr += 1
-        for label, value in [
-            ('Trades gesamt', total),
-            ('Win-Rate', f"{wins / total * 100:.1f}%" if total else '—'),
-            ('PnL', f"{pnl_pct:+.1f}%"),
-            ('Endkapital', f"{rows[-1]['Kapital']:.2f} USDT"),
-        ]:
-            ws.cell(row=sr, column=1, value=label).font = Font(bold=True)
-            ws.cell(row=sr, column=2, value=value)
-            sr += 1
-    else:
-        total, wins, pnl_pct = 0, 0, 0.0
 
-    out_dir = os.path.join(PROJECT_ROOT, 'artifacts', 'charts')
+    out_dir  = os.path.join(PROJECT_ROOT, 'artifacts', 'charts')
     os.makedirs(out_dir, exist_ok=True)
     out_file = os.path.join(out_dir, 'jaegerbot_trades.xlsx')
     wb.save(out_file)
-    return out_file, total, wins, pnl_pct
+    print(f"  {GREEN}Excel gespeichert: jaegerbot_trades.xlsx{NC}")
+
+    bot_token, chat_id = _get_telegram_cfg()
+    if bot_token and chat_id:
+        caption = (f"JaegerBot Trades — {total} Trades | "
+                   f"WR: {wins / total * 100:.1f}% | PnL: {pnl_pct:+.1f}%" if total else "JaegerBot Trades")
+        send_document(bot_token, chat_id, out_file, caption=caption)
+        print(f"  {GREEN}Via Telegram gesendet.{NC}")
+    else:
+        print(f"  {YELLOW}Telegram nicht konfiguriert — nur lokal gespeichert.{NC}")
 
 
-def _generate_html_charts(strategies_data, trade_history, portfolio_symbols):
-    """Generiert ein interaktives HTML-Chart pro Strategie im Portfolio."""
+def _generate_portfolio_chart(final_sim, portfolio_files, capital, start_date, end_date):
+    """Erstellt jaegerbot_portfolio_equity.html — analog zu fibot_portfolio_equity.html."""
     try:
         import plotly.graph_objects as go
         from plotly.subplots import make_subplots
     except ImportError:
-        print(f"  {YELLOW}plotly nicht verfügbar — HTML-Charts übersprungen.{NC}")
-        return []
+        print(f"  {YELLOW}plotly nicht installiert — Chart übersprungen. (pip install plotly){NC}")
+        return
 
-    out_dir = os.path.join(PROJECT_ROOT, 'artifacts', 'charts')
-    os.makedirs(out_dir, exist_ok=True)
-    generated = []
+    eq_df         = final_sim.get('equity_curve')
+    trade_history = final_sim.get('trade_history', [])
+    if eq_df is None or (hasattr(eq_df, 'empty') and eq_df.empty):
+        print(f"  {YELLOW}Keine Equity-Daten — Chart übersprungen.{NC}")
+        return
 
-    from collections import defaultdict
-    trades_by_symbol = defaultdict(list)
+    eq_times = eq_df['timestamp'].astype(str).tolist()
+    eq_vals  = eq_df['equity'].tolist()
+
+    # Trade-Marker: Win ● cyan / Loss ✗ rot
+    win_x, win_y   = [], []
+    loss_x, loss_y = [], []
     for t in trade_history:
-        if t.get('symbol') in portfolio_symbols:
-            trades_by_symbol[t['symbol']].append(t)
+        ts  = str(t.get('ts', ''))
+        row = eq_df[eq_df['timestamp'] <= pd.to_datetime(t['ts'])]
+        eq_at = float(row['equity'].iloc[-1]) if not row.empty else capital
+        if float(t['pnl']) > 0:
+            win_x.append(ts);  win_y.append(eq_at)
+        else:
+            loss_x.append(ts); loss_y.append(eq_at)
 
-    for symbol in portfolio_symbols:
-        strat = strategies_data.get(symbol)
-        if strat is None:
-            continue
+    # Strategie-Labels für Titel
+    pairs = []
+    for fname in portfolio_files:
+        name  = fname.replace('config_', '').replace('.json', '')
+        parts = name.split('_')
+        tf    = parts[-1] if parts else ''
+        sym   = parts[0][:3].upper() if parts else ''
+        pairs.append(f"{sym}/{tf}")
+    pairs_str = ', '.join(pairs)
 
-        df = strat['data'].copy()
-        timeframe = strat['timeframe']
-        safe = f"{symbol.replace('/', '').replace(':', '')}_{timeframe}"
-        strat_trades = trades_by_symbol.get(symbol, [])
+    n_strats = len(portfolio_files)
+    pnl_pct  = final_sim.get('total_pnl_pct', 0)
+    sign     = '+' if pnl_pct >= 0 else ''
+    title = (
+        f"JaegerBot Portfolio — {n_strats} Strategie(n) ({pairs_str}) | "
+        f"Zeitraum: {start_date} \u2192 {end_date} | "
+        f"Trades: {final_sim.get('trade_count', 0)} | WR: {final_sim.get('win_rate', 0):.1f}% | "
+        f"PnL: {sign}{pnl_pct:.1f}% | "
+        f"Endkapital: {final_sim.get('end_capital', capital):.2f} USDT | "
+        f"MaxDD: {final_sim.get('max_drawdown_pct', 0):.1f}%"
+    )
 
-        try:
-            import ta as ta_lib
-            rsi = ta_lib.momentum.RSIIndicator(df['close'], window=14).rsi()
-        except Exception:
-            rsi = pd.Series([50.0] * len(df), index=df.index)
+    fig = make_subplots(specs=[[{"secondary_y": False}]])
 
-        fig = make_subplots(
-            rows=3, cols=1, shared_xaxes=True,
-            row_heights=[0.6, 0.2, 0.2], vertical_spacing=0.03,
-            specs=[[{"secondary_y": True}], [{"secondary_y": False}], [{"secondary_y": False}]],
+    fig.add_hline(
+        y=capital,
+        line=dict(color='rgba(100,100,100,0.35)', width=1, dash='dash'),
+        annotation_text=f'Start {capital:.0f} USDT',
+        annotation_position='top left',
+    )
+
+    fig.add_trace(go.Scatter(
+        x=eq_times, y=eq_vals,
+        mode='lines', name='Portfolio Equity',
+        line=dict(color='#2563eb', width=2.5),
+        hovertemplate='Portfolio: %{y:.2f} USDT<extra></extra>',
+    ))
+
+    if win_x:
+        fig.add_trace(go.Scatter(
+            x=win_x, y=win_y, mode='markers',
+            marker=dict(color='#22d3ee', symbol='circle', size=8,
+                        line=dict(width=1, color='#0e7490')),
+            name='TP \u2713',
+        ))
+
+    if loss_x:
+        fig.add_trace(go.Scatter(
+            x=loss_x, y=loss_y, mode='markers',
+            marker=dict(color='#ef4444', symbol='x', size=8,
+                        line=dict(width=2, color='#7f1d1d')),
+            name='SL \u2717',
+        ))
+
+    fig.update_layout(
+        title=dict(text=title, font=dict(size=12), x=0.5, xanchor='center'),
+        height=600,
+        hovermode='x unified',
+        template='plotly_dark',
+        dragmode='zoom',
+        xaxis=dict(rangeslider=dict(visible=True), fixedrange=False),
+        legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='center', x=0.5),
+        margin=dict(l=60, r=60, t=80, b=40),
+        yaxis=dict(title='Equity (USDT)', fixedrange=False),
+    )
+
+    out_dir  = os.path.join(PROJECT_ROOT, 'artifacts', 'charts')
+    os.makedirs(out_dir, exist_ok=True)
+    out_file = os.path.join(out_dir, 'jaegerbot_portfolio_equity.html')
+    fig.write_html(out_file)
+    print(f"  {GREEN}Chart gespeichert: jaegerbot_portfolio_equity.html{NC}")
+
+    bot_token, chat_id = _get_telegram_cfg()
+    if bot_token and chat_id:
+        caption = (
+            f"JaegerBot Portfolio-Equity\n"
+            f"{start_date} \u2192 {end_date} | {n_strats} Strategie(n) | "
+            f"PnL: {sign}{pnl_pct:.1f}% | Equity: {final_sim.get('end_capital', capital):.2f} USDT | "
+            f"MaxDD: {final_sim.get('max_drawdown_pct', 0):.1f}%"
         )
-
-        fig.add_trace(go.Candlestick(
-            x=df.index, open=df['open'], high=df['high'], low=df['low'], close=df['close'],
-            name=symbol, increasing_line_color='#26a69a', decreasing_line_color='#ef5350',
-        ), row=1, col=1, secondary_y=False)
-
-        longs  = [t for t in strat_trades if t.get('direction') == 'long']
-        shorts = [t for t in strat_trades if t.get('direction') == 'short']
-
-        for trades_list, color, symbol_marker, label in [
-            (longs,  '#26a69a', 'triangle-up',   'Long'),
-            (shorts, '#ef5350', 'triangle-down', 'Short'),
-        ]:
-            if trades_list:
-                fig.add_trace(go.Scatter(
-                    x=[pd.to_datetime(t['entry_time']) for t in trades_list],
-                    y=[t['entry'] for t in trades_list],
-                    mode='markers', name=f'{label} Entry',
-                    marker=dict(symbol=symbol_marker, size=10, color=color, line=dict(width=1, color='white')),
-                ), row=1, col=1, secondary_y=False)
-                fig.add_trace(go.Scatter(
-                    x=[pd.to_datetime(t['ts']) for t in trades_list],
-                    y=[t['exit'] for t in trades_list],
-                    mode='markers', name=f'{label} Exit',
-                    marker=dict(symbol='x', size=8, color=color, opacity=0.8, line=dict(width=1.5, color='white')),
-                ), row=1, col=1, secondary_y=False)
-
-        # Equity-Kurve für diese Strategie (kumulierter PnL)
-        if strat_trades:
-            run_eq, run_ts = [], []
-            r = 0.0
-            for t in sorted(strat_trades, key=lambda x: x.get('ts', '')):
-                r += float(t['pnl'])
-                run_ts.append(pd.to_datetime(t['ts']))
-                run_eq.append(r)
-            fig.add_trace(go.Scatter(
-                x=run_ts, y=run_eq, name='PnL (USDT)', mode='lines',
-                line=dict(color='#ffd700', width=1.5),
-            ), row=1, col=1, secondary_y=True)
-
-        vol_colors = ['#26a69a' if df['close'].iloc[i] >= df['open'].iloc[i] else '#ef5350' for i in range(len(df))]
-        fig.add_trace(go.Bar(x=df.index, y=df['volume'], name='Volume', marker_color=vol_colors, opacity=0.5), row=2, col=1)
-
-        fig.add_trace(go.Scatter(x=df.index, y=rsi, name='RSI(14)', line=dict(color='#9c27b0', width=1)), row=3, col=1)
-        fig.add_hline(y=70, line_dash='dash', line_color='rgba(255,80,80,0.4)', row=3, col=1)
-        fig.add_hline(y=30, line_dash='dash', line_color='rgba(80,255,80,0.4)', row=3, col=1)
-
-        total_pnl = sum(float(t['pnl']) for t in strat_trades)
-        wins_n = sum(1 for t in strat_trades if float(t['pnl']) > 0)
-        wr = wins_n / len(strat_trades) * 100 if strat_trades else 0.0
-
-        fig.update_layout(
-            title=f"JaegerBot | {symbol} {timeframe} | {len(strat_trades)} Trades | WR: {wr:.1f}% | PnL: {total_pnl:+.2f} USDT",
-            template='plotly_dark', xaxis_rangeslider_visible=False, height=900,
-            legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1),
-        )
-        fig.update_yaxes(title_text='Preis', row=1, col=1, secondary_y=False)
-        fig.update_yaxes(title_text='PnL (USDT)', row=1, col=1, secondary_y=True)
-        fig.update_yaxes(title_text='Volume', row=2, col=1)
-        fig.update_yaxes(title_text='RSI', row=3, col=1)
-
-        out_file = os.path.join(out_dir, f"jaegerbot_{safe}.html")
-        fig.write_html(out_file)
-        generated.append((symbol, timeframe, out_file, len(strat_trades), wr, total_pnl))
-        print(f"  {GREEN}✔ Chart: jaegerbot_{safe}.html{NC}")
-
-    return generated
+        send_document(bot_token, chat_id, out_file, caption=caption)
+        print(f"  {GREEN}Chart via Telegram gesendet.{NC}")
+    else:
+        print(f"  {YELLOW}Telegram nicht konfiguriert — Chart nur lokal gespeichert.{NC}")
 
 # --- Helper-Funktion für die Einzelanalyse (Modus 1) ---
 def run_single_analysis_via_simulator(start_date, end_date, start_capital):
@@ -487,63 +510,34 @@ def run_shared_mode(is_auto: bool, start_date, end_date, start_capital, max_draw
     if equity_df is not None and not equity_df.empty:
         print("\n--- Export ---")
         equity_df[['timestamp', 'equity', 'drawdown_pct']].to_csv(csv_path, index=False)
-        print(f"✔ Equity-Kurve: '{os.path.basename(csv_path)}'")
+        print(f"✔ Bericht wurde erfolgreich an Telegram gesendet.")
 
         bot_token, chat_id = _get_telegram_cfg()
-
-        # CSV via Telegram
         if bot_token and chat_id:
             try:
-                print("Sende Bericht an Telegram...")
                 send_document(bot_token, chat_id, csv_path, caption)
-                print("✔ Bericht wurde erfolgreich an Telegram gesendet.")
             except Exception as e:
-                print(f"ⓘ Konnte CSV nicht an Telegram senden: {e}")
+                print(f"ⓘ Konnte CSV nicht senden: {e}")
 
-        # Trade-History aus dem Report holen
-        trade_history = []
+        # final_sim für Chart + Excel bestimmen
         if is_auto and results and 'final_result' in results:
-            trade_history = results['final_result'].get('trade_history', [])
-        elif not is_auto:
-            trade_history = final_report.get('trade_history', [])
-
-        # Portfolio-Symbole bestimmen
-        if is_auto and results:
-            portfolio_symbols = set()
-            for fname in results.get('optimal_portfolio', []):
-                for sym, strat in strategies_data.items():
-                    safe = f"{sym.replace('/', '').replace(':', '')}_{strat['timeframe']}"
-                    if f"config_{safe}.json" == fname:
-                        portfolio_symbols.add(sym)
-                        break
+            final_sim_for_export = results['final_result']
+            portfolio_files_for_export = results.get('optimal_portfolio', [])
         else:
-            portfolio_symbols = set(strategies_data.keys())
+            final_sim_for_export = final_report
+            portfolio_files_for_export = []
 
-        # Excel generieren & senden
-        if trade_history:
-            excel_result = _generate_trades_excel(trade_history, portfolio_symbols, start_capital)
-            if excel_result:
-                excel_path, total_t, wins_t, pnl_pct_t = excel_result
-                print(f"✔ Trades-Excel: 'jaegerbot_trades.xlsx' ({total_t} Trades)")
-                if bot_token and chat_id:
-                    try:
-                        wr_t = wins_t / total_t * 100 if total_t else 0
-                        send_document(bot_token, chat_id, excel_path,
-                                      caption=f"JaegerBot Trades — {total_t} Trades | WR: {wr_t:.1f}% | PnL: {pnl_pct_t:+.1f}%")
-                        print(f"  {GREEN}Via Telegram gesendet.{NC}")
-                    except Exception as e:
-                        print(f"  ⓘ Konnte Excel nicht an Telegram senden: {e}")
+        # Charts & Excel: Modus 3 automatisch, Modus 2 auf Anfrage
+        do_export = is_auto
+        if not is_auto:
+            print()
+            ans = input("  Charts & Excel erstellen und via Telegram senden? (j/n) [Standard: n]: ").strip().lower()
+            do_export = ans in ('j', 'y', 'ja')
 
-        # HTML-Charts generieren & senden
-        if portfolio_symbols:
-            generated_charts = _generate_html_charts(strategies_data, trade_history, portfolio_symbols)
-            for sym, tf, chart_path, trades_n, wr_c, pnl_c in generated_charts:
-                if bot_token and chat_id:
-                    try:
-                        send_document(bot_token, chat_id, chart_path,
-                                      caption=f"JaegerBot Chart | {sym} {tf} | Trades: {trades_n} | WR: {wr_c:.1f}% | PnL: {pnl_c:+.2f} USDT")
-                    except Exception as e:
-                        print(f"  ⓘ Konnte Chart nicht an Telegram senden: {e}")
+        if do_export:
+            _generate_portfolio_chart(final_sim_for_export, portfolio_files_for_export,
+                                      start_capital, start_date, end_date)
+            _generate_trades_excel(final_sim_for_export, start_capital)
 
         print("=======================================================")
     else:
