@@ -456,6 +456,30 @@ Falls der Autopilot zu viele Strategien startet:
 rm artifacts/results/last_optimizer_run.json
 ```
 
+### Optuna-Datenbank zurücksetzen
+
+Falls die Optimierung mit neuen Parametern oder veränderter Logik neu starten soll (alte Trials sind sonst noch aktiv):
+
+```bash
+rm artifacts/db/optuna_studies.db
+```
+
+### Modelle neu trainieren
+
+Falls sich Features oder Trainingsdaten geändert haben:
+
+```bash
+rm -rf artifacts/models/
+```
+
+### Alles auf einmal löschen (kompletter Neustart)
+
+```bash
+rm -rf artifacts/models/ artifacts/db/ artifacts/results/
+```
+
+> Alternativ beim Pipeline-Start auf `j` antworten wenn gefragt wird ob alte Ergebnisse gelöscht werden sollen.
+
 ---
 
 ## Technische Details
