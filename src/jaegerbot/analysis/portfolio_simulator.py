@@ -226,7 +226,17 @@ def run_portfolio_simulation(start_capital, strategies_data, start_date, end_dat
                 equity += net_pnl
                 
                 # Speichere den Config-Key für die Gruppierung
-                trade_history.append({'config_key': pos['config_key'], 'pnl': net_pnl})
+                trade_history.append({
+                    'config_key': pos['config_key'],
+                    'ts': ts.isoformat() if hasattr(ts, 'isoformat') else str(ts),
+                    'entry_time': pos['entry_time'].isoformat() if hasattr(pos.get('entry_time', ts), 'isoformat') else str(pos.get('entry_time', ts)),
+                    'symbol': pos['symbol_key'],
+                    'timeframe': pos.get('timeframe', ''),
+                    'direction': pos['side'],
+                    'entry': pos['entry_price'],
+                    'exit': exit_price,
+                    'pnl': net_pnl,
+                })
                 
                 positions_to_close.append(key)
             else:
@@ -309,11 +319,13 @@ def run_portfolio_simulation(start_capital, strategies_data, start_date, end_dat
                 'notional_value': final_notional_value, 'margin_used': margin_used,
                 'trailing_active': False, 'activation_price': activation_price,
                 'peak_price': entry_price, 'callback_rate': callback_rate,
-                'last_known_price': entry_price, 
-                'symbol_key': symbol_key, 
-                'config_key': config_key, 
+                'last_known_price': entry_price,
+                'symbol_key': symbol_key,
+                'config_key': config_key,
                 'risk_per_trade_pct': risk_per_trade_pct,
-                'risk_reward_ratio': risk_reward_ratio # Speichere RR Ratio
+                'risk_reward_ratio': risk_reward_ratio,
+                'entry_time': ts,
+                'timeframe': signal['timeframe'],
             }
 
             signal_idx += 1
@@ -360,5 +372,6 @@ def run_portfolio_simulation(start_capital, strategies_data, start_date, end_dat
         "trade_count": trade_count, "win_rate": win_rate, "max_drawdown_pct": max_drawdown_pct * 100,
         "max_drawdown_date": max_drawdown_date, "min_equity": min_equity_ever, "liquidation_date": liquidation_date,
         "pnl_per_strategy": pnl_per_strategy, "trades_per_strategy": trades_per_strategy,
-        "equity_curve": equity_df
+        "equity_curve": equity_df,
+        "trade_history": trade_history,
     }

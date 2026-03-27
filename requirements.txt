@@ -13,3 +13,4 @@ joblib
 pytest
 matplotlib
 plotly
+openpyxl
