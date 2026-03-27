@@ -426,15 +426,29 @@ def run_shared_mode(is_auto: bool, start_date, end_date, start_capital, max_draw
         # --- Modus 3: Automatische Optimierung ---
         print(f"\nINFO: Starte Optimierung mit maximal {max_drawdown:.2f}% Drawdown-Beschränkung.")
 
+        # Jede Config bekommt ihre eigenen Daten (Symbol+Timeframe-spezifisch),
+        # damit BTC/15m und BTC/6h nicht gegenseitig überschrieben werden.
         strategies_data_for_optimizer = {}
         for filename in selected_files:
             try:
                 with open(os.path.join(configs_dir, filename), 'r') as f: config = json.load(f)
-                symbol_key = config['market']['symbol']
-                if symbol_key in strategies_data:
-                    strategies_data_for_optimizer[filename] = strategies_data[symbol_key]
-            except Exception:
-                pass # Fehlerhafte Configs wurden bereits beim Laden ignoriert
+                symbol    = config['market']['symbol']
+                timeframe = config['market']['timeframe']
+                safe_fn   = f"{symbol.replace('/', '').replace(':', '')}_{timeframe}"
+                m_path    = os.path.join(models_dir, f'ann_predictor_{safe_fn}.h5')
+                s_path    = os.path.join(models_dir, f'ann_scaler_{safe_fn}.joblib')
+                model, scaler = load_model_and_scaler(m_path, s_path)
+                data = load_data(symbol, timeframe, start_date, end_date)
+                if model and scaler and not data.empty:
+                    strategies_data_for_optimizer[filename] = {
+                        'symbol': symbol, 'timeframe': timeframe, 'data': data,
+                        'model': model, 'scaler': scaler,
+                        'params': {**config.get('strategy', {}), **config.get('risk', {})}
+                    }
+                else:
+                    print(f"WARNUNG: Konnte Daten/Modell für {filename} nicht laden. Wird ignoriert.")
+            except Exception as e:
+                print(f"WARNUNG: {filename} — {e}. Wird ignoriert.")
 
         results = run_portfolio_optimizer(start_capital, strategies_data_for_optimizer, start_date, end_date, max_drawdown)
 
