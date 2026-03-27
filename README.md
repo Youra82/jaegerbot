@@ -383,6 +383,21 @@ python auto_optimizer_scheduler.py
 ./show_status.sh
 ```
 
+### Backtest-Ergebnisse analysieren
+
+```bash
+./show_results.sh
+```
+
+Das Script bietet vier Modi:
+
+| Modus | Beschreibung |
+|---|---|
+| `1` | **Einzel-Analyse** — jede Strategie isoliert backtesten und bewerten |
+| `2` | **Manuelle Portfolio-Simulation** — du wählst das Team der Strategien |
+| `3` | **Automatische Portfolio-Optimierung** — Bot wählt das beste Team, optional `settings.json` aktualisieren |
+| `4` | **Interaktive Charts** — Entry/Exit-Signale visuell darstellen |
+
 ### Logs
 
 ```bash
@@ -393,7 +408,7 @@ tail -f logs/cron.log
 tail -f logs/auto_optimizer_trigger.log
 ```
 
-### Backtest manuell ausführen
+### Backtest direkt ausführen
 
 ```bash
 python run_backtest_direct.py
