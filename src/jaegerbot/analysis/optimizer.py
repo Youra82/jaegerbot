@@ -36,20 +36,22 @@ START_CAPITAL = 1000
 OPTIM_MODE = "strict"
 
 def objective(trial, symbol):
-    # --- KORRIGIERT: Entferne initial_sl_pct, füge ATR-basierte Parameter hinzu ---
     params = {
         'prediction_threshold': FIXED_THRESHOLD,
+        # Risiko & Positionsgröße
         'risk_reward_ratio': trial.suggest_float('risk_reward_ratio', 1.0, 5.0),
         'risk_per_trade_pct': trial.suggest_float('risk_per_trade_pct', 0.5, 2.0),
         'leverage': trial.suggest_int('leverage', 5, 25),
-        # Neue Parameter für dynamischen SL
+        # Dynamischer ATR-basierter Stop-Loss
         'atr_multiplier_sl': trial.suggest_float('atr_multiplier_sl', 1.0, 4.0),
         'min_sl_pct': trial.suggest_float('min_sl_pct', 0.3, 2.0),
-        # Trailing Stop Parameter
+        # Trailing Stop
         'trailing_stop_activation_rr': trial.suggest_float('trailing_stop_activation_rr', 1.0, 4.0),
-        'trailing_stop_callback_rate_pct': trial.suggest_float('trailing_stop_callback_rate_pct', 0.5, 3.0)
+        'trailing_stop_callback_rate_pct': trial.suggest_float('trailing_stop_callback_rate_pct', 0.5, 3.0),
+        # Signal-Score Schwelle (ersetzt binäre Filter)
+        # Niedrig (3.0) = viele Trades, tolerant; Hoch (9.0) = wenige, sehr selektiv
+        'min_signal_score': trial.suggest_float('min_signal_score', 3.0, 9.0),
     }
-    # --- ENDE KORRIGIERT ---
 
     result = run_ann_backtest(
         HISTORICAL_DATA.copy(),
@@ -170,26 +172,25 @@ def main():
 
         best_pnl_pct = best_trial.user_attrs.get('pnl_pct', 0)
 
-        # --- KORRIGIERT: Speichere ATR-basierte Parameter (anstelle des alten initial_sl_pct) ---
         config_output = {
             "_meta": {"pnl_pct": best_pnl_pct},
             "market": {"symbol": symbol, "timeframe": timeframe},
-            "strategy": {"prediction_threshold": FIXED_THRESHOLD},
+            "strategy": {
+                "prediction_threshold": FIXED_THRESHOLD,
+                "min_signal_score": round(best_params['min_signal_score'], 2),
+            },
             "risk": {
                 "margin_mode": "isolated",
                 "risk_per_trade_pct": round(best_params['risk_per_trade_pct'], 2),
-                # Entfernt: "initial_sl_pct"
                 "risk_reward_ratio": round(best_params['risk_reward_ratio'], 2),
                 "leverage": best_params['leverage'],
                 "trailing_stop_activation_rr": round(best_params['trailing_stop_activation_rr'], 2),
                 "trailing_stop_callback_rate_pct": round(best_params['trailing_stop_callback_rate_pct'], 2),
-                # Neue Parameter
-                'atr_multiplier_sl': round(best_params['atr_multiplier_sl'], 2),
-                'min_sl_pct': round(best_params['min_sl_pct'], 2)
+                "atr_multiplier_sl": round(best_params['atr_multiplier_sl'], 2),
+                "min_sl_pct": round(best_params['min_sl_pct'], 2),
             },
-            "behavior": behavior_config
+            "behavior": behavior_config,
         }
-        # --- ENDE KORRIGIERT ---
         config_filename = f'config_{safe_filename}.json'
         with open(config_output_path, 'w') as f: json.dump(config_output, f, indent=4)
         print(f"\n✔ Beste Konfiguration wurde in '{config_output_path}' gespeichert.")
