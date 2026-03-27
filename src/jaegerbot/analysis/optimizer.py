@@ -2,6 +2,7 @@
 import os
 import sys
 import json
+import math
 import optuna
 import numpy as np
 import argparse
@@ -25,6 +26,8 @@ from jaegerbot.analysis.evaluator import evaluate_dataset
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 HISTORICAL_DATA = None
+TRAIN_DATA = None   # 70% — Optimierung
+TEST_DATA  = None   # 30% — Out-of-Sample Validierung
 CURRENT_MODEL_PATHS = {}
 CURRENT_TIMEFRAME = None
 FIXED_THRESHOLD = None
@@ -34,6 +37,10 @@ MIN_WIN_RATE_CONSTRAINT = 55.0
 MIN_PNL_CONSTRAINT = 0.0
 START_CAPITAL = 1000
 OPTIM_MODE = "strict"
+
+# Walk-Forward-Split: 70% Training, 30% Out-of-Sample Test
+_WFV_TRAIN_RATIO = 0.70
+
 
 def objective(trial, symbol):
     params = {
@@ -48,36 +55,52 @@ def objective(trial, symbol):
         # Trailing Stop
         'trailing_stop_activation_rr': trial.suggest_float('trailing_stop_activation_rr', 1.0, 4.0),
         'trailing_stop_callback_rate_pct': trial.suggest_float('trailing_stop_callback_rate_pct', 0.5, 3.0),
-        # Signal-Score Schwelle (ersetzt binäre Filter)
-        # Niedrig (3.0) = viele Trades, tolerant; Hoch (9.0) = wenige, sehr selektiv
+        # Signal-Score Schwelle
         'min_signal_score': trial.suggest_float('min_signal_score', 3.0, 9.0),
     }
 
-    result = run_ann_backtest(
-        HISTORICAL_DATA.copy(),
-        params,
-        CURRENT_MODEL_PATHS,
-        START_CAPITAL,
-        timeframe=CURRENT_TIMEFRAME
-    )
+    # ── Schritt 1: Training-Backtest (70%) ───────────────────────────────────
+    r_train = run_ann_backtest(TRAIN_DATA.copy(), params, CURRENT_MODEL_PATHS, START_CAPITAL, timeframe=CURRENT_TIMEFRAME)
+    train_pnl  = r_train.get('total_pnl_pct', -1000)
+    train_dd   = r_train.get('max_drawdown_pct', 1.0)
+    train_trades = r_train.get('trades_count', 0)
 
-    pnl, drawdown, trades, win_rate = result.get('total_pnl_pct', -1000), result.get('max_drawdown_pct', 1.0), result.get('trades_count', 0), result.get('win_rate', 0)
-
-    if OPTIM_MODE == "strict" and (drawdown > MAX_DRAWDOWN_CONSTRAINT or win_rate < MIN_WIN_RATE_CONSTRAINT or pnl < MIN_PNL_CONSTRAINT or trades < 50):
-        raise optuna.exceptions.TrialPruned()
-    elif OPTIM_MODE == "best_profit" and (drawdown > MAX_DRAWDOWN_CONSTRAINT or trades < 50):
+    # Mindestzahl Trades proportional zum Split (~35 von 50)
+    min_train_trades = max(10, int(50 * _WFV_TRAIN_RATIO))
+    if train_trades < min_train_trades or train_dd > MAX_DRAWDOWN_CONSTRAINT:
         raise optuna.exceptions.TrialPruned()
 
-    drawdown_safe = max(drawdown, 0.01)
-    trial.set_user_attr('pnl_pct', round(pnl, 2))
-    return pnl / drawdown_safe
+    # ── Schritt 2: Out-of-Sample Test (30%) ──────────────────────────────────
+    r_test = run_ann_backtest(TEST_DATA.copy(), params, CURRENT_MODEL_PATHS, START_CAPITAL, timeframe=CURRENT_TIMEFRAME)
+    test_pnl    = r_test.get('total_pnl_pct', -1000)
+    test_dd     = r_test.get('max_drawdown_pct', 1.0)
+    test_trades = r_test.get('trades_count', 0)
+    test_wr     = r_test.get('win_rate', 0)
+
+    # Constraints auf Out-of-Sample — hier entscheidet sich ob die Config live taugt
+    min_test_trades = max(5, int(50 * (1 - _WFV_TRAIN_RATIO)))
+    if test_trades < min_test_trades or test_dd > MAX_DRAWDOWN_CONSTRAINT or test_pnl <= 0:
+        raise optuna.exceptions.TrialPruned()
+    if OPTIM_MODE == "strict" and (test_wr < MIN_WIN_RATE_CONSTRAINT or test_pnl < MIN_PNL_CONSTRAINT):
+        raise optuna.exceptions.TrialPruned()
+
+    # ── Score: 30% Training + 70% Out-of-Sample ──────────────────────────────
+    # log1p verhindert dass extreme PnL-Werte den Score dominieren
+    train_score = math.log1p(max(0.0, train_pnl)) / max(train_dd, 0.01)
+    test_score  = math.log1p(max(0.0, test_pnl))  / max(test_dd,  0.01)
+    final_score = train_score * 0.30 + test_score * 0.70
+
+    # Out-of-Sample PnL in Config speichern (realistische Erwartung)
+    trial.set_user_attr('pnl_pct', round(test_pnl, 2))
+    trial.set_user_attr('train_pnl_pct', round(train_pnl, 2))
+    return final_score
 
 def create_safe_filename(symbol, timeframe):
     return f"{symbol.replace('/', '').replace(':', '')}_{timeframe}"
 
 
 def main():
-    global HISTORICAL_DATA, CURRENT_MODEL_PATHS, CURRENT_TIMEFRAME, FIXED_THRESHOLD, MAX_DRAWDOWN_CONSTRAINT, MIN_WIN_RATE_CONSTRAINT, MIN_PNL_CONSTRAINT, START_CAPITAL, OPTIM_MODE
+    global HISTORICAL_DATA, TRAIN_DATA, TEST_DATA, CURRENT_MODEL_PATHS, CURRENT_TIMEFRAME, FIXED_THRESHOLD, MAX_DRAWDOWN_CONSTRAINT, MIN_WIN_RATE_CONSTRAINT, MIN_PNL_CONSTRAINT, START_CAPITAL, OPTIM_MODE
 
     parser = argparse.ArgumentParser(description="Parameter-Optimierung für JaegerBot")
     parser.add_argument('--symbols', required=True, type=str)
@@ -139,6 +162,12 @@ def main():
             run_results['failed'].append({'symbol': symbol, 'timeframe': timeframe, 'reason': 'no_data'})
             continue
 
+        # Walk-Forward Split: 70% Training / 30% Out-of-Sample Test
+        split_idx  = max(50, int(len(HISTORICAL_DATA) * _WFV_TRAIN_RATIO))
+        TRAIN_DATA = HISTORICAL_DATA.iloc[:split_idx]
+        TEST_DATA  = HISTORICAL_DATA.iloc[split_idx:]
+        print(f"Walk-Forward: {len(TRAIN_DATA)} Kerzen Training / {len(TEST_DATA)} Kerzen Test (70/30)")
+
         print("\n--- Bewertung der Datensatz-Qualität ---")
         evaluation = evaluate_dataset(HISTORICAL_DATA.copy(), timeframe)
         print(f"Note: {evaluation['score']} / 10\n" + "\n".join(evaluation['justification']) + "\n----------------------------------------")
@@ -170,10 +199,16 @@ def main():
 
         behavior_config = {"use_longs": True, "use_shorts": True}
 
-        best_pnl_pct = best_trial.user_attrs.get('pnl_pct', 0)
+        best_pnl_pct       = best_trial.user_attrs.get('pnl_pct', 0)       # Out-of-Sample
+        best_train_pnl_pct = best_trial.user_attrs.get('train_pnl_pct', 0)  # Training
 
         config_output = {
-            "_meta": {"pnl_pct": best_pnl_pct},
+            "_meta": {
+                "pnl_pct": best_pnl_pct,
+                "pnl_pct_oos": best_pnl_pct,
+                "pnl_pct_train": best_train_pnl_pct,
+                "wfv": "70/30",
+            },
             "market": {"symbol": symbol, "timeframe": timeframe},
             "strategy": {
                 "prediction_threshold": FIXED_THRESHOLD,
