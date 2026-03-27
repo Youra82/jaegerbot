@@ -325,6 +325,7 @@ def run_single_analysis_via_simulator(start_date, end_date, start_capital):
         all_results.append({
             "Strategie": strategy_name,
             "Trades": result['trade_count'],
+            "Win Rate %": result.get('win_rate', 0.0),
             "PnL %": pnl_value,
             "Max DD %": result['max_drawdown_pct'],
             "Endkapital": end_capital_value
@@ -336,7 +337,7 @@ def run_single_analysis_via_simulator(start_date, end_date, start_capital):
     results_df = pd.DataFrame(all_results)
     results_df = results_df.sort_values(by="PnL %", ascending=False)
 
-    display_columns = ["Strategie", "Trades", "PnL %", "Max DD %", "Endkapital"]
+    display_columns = ["Strategie", "Trades", "Win Rate %", "PnL %", "Max DD %", "Endkapital"]
 
     pd.set_option('display.width', 1000); pd.set_option('display.max_columns', None)
     print("\n\n==================================================================================");
