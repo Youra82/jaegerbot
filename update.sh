@@ -9,7 +9,6 @@ cp secret.json secret.json.bak
 
 # 2. Hole die neuesten Daten von GitHub
 echo "2. Hole den neuesten Stand von GitHub..."
-git config credential.helper store
 git fetch origin
 
 # 3. Setze das lokale Verzeichnis hart auf den Stand von GitHub zurück
