@@ -75,9 +75,7 @@ class Exchange:
             try:
                 ohlcv = self.exchange.fetch_ohlcv(symbol, timeframe, since=current_ts, limit=limit)
                 if not ohlcv:
-                    logger.warning(f"Keine OHLCV-Daten für {symbol} {timeframe} ab {pd.to_datetime(current_ts, unit='ms', utc=True)} erhalten.")
-                    current_ts += limit * timeframe_duration_ms
-                    continue
+                    break
 
                 # Filtere Kerzen die nach end_ts liegen
                 ohlcv = [candle for candle in ohlcv if candle[0] <= end_ts]
@@ -93,8 +91,9 @@ class Exchange:
                 else:
                     logger.warning("WARNUNG: Kein Zeitfortschritt beim Datenabruf, breche ab.")
                     break
-                    
+
                 retries = 0
+                time.sleep(self.exchange.rateLimit / 1000)
                 
             except (ccxt.RateLimitExceeded, ccxt.NetworkError) as e:
                 logger.warning(f"Netzwerk/Ratelimit-Fehler: {e}. Versuch {retries+1}/{max_retries}. Warte...")
