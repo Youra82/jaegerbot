@@ -2,14 +2,14 @@
 
 <div align="center">
 
-![JaegerBot](https://img.shields.io/badge/JaegerBot-v2.0-blue?style=for-the-badge)
+![JaegerBot](https://img.shields.io/badge/JaegerBot-v3.0-blue?style=for-the-badge)
 [![Python](https://img.shields.io/badge/Python-3.10+-green?style=for-the-badge&logo=python)](https://www.python.org/)
 [![TensorFlow](https://img.shields.io/badge/TensorFlow-2.16+-orange?style=for-the-badge&logo=tensorflow)](https://www.tensorflow.org/)
 [![Optuna](https://img.shields.io/badge/Optuna-Hyperparameter--Optimierung-purple?style=for-the-badge)](https://optuna.org/)
 [![CCXT](https://img.shields.io/badge/CCXT-Bitget-red?style=for-the-badge)](https://github.com/ccxt/ccxt)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
 
-**Vollautomatisches KI-Trading-System — ANN-Signale, Walk-Forward-Optimierung, gewichtetes Signal-Scoring**
+**Vollautomatisches KI-Trading-System — ANN-Signale, Walk-Forward-Optimierung, gewichtetes Signal-Scoring, Struktur-basierter SL**
 
 [Übersicht](#übersicht) • [Architektur](#architektur) • [Installation](#installation) • [Konfiguration](#konfiguration) • [Pipeline](#pipeline) • [Live-Trading](#live-trading) • [Monitoring](#monitoring) • [Wartung](#wartung)
 
@@ -19,32 +19,47 @@
 
 ## Übersicht
 
-JaegerBot ist ein vollautomatisches Futures-Trading-System für **Bitget**. Das Herzstück ist ein **Artificial Neural Network (ANN)** mit 34 technischen Features, das Kursbewegungen auf Basis historischer OHLCV-Daten prognostiziert.
+JaegerBot ist ein vollautomatisches Futures-Trading-System für **Bitget**. Das Herzstück ist ein **Artificial Neural Network (ANN)** mit 50 technischen Features, das trainiert wird um direkt die Trade-Outcomes (TP vor SL?) vorherzusagen — nicht nur die Richtung.
 
 Der Bot entscheidet **nicht** binär auf Basis einzelner Indikatoren — stattdessen bewertet ein **gewichtetes Signal-Scoring-System** jeden potenziellen Trade auf einer Skala von 0–10 Punkten. Nur Trades mit ausreichend Gesamtqualität werden eröffnet.
 
 ### Kernfunktionen
 
-- **ANN-Modell** (Dense 256→128→64→32→1) mit 34 Features pro Kerze
-- **Signal-Scoring** statt harter Filter — kein Indikator kann alleine blockieren
+- **ANN-Modell** (Dense 256→128→64→32→1) mit **50 Features** pro Kerze (inkl. Candle DNA, Pivot-Struktur, Fibonacci-Zonen, Volumen-Richtung)
+- **TP/SL-Outcome-Labels** — ANN lernt "trifft TP vor SL?" statt nur "steigt Preis in N Kerzen?"
+- **Signal-Scoring mit 6 Komponenten** — inkl. neuer **Struktur-Qualität** (Pivot-Abstand, Fibonacci-Zone, Kerzenstärke)
+- **Struktur-basierter Stop-Loss** — SL an Pivot-High/Low + ATR-Puffer statt reinem ATR-Multiplikator
 - **Walk-Forward-Validierung (70/30)** im Optimizer — Out-of-Sample-Test verhindert Overfitting
-- **ATR-basierter Stop-Loss** + **Trailing Stop** — konsistent in Backtest und Live-Bot
+- **Anti-Overtrading-Guard** — Optimizer prunt Configs mit > 150 Trades/Jahr im Test-Set
 - **Portfolio-Optimierung** — `./show_results.sh` findet das beste Strategie-Team automatisch
 - **Vollständige Analyse-Exports** — `jaegerbot_portfolio_equity.html` + `jaegerbot_trades.xlsx` + Telegram-Versand
 
-### Was ist neu in v2.0
+### Was ist neu in v2.0 / v3.0
 
-| Komponente | Alt (v1.x) | Neu (v2.0) |
-|---|---|---|
-| SuperTrend | Hard-Block bei Gegentrend | Score-Beitrag: 0–2 Punkte |
-| ADX | Hard-Block bei ADX < 20 | Score-Beitrag: 0–2 Punkte (graduiert) |
-| Volumen | Hard-Block bei < 80% Avg | Score-Beitrag: 0–1 Punkte |
-| Volatilität | Hard-Block bei ATR-Spike | Score-Beitrag: 0–1 Punkte |
-| ANN-Signal | Reiner On/Off-Trigger | Score-Beitrag: 0–4 Punkte (Konfidenz-gewichtet) |
-| Schwelle | Fest | `min_signal_score` per Symbol/Timeframe optimiert |
-| Backtester SL | `initial_sl_pct` (fest %) | ATR-basiert (konsistent mit Live-Bot) |
-| Optimizer | Nur Training-Daten | Walk-Forward 70/30 (Out-of-Sample-Validierung) |
-| Analyse-Export | Nur CSV | HTML-Chart + Excel + CSV via Telegram |
+| Komponente | Alt (v1.x) | v2.0 | v3.0 (aktuell) |
+|---|---|---|---|
+| SuperTrend | Hard-Block bei Gegentrend | Score-Beitrag: 0–2 Punkte | unverändert |
+| ADX | Hard-Block bei ADX < 20 | Score-Beitrag: 0–2 Punkte | unverändert |
+| Volumen | Hard-Block bei < 80% Avg | Score-Beitrag: 0–1 Punkte | unverändert |
+| Volatilität | Hard-Block bei ATR-Spike | Score-Beitrag: 0–1 Punkte | unverändert |
+| ANN-Signal | On/Off-Trigger | Score-Beitrag: 0–4 Punkte | 0–3.5 Punkte + min_ann_gate |
+| **Struktur-Qualität** | — | — | **neu: 0–1 Punkt** (Pivot-Abstand, Fib-Zone, Körperstärke) |
+| ANN-Features | 34 Standard-Indikatoren | 34 | **50** (+ Candle DNA, Pivot, Fibonacci, Vol-Richtung) |
+| ANN-Training | Preis-Richtung (N Kerzen) | Preis-Richtung | **TP/SL-Outcome** ("trifft TP vor SL?") |
+| Stop-Loss | `initial_sl_pct` (fest %) | ATR-basiert | **Struktur-SL** (Pivot-High/Low + 0.25×ATR) |
+| Optimizer DD-Limit | — | 30% | **25%** |
+| Optimizer PnL-Min | — | 0% | **5%** |
+| Anti-Overtrading | — | — | **neu: max 150 Trades/Jahr** im Test-Set |
+| Optimizer-Params | — | 8 Parameter | **13 Parameter** (inkl. max_sl_pct, min_ann_score, structure_weight) |
+| Backtester SL | `initial_sl_pct` (fest %) | ATR-basiert | Struktur-basiert |
+| Analyse-Export | Nur CSV | HTML + Excel + Telegram | unverändert |
+
+> **Nach dem Update auf v3.0 müssen alle Modelle und Configs neu trainiert werden:**
+> ```bash
+> rm -rf artifacts/models/ artifacts/db/ artifacts/results/
+> rm src/jaegerbot/strategy/configs/config_*.json
+> ./run_pipeline.sh
+> ```
 
 ---
 
@@ -53,18 +68,31 @@ Der Bot entscheidet **nicht** binär auf Basis einzelner Indikatoren — stattde
 Jeder Trade wird auf einer Skala von 0–10 Punkten bewertet. Ein Trade wird nur eröffnet, wenn der Gesamt-Score `>= min_signal_score`:
 
 ```
-ANN-Konfidenz   : 0–4 Punkte  (Abstand der Vorhersage von der Schwelle)
-SuperTrend      : 0–2 Punkte  (Trend ausgerichtet = 2, Gegentrend = 0)
-ADX-Trendstärke : 0–2 Punkte  (ADX >= 35 = 2, >= 25 = 1.5, >= 20 = 1, >= 15 = 0.5)
-Volumen         : 0–1 Punkte  (volume_ratio >= 1.2 = 1, >= 1.0 = 0.75, >= 0.8 = 0.5)
-Volatilität     : 0–1 Punkte  (ruhiger Markt = 1, ATR-Spike > 2× Avg = 0)
-─────────────────────────────────────────────────────────────────────────────
-Gesamt          : 0–10 Punkte → Trade wenn >= min_signal_score (Optimizer-Ergebnis)
+ANN-Konfidenz     : 0–3.5 Punkte  (Abstand der Vorhersage von der Schwelle)
+SuperTrend        : 0–1.5 Punkte  (Trend ausgerichtet = 1.5, Gegentrend = 0)
+ADX-Trendstärke   : 0–1.5 Punkte  (ADX >= 35 = 1.5, >= 25 = 1.1, >= 20 = 0.75, >= 15 = 0.375)
+Volumen           : 0–1.5 Punkte  (volume_ratio >= 1.2 = 1.5, >= 1.0 = 1.1, >= 0.8 = 0.75)
+Volatilität       : 0–1.0 Punkte  (ruhiger Markt = 1.0, ATR-Spike > 2× Avg = 0)
+Struktur-Qualität : 0–1.0 Punkte  (Kerzenstärke + Pivot-Abstand + Fibonacci-Zone)
+─────────────────────────────────────────────────────────────────────────────────
+Gesamt            : 0–10 Punkte → Trade wenn >= min_signal_score (Optimizer-Ergebnis, typ. 6.5–9.0)
 ```
 
+**Struktur-Qualität (neu in v3.0):**
+```
+body_to_atr >= 1.5     → +0.3 Pts  (starker Kerzenkörper = klares Signal)
+body_to_atr >= 0.8     → +0.15 Pts
+dist_to_struct >= 3.0  → +0.3 Pts  (weit von Widerstand = Raum für Bewegung)
+dist_to_struct >= 1.5  → +0.15 Pts
+in_fib_zone == True    → +0.4 Pts  (Preis in 38–62% Fibonacci-Goldzone)
+```
+
+**Minimum ANN-Gate:** Trades werden auch bei hohem Gesamtscore geblockt, wenn das reine ANN-Signal unter `min_ann_score` liegt (Optimizer-Parameter).
+
 **Praxisbeispiel:**
-- Starkes ANN-Signal (0.85) im Bärenmarkt, ST bearisch → Score 6.3 → **Trade** ✓ (vorher geblockt)
+- Starkes ANN-Signal (0.85), ST bullisch, ADX=30, Fib-Zone → Score 7.8 → **Trade** ✓
 - Schwaches ANN-Signal (0.61), ADX=8, kein Volumen → Score 0.6 → **kein Trade** ✓ (richtig gefiltert)
+- ANN-Score zu niedrig trotz gutem Gesamt-Score → **geblockt** durch min_ann_gate ✓
 
 ---
 
@@ -74,28 +102,38 @@ Gesamt          : 0–10 Punkte → Trade wenn >= min_signal_score (Optimizer-Er
 OHLCV Marktdaten (500 Kerzen)
         │
         ▼
-Feature-Engine (34 Features)
-  ├── Volatilität:    BB-Width, BB-Band, ATR (normalisiert), historische Vola
-  ├── Momentum:       RSI, MACD, MACD-Diff, Stochastic K/D, Williams %R, ROC, CCI
-  ├── Volumen:        OBV, Volume-Ratio, MFI, CMF
-  ├── Trend:          ADX, ADX+/-, Price-to-EMA20/50
-  ├── Preisstruktur:  High-Low-Range, Close-to-High/Low, Support/Resistance
-  ├── Zeit:           Day-of-Week, Hour-of-Day
-  └── Returns:        Lag 1/2/3
+Feature-Engine (50 Features)
+  ├── Volatilität:       BB-Width, BB-Band, ATR (normalisiert), historische Vola
+  ├── Momentum:          RSI, MACD, MACD-Diff, Stochastic K/D, Williams %R, ROC, CCI
+  ├── Volumen:           OBV, Volume-Ratio, MFI, CMF
+  ├── Trend:             ADX, ADX+/-, Price-to-EMA20/50
+  ├── Preisstruktur:     High-Low-Range, Close-to-High/Low, Support/Resistance
+  ├── Zeit:              Day-of-Week, Hour-of-Day
+  ├── Returns:           Lag 1/2/3
+  ├── Candle DNA (neu):  body_to_atr, upper/lower_wick_ratio, candle_direction,
+  │                      body_midpoint_ratio, bull_streak, bear_streak
+  ├── Pivot-Struktur (neu): pivot_high/low_live, dist_to_struct_high/low,
+  │                         price_in_range_20, price_in_range_50
+  ├── Fibonacci (neu):   fib_position, in_fib_zone (38–62% Goldzone)
+  └── Volumen-Richtung (neu): volume_direction, buying_pressure, selling_pressure
         │
         ▼
 ANN-Modell (Dense 256→128→64→32→1, Sigmoid)
-  ├── BatchNormalization + Dropout nach jeder Schicht
+  ├── BatchNormalization + Dropout nach jeder Schicht (erhöht: 0.4/0.35/0.3/0.25)
   ├── EarlyStopping (patience=15), ReduceLROnPlateau
-  └── Output: 0.0 (stark SHORT) … 0.5 (neutral) … 1.0 (stark LONG)
+  ├── Training-Label: "Trifft TP vor SL?" (1=win, 0/−1=loss) — kein Richtungs-Label!
+  └── Output: Wahrscheinlichkeit für TP-Hit vor SL-Hit
         │
         ▼
 Signal-Scorer (signal_scorer.py)
-  ├── ANN-Konfidenz (0–4 Pts)
-  ├── SuperTrend    (0–2 Pts)
-  ├── ADX           (0–2 Pts)
-  ├── Volumen       (0–1 Pt)
-  └── Volatilität   (0–1 Pt)
+  ├── ANN-Konfidenz    (0–3.5 Pts)
+  ├── SuperTrend       (0–1.5 Pts)
+  ├── ADX              (0–1.5 Pts)
+  ├── Volumen          (0–1.5 Pts)
+  ├── Volatilität      (0–1.0 Pt)
+  └── Struktur-Qualität (0–1.0 Pt) ← NEU
+        │
+  ANN-Score >= min_ann_score?  ← NEU (Gate)
         │
   Score >= min_signal_score?
         │
@@ -103,7 +141,7 @@ Signal-Scorer (signal_scorer.py)
         └── JA  ──▶ Trade-Eröffnung
                       ├── Leverage + Margin Mode setzen
                       ├── Market-Order platzieren
-                      ├── Dynamischer ATR-Stop-Loss
+                      ├── Struktur-basierter SL (Pivot-Low/High + 0.25×ATR) ← NEU
                       └── Trailing Stop (aktiviert bei Profit-Ziel)
 ```
 
@@ -113,14 +151,33 @@ Signal-Scorer (signal_scorer.py)
 Historische Daten
         │
         ├── 70% Training ──▶ Optuna-Trial (Backtest)
-        │                    Prune wenn: DD > 30% oder Trades < 35
+        │                    Prune wenn: DD > 25% oder Trades < 35
         │
         └── 30% Out-of-Sample ──▶ Validierung
-                                   Prune wenn: DD > 30% oder PnL ≤ 0
+                                   Prune wenn: DD > 25% oder PnL ≤ 5%
+                                   Prune wenn: Trades/Jahr > 150 (Anti-Overtrading)
 
 Score = log1p(train_pnl) / DD × 0.30
       + log1p(test_pnl)  / DD × 0.70   → Maximierung
 ```
+
+**Optimizer-Parameter (v3.0):** 13 Parameter werden optimiert:
+
+| Parameter | Bereich | Beschreibung |
+|---|---|---|
+| `risk_reward_ratio` | 1.5–4.0 | Take-Profit-Multiplikator |
+| `risk_per_trade_pct` | 0.5–3.0 | Kapitalrisiko pro Trade |
+| `leverage` | 5–20 | Hebel |
+| `atr_multiplier_sl` | 1.5–4.0 | ATR-Basis für Struktur-SL |
+| `max_sl_pct` | 1.5–4.0 | Maximaler SL in % (Cap für Struktur-SL) |
+| `min_sl_pct` | 0.3–1.5 | Minimaler SL in % |
+| `trailing_stop_activation_rr` | 0.8–2.5 | RR bei TSL-Aktivierung |
+| `trailing_stop_callback_rate_pct` | 0.3–2.0 | TSL Callback-Rate |
+| `min_signal_score` | 5.5–9.0 | Score-Schwelle für Trade-Eröffnung |
+| `ann_weight` | 2.5–5.0 | Gewicht des ANN-Scores |
+| `volume_weight` | 0.5–2.5 | Gewicht des Volumen-Scores |
+| `structure_weight` | 0.0–2.0 | Gewicht der Struktur-Qualität |
+| `min_ann_score` | 0.5–2.5 | Minimum ANN-Gate (blockiert schwache ANN-Signale) |
 
 ### Dateistruktur
 
@@ -525,20 +582,45 @@ rm artifacts/db/trade_lock.json
 ### ANN-Modell
 
 - **Architektur:** Dense(256) → Dense(128) → Dense(64) → Dense(32) → Dense(1, Sigmoid)
-- **Regularisierung:** BatchNormalization + Dropout nach jeder Schicht
-- **Features:** 34 technische Indikatoren (standardisiert mit StandardScaler)
+- **Regularisierung:** BatchNormalization + Dropout(0.4/0.35/0.3/0.25) nach jeder Schicht
+- **Features:** **50 Features** (standardisiert mit StandardScaler)
 - **Training:** 80/20 Train/Val-Split, EarlyStopping (patience=15), ReduceLROnPlateau
-- **Output:** 0.0 = stark SHORT, 0.5 = neutral, 1.0 = stark LONG
+- **Labels:** TP/SL-Outcome — `+1` wenn TP vor SL getroffen, `0/-1` wenn SL zuerst
+- **Output:** Wahrscheinlichkeit, dass TP vor SL trifft (0.0–1.0)
+
+**Feature-Gruppen:**
+
+| Gruppe | Features |
+|---|---|
+| Volatilität | BB-Width, BB-Band, ATR normalisiert, historische Vola |
+| Momentum | RSI, MACD, MACD-Diff, Stochastic K/D, Williams %R, ROC, CCI |
+| Volumen | OBV, Volume-Ratio, MFI, CMF |
+| Trend | ADX, ADX+/-, Price-to-EMA20, Price-to-EMA50 |
+| Preisstruktur | High-Low-Range, Close-to-High, Close-to-Low, S/R |
+| Zeit | Day-of-Week, Hour-of-Day |
+| Returns | Lag 1, Lag 2, Lag 3 |
+| **Candle DNA** | body_to_atr, upper_wick_ratio, lower_wick_ratio, candle_direction, body_midpoint_ratio, bull_streak, bear_streak |
+| **Pivot-Struktur** | pivot_high_live, pivot_low_live, dist_to_struct_high, dist_to_struct_low, price_in_range_20, price_in_range_50 |
+| **Fibonacci** | fib_position, in_fib_zone |
+| **Volumen-Richtung** | volume_direction, buying_pressure, selling_pressure |
 
 ### Stop-Loss-Berechnung
 
-Der SL ist ATR-basiert und dynamisch — gleiche Logik in Backtester und Live-Bot:
+Der SL ist **struktur-basiert** — er orientiert sich an Pivot-Hochs/Tiefs statt nur am ATR:
 
 ```
-sl_distance = max(ATR × atr_multiplier_sl, entry_price × min_sl_pct)
-stop_loss   = entry_price − sl_distance   (Long)
-stop_loss   = entry_price + sl_distance   (Short)
+# Long:
+struct_sl    = pivot_low_live − 0.25 × ATR
+atr_sl       = entry − ATR × atr_multiplier_sl
+sl_distance  = max(entry − struct_sl, entry − atr_sl)
+sl_distance  = min(sl_distance, entry × max_sl_pct / 100)   # Cap
+sl_distance  = max(sl_distance, entry × min_sl_pct / 100)   # Boden
+stop_loss    = entry − sl_distance
+
+# Short: symmetrisch (pivot_high_live + 0.25 × ATR)
 ```
+
+**Vorteil:** SL liegt unter echter Marktstruktur → weniger unnötige Stop-Outs bei normalem Rauschen.
 
 ### Trailing Stop
 
@@ -555,10 +637,11 @@ Zielfunktion:
   final_score = train_score × 0.30 + test_score × 0.70   → Maximierung
 
 Pruning (strict-Modus):
-  - max_drawdown_pct > 30%   → Pruned
-  - trades_count < 35        → Pruned (Training) / < 15 (Test)
-  - test_pnl <= 0            → Pruned
-  - win_rate < min_win_rate  → Pruned
+  - max_drawdown_pct > 25%         → Pruned  (verschärft von 30%)
+  - trades_count < 35              → Pruned (Training) / < 15 (Test)
+  - test_pnl < 5%                  → Pruned  (verschärft von 0%)
+  - test_trades/Jahr > 150         → Pruned  (neu: Anti-Overtrading)
+  - win_rate < min_win_rate        → Pruned
 ```
 
 ---
