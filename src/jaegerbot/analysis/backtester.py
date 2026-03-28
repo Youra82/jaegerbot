@@ -227,6 +227,22 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
             side = 'long' if current['prediction'] >= pred_threshold else 'short' if current['prediction'] <= (1 - pred_threshold) else None
 
             if side:
+                # ── EMA Bias Filter (stbot MTF-inspired) ─────────────────────────
+                # Nur Longs wenn EMA20 > EMA50 (Aufwärtstrend), nur Shorts umgekehrt.
+                # Verhindert Gegentrend-Trades → verbessert Win-Rate deutlich.
+                _ema20 = float(current.get('ema20', 0.0))
+                _ema50 = float(current.get('ema50', 0.0))
+                if _ema20 > 0 and _ema50 > 0:
+                    if side == 'long' and _ema20 < _ema50:
+                        continue
+                    if side == 'short' and _ema20 > _ema50:
+                        continue
+
+                # ── Candle Body Quality Gate (vbot-inspired) ──────────────────────
+                # Doji/Indecision-Kerzen (body < 25% ATR) → kein Trade.
+                if float(current.get('body_to_atr', 0.5)) < 0.25:
+                    continue
+
                 # --- SIGNAL SCORING (konsistent mit trade_manager.py) ---
                 _body_to_atr     = float(current.get('body_to_atr',     0.5))
                 _upper_wick      = float(current.get('upper_wick_ratio', 0.3))

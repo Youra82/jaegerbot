@@ -90,7 +90,7 @@ class SignalScorer:
         self,
         prediction: float,
         pred_threshold: float,
-        side: str,                  # 'buy' oder 'sell'
+        side: str,                  # 'buy'/'long' oder 'sell'/'short'
         st_direction: float,        # 1.0 = bullisch, -1.0 = bärisch
         adx: float,
         volume_ratio: float,        # current_volume / rolling_avg_volume (20 Kerzen)
@@ -102,6 +102,9 @@ class SignalScorer:
         dist_to_struct: float = 2.0,
         in_fib_zone: float = 0.0,
     ) -> ScoreBreakdown:
+        # Normalisiere: 'long' → 'buy', 'short' → 'sell'
+        side = 'buy' if side in ('buy', 'long') else 'sell'
+
         b = ScoreBreakdown()
 
         # ── 1. ANN-Konfidenz (0 … ann_weight) ──────────────────────────────
@@ -162,24 +165,31 @@ class SignalScorer:
             b.volatility = vv * 0.5  # Neutral wenn noch keine Referenz
 
         # ── 6. Structure Quality ───────────────────────────────────────────
+        # Budgetaufteilung (max = 1.0):
+        #   Kerzenqualität (vbot): 0.30
+        #   Abstand zur Struktur:  0.30
+        #   Fibonacci-Zone (fibot): 0.40  ← Hauptkomponente, da fibot ~1500% zeigt
         _sw = self.weights.get('structure_weight', 1.0)
         _spts = 0.0
+        # Kerzenqualität
         if side == 'buy':
             if body_to_atr >= 0.5 and upper_wick_ratio < 0.3:
-                _spts += 0.5
+                _spts += 0.30
             elif body_to_atr >= 0.25:
-                _spts += 0.25
+                _spts += 0.15
         else:
             if body_to_atr >= 0.5 and lower_wick_ratio < 0.3:
-                _spts += 0.5
+                _spts += 0.30
             elif body_to_atr >= 0.25:
-                _spts += 0.25
+                _spts += 0.15
+        # Abstand zur Struktur
         if dist_to_struct >= 2.0:
-            _spts += 0.4
+            _spts += 0.30
         elif dist_to_struct >= 1.0:
-            _spts += 0.2
+            _spts += 0.15
+        # Fibonacci Golden Zone (38.2%–61.8%) — starker Einstiegsbereich
         if in_fib_zone:
-            _spts += 0.1
+            _spts += 0.40
         b.structure = min(_sw, _spts * _sw)
 
         return b
