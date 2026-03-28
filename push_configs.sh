@@ -40,11 +40,25 @@ echo "Geaenderte Dateien:"
 echo "$STAGED" | sed 's/^/  /'
 echo ""
 
+# Erst Remote-Stand holen (rebase) bevor wir committen — so gibt es nur einen Push
+echo -e "${YELLOW}Hole Remote-Stand...${NC}"
+git stash
+git pull origin main --rebase
+if [ $? -ne 0 ]; then
+    git stash pop 2>/dev/null
+    echo -e "${RED}Pull/Rebase fehlgeschlagen. Bitte manuell loesen.${NC}"
+    exit 1
+fi
+git stash pop 2>/dev/null
+
+# Erneut stagen (nach stash pop koennen die Dateien dirty sein)
+git add "$CONFIGS_DIR"/config_*.json
+
 # Commit
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M')
 git commit -m "Update: jaegerbot Konfigurationen aktualisiert ($TIMESTAMP)"
 
-# Push (mit automatischem Rebase bei Konflikt)
+# Einmal pushen — kein Konflikt mehr moeglich
 echo ""
 echo -e "${YELLOW}Pushe auf origin/main...${NC}"
 git push origin HEAD:main
@@ -53,22 +67,6 @@ if [ $? -eq 0 ]; then
     echo ""
     echo -e "${GREEN}Configs erfolgreich gepusht!${NC}"
 else
-    echo ""
-    echo -e "${YELLOW}Remote hat neuere Commits — fuehre Rebase durch...${NC}"
-    git stash
-    git pull origin main --rebase
-    if [ $? -ne 0 ]; then
-        git stash pop 2>/dev/null
-        echo -e "${RED}Rebase fehlgeschlagen. Bitte manuell loesen.${NC}"
-        exit 1
-    fi
-    git stash pop 2>/dev/null
-    git push origin HEAD:main
-    if [ $? -eq 0 ]; then
-        echo ""
-        echo -e "${GREEN}Configs erfolgreich gepusht!${NC}"
-    else
-        echo -e "${RED}Push nach Rebase fehlgeschlagen.${NC}"
-        exit 1
-    fi
+    echo -e "${RED}Push fehlgeschlagen.${NC}"
+    exit 1
 fi
