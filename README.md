@@ -34,25 +34,16 @@ Der Bot entscheidet **nicht** binär auf Basis einzelner Indikatoren — stattde
 - **Portfolio-Optimierung** — `./show_results.sh` findet das beste Strategie-Team automatisch
 - **Vollständige Analyse-Exports** — `jaegerbot_portfolio_equity.html` + `jaegerbot_trades.xlsx` + Telegram-Versand
 
-### Was ist neu in v2.0 / v3.0
+### Neu in v3.0
 
-| Komponente | Alt (v1.x) | v2.0 | v3.0 (aktuell) |
-|---|---|---|---|
-| SuperTrend | Hard-Block bei Gegentrend | Score-Beitrag: 0–2 Punkte | unverändert |
-| ADX | Hard-Block bei ADX < 20 | Score-Beitrag: 0–2 Punkte | unverändert |
-| Volumen | Hard-Block bei < 80% Avg | Score-Beitrag: 0–1 Punkte | unverändert |
-| Volatilität | Hard-Block bei ATR-Spike | Score-Beitrag: 0–1 Punkte | unverändert |
-| ANN-Signal | On/Off-Trigger | Score-Beitrag: 0–4 Punkte | 0–3.5 Punkte + min_ann_gate |
-| **Struktur-Qualität** | — | — | **neu: 0–1 Punkt** (Pivot-Abstand, Fib-Zone, Körperstärke) |
-| ANN-Features | 34 Standard-Indikatoren | 34 | **50** (+ Candle DNA, Pivot, Fibonacci, Vol-Richtung) |
-| ANN-Training | Preis-Richtung (N Kerzen) | Preis-Richtung | **TP/SL-Outcome** ("trifft TP vor SL?") |
-| Stop-Loss | `initial_sl_pct` (fest %) | ATR-basiert | **Struktur-SL** (Pivot-High/Low + 0.25×ATR) |
-| Optimizer DD-Limit | — | 30% | **25%** |
-| Optimizer PnL-Min | — | 0% | **5%** |
-| Anti-Overtrading | — | — | **neu: max 150 Trades/Jahr** im Test-Set |
-| Optimizer-Params | — | 8 Parameter | **13 Parameter** (inkl. max_sl_pct, min_ann_score, structure_weight) |
-| Backtester SL | `initial_sl_pct` (fest %) | ATR-basiert | Struktur-basiert |
-| Analyse-Export | Nur CSV | HTML + Excel + Telegram | unverändert |
+- **50 ANN-Features** (statt 34): Candle DNA, Pivot-Struktur, Fibonacci-Zonen, Volumen-Richtung
+- **TP/SL-Outcome-Labels**: ANN lernt "trifft TP vor SL?" — kein reines Richtungs-Label mehr
+- **Struktur-basierter Stop-Loss**: SL an Pivot-Low/High + 0.25×ATR statt reinem ATR-Multiplikator
+- **6. Scoring-Komponente**: Struktur-Qualität (Kerzenstärke + Pivot-Abstand + Fibonacci-Zone)
+- **Minimum ANN-Gate**: Trades werden geblockt wenn ANN-Score unter `min_ann_score` (Optimizer-Parameter)
+- **Schärfere Optimizer-Constraints**: Max. Drawdown 25% (statt 30%), Min. PnL 5% (statt 0%)
+- **Anti-Overtrading**: Optimizer prunt Configs mit > 150 Trades/Jahr im Test-Set
+- **13 Optimizer-Parameter** statt 8 (inkl. `max_sl_pct`, `min_ann_score`, `structure_weight`, `ann_weight`, `volume_weight`)
 
 > **Nach dem Update auf v3.0 müssen alle Modelle und Configs neu trainiert werden:**
 > ```bash
