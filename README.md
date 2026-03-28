@@ -148,8 +148,8 @@ Historische Daten
                                    Prune wenn: DD > 25% oder PnL ≤ 5%
                                    Prune wenn: Trades/Jahr > 150 (Anti-Overtrading)
 
-Score = log1p(train_pnl) / DD × 0.30
-      + log1p(test_pnl)  / DD × 0.70   → Maximierung
+Score = log1p(train_pnl%) / max(train_dd%, 1.0) × 0.30
+      + log1p(test_pnl%)  / max(test_dd%,  1.0) × 0.70   → Maximierung
 ```
 
 **Optimizer-Parameter (v3.0):** 13 Parameter werden optimiert:
