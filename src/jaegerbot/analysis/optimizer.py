@@ -59,16 +59,16 @@ def objective(trial, symbol):
     params = {
         'prediction_threshold': FIXED_THRESHOLD,
         # Risiko & Positionsgröße
-        'risk_reward_ratio': trial.suggest_float('risk_reward_ratio', 1.5, 5.0),
-        'risk_per_trade_pct': trial.suggest_float('risk_per_trade_pct', 0.5, 2.0),
-        'leverage': trial.suggest_int('leverage', 5, 20),
+        'risk_reward_ratio': trial.suggest_float('risk_reward_ratio', 1.5, 8.0),
+        'risk_per_trade_pct': trial.suggest_float('risk_per_trade_pct', 1.0, 5.0),
+        'leverage': trial.suggest_int('leverage', 10, 50),
         # Dynamischer ATR-basierter Stop-Loss
-        'atr_multiplier_sl': trial.suggest_float('atr_multiplier_sl', 1.5, 4.0),
-        'min_sl_pct': trial.suggest_float('min_sl_pct', 0.3, 2.0),
-        'max_sl_pct': trial.suggest_float('max_sl_pct', 1.5, 4.0),
+        'atr_multiplier_sl': trial.suggest_float('atr_multiplier_sl', 1.0, 4.0),
+        'min_sl_pct': trial.suggest_float('min_sl_pct', 0.2, 1.5),
+        'max_sl_pct': trial.suggest_float('max_sl_pct', 0.8, 3.0),
         # Trailing Stop
-        'trailing_stop_activation_rr': trial.suggest_float('trailing_stop_activation_rr', 1.0, 4.0),
-        'trailing_stop_callback_rate_pct': trial.suggest_float('trailing_stop_callback_rate_pct', 0.5, 3.0),
+        'trailing_stop_activation_rr': trial.suggest_float('trailing_stop_activation_rr', 0.8, 3.0),
+        'trailing_stop_callback_rate_pct': trial.suggest_float('trailing_stop_callback_rate_pct', 0.3, 2.0),
         # Signal-Score Schwelle
         'min_signal_score': trial.suggest_float('min_signal_score', 5.5, 9.0),
         # ANN gate & weights
@@ -111,7 +111,7 @@ def objective(trial, symbol):
         _test_years = (_test_len * _tf_hours) / 8760.0
         if _test_years > 0:
             _tpy = test_trades / _test_years
-            if _tpy > 150:
+            if _tpy > 300:
                 raise optuna.exceptions.TrialPruned()
 
     # ── Score: 30% Training + 70% Out-of-Sample ──────────────────────────────
