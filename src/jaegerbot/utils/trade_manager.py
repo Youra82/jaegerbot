@@ -125,7 +125,7 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
     # *** ERWEITERTE FEATURE-LISTE ***
     # Feature 'ema_cross_20_50' entfernt (konsistent mit ann_model.py)
     feature_cols = [
-        'bb_width', 'bb_pband', 'obv', 'rsi', 'macd_diff', 'macd', 
+        'bb_width', 'bb_pband', 'obv', 'rsi', 'macd_diff', 'macd',
         'atr_normalized', 'adx', 'adx_pos', 'adx_neg',
         'volume_ratio', 'mfi', 'cmf',
         'price_to_ema20', 'price_to_ema50',
@@ -133,7 +133,18 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
         'price_to_resistance', 'price_to_support',
         'high_low_range', 'close_to_high', 'close_to_low',
         'day_of_week', 'hour_of_day',
-        'returns_lag1', 'returns_lag2', 'returns_lag3', 'hist_volatility'
+        'returns_lag1', 'returns_lag2', 'returns_lag3', 'hist_volatility',
+        # Candle DNA Features
+        'body_to_atr', 'upper_wick_ratio', 'lower_wick_ratio',
+        'candle_direction', 'body_midpoint_ratio',
+        'bull_streak', 'bear_streak',
+        # Pivot / Structure Features
+        'dist_to_struct_high', 'dist_to_struct_low',
+        'price_in_range_20', 'price_in_range_50',
+        # Fibonacci Zone Features
+        'fib_position', 'in_fib_zone',
+        # Volume Direction Features
+        'volume_direction', 'buying_pressure', 'selling_pressure',
     ]
     # ---
 
@@ -177,6 +188,12 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
         avg_atr_norm = data_with_features['atr_normalized'].rolling(50).mean().iloc[-2]
         adx = last_candle.get('adx', 0.0)
 
+        _body_to_atr = float(data_with_features['body_to_atr'].iloc[-2]) if 'body_to_atr' in data_with_features.columns else 0.5
+        _upper_wick  = float(data_with_features['upper_wick_ratio'].iloc[-2]) if 'upper_wick_ratio' in data_with_features.columns else 0.3
+        _lower_wick  = float(data_with_features['lower_wick_ratio'].iloc[-2]) if 'lower_wick_ratio' in data_with_features.columns else 0.3
+        _in_fib      = float(data_with_features['in_fib_zone'].iloc[-2]) if 'in_fib_zone' in data_with_features.columns else 0.0
+        _dist_struct = float(data_with_features['dist_to_struct_high'].iloc[-2]) if side == 'buy' and 'dist_to_struct_high' in data_with_features.columns else (float(data_with_features['dist_to_struct_low'].iloc[-2]) if 'dist_to_struct_low' in data_with_features.columns else 2.0)
+
         scorer = SignalScorer(weights=scoring_weights)
         breakdown = scorer.score(
             prediction=prediction,
@@ -187,6 +204,11 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
             volume_ratio=volume_ratio,
             atr_normalized=atr_normalized,
             avg_atr_normalized=avg_atr_norm,
+            body_to_atr=_body_to_atr,
+            upper_wick_ratio=_upper_wick,
+            lower_wick_ratio=_lower_wick,
+            dist_to_struct=_dist_struct,
+            in_fib_zone=_in_fib,
         )
 
         trade_allowed = breakdown.total >= min_signal_score

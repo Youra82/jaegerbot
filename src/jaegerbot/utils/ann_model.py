@@ -94,7 +94,41 @@ def create_ann_features(df):
     
     # NEU: Historical Volatility
     df['hist_volatility'] = df['close'].pct_change().rolling(window=20).std() * np.sqrt(252)
-    
+
+    # ── CANDLE DNA FEATURES (dnabot-inspired) ──────────────────────────
+    df['body_size']          = (df['close'] - df['open']).abs()
+    df['candle_range']       = df['high'] - df['low']
+    df['body_to_atr']        = df['body_size'] / (df['atr'] + 1e-9)
+    df['upper_wick']         = df['high'] - df[['close','open']].max(axis=1)
+    df['lower_wick']         = df[['close','open']].min(axis=1) - df['low']
+    df['upper_wick_ratio']   = df['upper_wick'] / (df['candle_range'] + 1e-9)
+    df['lower_wick_ratio']   = df['lower_wick'] / (df['candle_range'] + 1e-9)
+    df['candle_direction']   = np.sign(df['close'] - df['open'])
+    df['body_midpoint_ratio']= ((df[['close','open']].mean(axis=1) - df['low']) / (df['candle_range'] + 1e-9))
+    df['bull_streak']        = (df['candle_direction'] == 1).rolling(5).sum()
+    df['bear_streak']        = (df['candle_direction'] == -1).rolling(5).sum()
+
+    # ── PIVOT / STRUCTURE FEATURES (stbot-inspired) ────────────────────
+    _pw = 10
+    df['pivot_high_live'] = df['high'].rolling(_pw * 2).max()
+    df['pivot_low_live']  = df['low'].rolling(_pw * 2).min()
+    df['dist_to_struct_high'] = (df['pivot_high_live'] - df['close']) / (df['atr'] + 1e-9)
+    df['dist_to_struct_low']  = (df['close'] - df['pivot_low_live'])  / (df['atr'] + 1e-9)
+    df['price_in_range_20']   = (df['close'] - df['low'].rolling(20).min()) / (df['high'].rolling(20).max() - df['low'].rolling(20).min() + 1e-9)
+    df['price_in_range_50']   = (df['close'] - df['low'].rolling(50).min()) / (df['high'].rolling(50).max() - df['low'].rolling(50).min() + 1e-9)
+
+    # ── FIBONACCI ZONE FEATURE (vbot-inspired) ─────────────────────────
+    _rh10 = df['high'].shift(1).rolling(10).max()
+    _rl10 = df['low'].shift(1).rolling(10).min()
+    _rr10 = _rh10 - _rl10
+    df['fib_position'] = (df['close'] - _rl10) / (_rr10 + 1e-9)
+    df['in_fib_zone']  = ((df['close'] >= _rl10 + _rr10 * 0.382) & (df['close'] <= _rl10 + _rr10 * 0.618)).astype(float)
+
+    # ── VOLUME DIRECTION FEATURES ──────────────────────────────────────
+    df['volume_direction']  = df['candle_direction'] * df['volume_ratio']
+    df['buying_pressure']   = df['close_to_low']  * df['volume_ratio']
+    df['selling_pressure']  = df['close_to_high'] * df['volume_ratio']
+
     return df
 
 def prepare_data_for_ann(df, timeframe: str, verbose: bool = True):
@@ -133,18 +167,41 @@ def prepare_data_for_ann(df, timeframe: str, verbose: bool = True):
         lookahead = 5
         volatility_multiplier = 2.0
 
-    avg_atr_pct = df_with_features['atr_normalized'].mean()
-    threshold = (avg_atr_pct * volatility_multiplier) / 100
+    # ── TP/SL OUTCOME LABELS ───────────────────────────────────────────
+    df_signals = df_with_features.copy()
 
-    if verbose:
-        print(f"INFO: Verwende adaptive Lernziele für {timeframe}: lookahead={lookahead}, threshold={threshold*100:.2f}% (dynamisch berechnet)")
+    if 'm' in timeframe:
+        _sl_mult, _rr, _max_fwd = 2.0, 2.0, 24
+    elif timeframe in ('1h', '2h'):
+        _sl_mult, _rr, _max_fwd = 2.0, 2.0, 16
+    elif timeframe in ('4h', '6h'):
+        _sl_mult, _rr, _max_fwd = 2.0, 2.0, 12
+    else:
+        _sl_mult, _rr, _max_fwd = 1.5, 2.0, 8
 
-    future_returns = df_with_features['close'].pct_change(periods=lookahead).shift(-lookahead)
-    df_with_features['target'] = 0
-    df_with_features.loc[future_returns > threshold, 'target'] = 1
-    df_with_features.loc[future_returns < -threshold, 'target'] = -1
-    df_with_features = df_with_features[df_with_features['target'] != 0].copy()
-    df_with_features['target'] = df_with_features['target'].replace(-1, 0)
+    _sl_arr  = df_signals['atr'].values * _sl_mult
+    _tp_arr  = _sl_arr * _rr
+    _closes  = df_signals['close'].values
+    _highs   = df_signals['high'].values
+    _lows    = df_signals['low'].values
+    _n       = len(df_signals)
+    _targets = np.zeros(_n, dtype=int)
+
+    for _i in range(_n - _max_fwd):
+        _tp_p = _closes[_i] + _tp_arr[_i]
+        _sl_p = _closes[_i] - _sl_arr[_i]
+        for _j in range(_i + 1, _i + 1 + _max_fwd):
+            if _lows[_j] <= _sl_p:
+                _targets[_i] = -1
+                break
+            if _highs[_j] >= _tp_p:
+                _targets[_i] = 1
+                break
+
+    df_signals['target']        = _targets
+    df_signals                  = df_signals[df_signals['target'] != 0].copy()
+    df_signals['target_binary'] = (df_signals['target'] == 1).astype(int)
+    df_with_features = df_signals
 
     # *** ERWEITERTE FEATURE-LISTE MIT ALLEN NEUEN FEATURES ***
     # Feature 'ema_cross_20_50' entfernt aufgrund durchgehend niedriger Wichtigkeit (<0.2%)
@@ -172,12 +229,27 @@ def prepare_data_for_ann(df, timeframe: str, verbose: bool = True):
         'day_of_week', 'hour_of_day',
         
         # Returns & Volatilität
-        'returns_lag1', 'returns_lag2', 'returns_lag3', 'hist_volatility'
+        'returns_lag1', 'returns_lag2', 'returns_lag3', 'hist_volatility',
+
+        # Candle DNA Features
+        'body_to_atr', 'upper_wick_ratio', 'lower_wick_ratio',
+        'candle_direction', 'body_midpoint_ratio',
+        'bull_streak', 'bear_streak',
+
+        # Pivot / Structure Features
+        'dist_to_struct_high', 'dist_to_struct_low',
+        'price_in_range_20', 'price_in_range_50',
+
+        # Fibonacci Zone Features
+        'fib_position', 'in_fib_zone',
+
+        # Volume Direction Features
+        'volume_direction', 'buying_pressure', 'selling_pressure',
     ]
     # ---
 
     X = df_with_features[feature_cols]
-    y = df_with_features['target']
+    y = df_with_features['target_binary']
 
     return X, y
 
@@ -190,20 +262,20 @@ def build_and_train_model(X_train, y_train):
         # Layer 1: Mehr Neuronen für komplexere Feature-Interaktionen
         tf.keras.layers.Dense(256, activation='relu', input_shape=(X_train.shape[1],)),
         tf.keras.layers.BatchNormalization(),
-        tf.keras.layers.Dropout(0.3),
-        
+        tf.keras.layers.Dropout(0.4),
+
         # Layer 2
         tf.keras.layers.Dense(128, activation='relu'),
         tf.keras.layers.BatchNormalization(),
-        tf.keras.layers.Dropout(0.3),
-        
+        tf.keras.layers.Dropout(0.35),
+
         # Layer 3
         tf.keras.layers.Dense(64, activation='relu'),
-        tf.keras.layers.Dropout(0.25),
-        
+        tf.keras.layers.Dropout(0.3),
+
         # Layer 4
         tf.keras.layers.Dense(32, activation='relu'),
-        tf.keras.layers.Dropout(0.2),
+        tf.keras.layers.Dropout(0.25),
         
         # Output
         tf.keras.layers.Dense(1, activation='sigmoid')

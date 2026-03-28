@@ -62,29 +62,44 @@ def run_portfolio_simulation(start_capital, strategies_data, start_date, end_dat
         # Feature-Spalten definieren (MUSS EXAKT mit ann_model.py übereinstimmen!)
         feature_cols = [
             # Basis-Features
-            'bb_width', 'bb_pband', 'obv', 'rsi', 'macd_diff', 'macd', 
+            'bb_width', 'bb_pband', 'obv', 'rsi', 'macd_diff', 'macd',
             'atr_normalized', 'adx', 'adx_pos', 'adx_neg',
-            
+
             # Volume-Features
             'volume_ratio', 'mfi', 'cmf',
-            
+
             # Trend-Features
             'price_to_ema20', 'price_to_ema50',
-            
+
             # Momentum-Features
             'stoch_k', 'stoch_d', 'williams_r', 'roc', 'cci',
-            
+
             # Support/Resistance
             'price_to_resistance', 'price_to_support',
-            
+
             # Price Action
             'high_low_range', 'close_to_high', 'close_to_low',
-            
+
             # Zeitliche Features
             'day_of_week', 'hour_of_day',
-            
+
             # Returns & Volatilität
-            'returns_lag1', 'returns_lag2', 'returns_lag3', 'hist_volatility'
+            'returns_lag1', 'returns_lag2', 'returns_lag3', 'hist_volatility',
+
+            # Candle DNA Features
+            'body_to_atr', 'upper_wick_ratio', 'lower_wick_ratio',
+            'candle_direction', 'body_midpoint_ratio',
+            'bull_streak', 'bear_streak',
+
+            # Pivot / Structure Features
+            'dist_to_struct_high', 'dist_to_struct_low',
+            'price_in_range_20', 'price_in_range_50',
+
+            # Fibonacci Zone Features
+            'fib_position', 'in_fib_zone',
+
+            # Volume Direction Features
+            'volume_direction', 'buying_pressure', 'selling_pressure',
         ]
 
         # Skalieren und Vorhersage
@@ -108,9 +123,37 @@ def run_portfolio_simulation(start_capital, strategies_data, start_date, end_dat
         # Sammle alle Signale
         # Speichere RR-Ratio für den Exit-PnL-Cap
         for index, row in long_signals_filtered.iterrows():
-            all_signals.append({'timestamp': index, 'symbol': symbol, 'timeframe': timeframe, 'side': 'long', 'entry_price': row['close'], 'params': params, 'config_key': key, 'risk_per_trade_pct': params.get('risk_per_trade_pct', 1.0) / 100, 'risk_reward_ratio': rr_ratio})
+            all_signals.append({
+                'timestamp': index, 'symbol': symbol, 'timeframe': timeframe, 'side': 'long',
+                'entry_price': row['close'], 'params': params, 'config_key': key,
+                'risk_per_trade_pct': params.get('risk_per_trade_pct', 1.0) / 100,
+                'risk_reward_ratio': rr_ratio,
+                'atr':               float(row.get('atr', 0.0)),
+                'pivot_low_live':    float(row.get('pivot_low_live', 0.0)),
+                'pivot_high_live':   float(row.get('pivot_high_live', 0.0)),
+                'body_to_atr':       float(row.get('body_to_atr', 0.5)),
+                'upper_wick_ratio':  float(row.get('upper_wick_ratio', 0.3)),
+                'lower_wick_ratio':  float(row.get('lower_wick_ratio', 0.3)),
+                'dist_to_struct_high': float(row.get('dist_to_struct_high', 2.0)),
+                'dist_to_struct_low':  float(row.get('dist_to_struct_low', 2.0)),
+                'in_fib_zone':       float(row.get('in_fib_zone', 0.0)),
+            })
         for index, row in short_signals_filtered.iterrows():
-            all_signals.append({'timestamp': index, 'symbol': symbol, 'timeframe': timeframe, 'side': 'short', 'entry_price': row['close'], 'params': params, 'config_key': key, 'risk_per_trade_pct': params.get('risk_per_trade_pct', 1.0) / 100, 'risk_reward_ratio': rr_ratio})
+            all_signals.append({
+                'timestamp': index, 'symbol': symbol, 'timeframe': timeframe, 'side': 'short',
+                'entry_price': row['close'], 'params': params, 'config_key': key,
+                'risk_per_trade_pct': params.get('risk_per_trade_pct', 1.0) / 100,
+                'risk_reward_ratio': rr_ratio,
+                'atr':               float(row.get('atr', 0.0)),
+                'pivot_low_live':    float(row.get('pivot_low_live', 0.0)),
+                'pivot_high_live':   float(row.get('pivot_high_live', 0.0)),
+                'body_to_atr':       float(row.get('body_to_atr', 0.5)),
+                'upper_wick_ratio':  float(row.get('upper_wick_ratio', 0.3)),
+                'lower_wick_ratio':  float(row.get('lower_wick_ratio', 0.3)),
+                'dist_to_struct_high': float(row.get('dist_to_struct_high', 2.0)),
+                'dist_to_struct_low':  float(row.get('dist_to_struct_low', 2.0)),
+                'in_fib_zone':       float(row.get('in_fib_zone', 0.0)),
+            })
 
     if not all_signals:
         print("Keine Handelssignale im gewählten Zeitraum gefunden.")
@@ -281,14 +324,28 @@ def run_portfolio_simulation(start_capital, strategies_data, start_date, end_dat
             entry_price = signal['entry_price']
             risk_amount_usd = equity * risk_per_trade_pct
 
-            # SL-Distanz basierend auf initial_sl_pct (wie JaegerBot-Logik)
-            sl_distance = entry_price * initial_sl_pct
+            # Structure-aware SL calculation
+            _atr_val    = float(signal.get('atr', entry_price * 0.01))
+            _sl_atr     = _atr_val * risk_params.get('atr_multiplier_sl', params.get('atr_multiplier_sl', 2.0))
+            _min_sl     = entry_price * (risk_params.get('min_sl_pct', params.get('min_sl_pct', 0.5)) / 100.0)
+            _max_sl_pct = risk_params.get('max_sl_pct', params.get('max_sl_pct', 4.0)) / 100.0
+
+            if signal['side'] == 'long':
+                _pivot_low  = float(signal.get('pivot_low_live', 0.0))
+                _sl_struct  = (entry_price - _pivot_low + 0.25 * _atr_val) if _pivot_low > 0 and _pivot_low < entry_price else _sl_atr
+            else:
+                _pivot_high = float(signal.get('pivot_high_live', 0.0))
+                _sl_struct  = (_pivot_high - entry_price + 0.25 * _atr_val) if _pivot_high > 0 and _pivot_high > entry_price else _sl_atr
+
+            sl_distance = max(_sl_atr, _sl_struct, _min_sl)
+            sl_distance = min(sl_distance, entry_price * _max_sl_pct)
+
             if sl_distance <= 0:
                 signal_idx += 1
                 continue
 
-            # Berechnung der Positionsgröße (unverändert)
-            notional_value = risk_amount_usd / initial_sl_pct 
+            # Berechnung der Positionsgröße basierend auf sl_distance
+            notional_value = risk_amount_usd / (sl_distance / entry_price)
             
             max_notional_by_leverage = equity * max_allowed_effective_leverage
             final_notional_value = min(notional_value, max_notional_by_leverage, absolute_max_notional_value)
