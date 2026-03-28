@@ -524,15 +524,16 @@ def run_shared_mode(is_auto: bool, start_date, end_date, start_capital, max_draw
     # --- Export-Logik (wird für Modus 2 und 3 verwendet) ---
     if equity_df is not None and not equity_df.empty:
         print("\n--- Export ---")
-        equity_df[['timestamp', 'equity', 'drawdown_pct']].to_csv(csv_path, index=False)
-        print(f"✔ Bericht wurde erfolgreich an Telegram gesendet.")
+        if not is_auto:
+            equity_df[['timestamp', 'equity', 'drawdown_pct']].to_csv(csv_path, index=False)
+            print(f"✔ Bericht wurde erfolgreich an Telegram gesendet.")
 
-        bot_token, chat_id = _get_telegram_cfg()
-        if bot_token and chat_id:
-            try:
-                send_document(bot_token, chat_id, csv_path, caption)
-            except Exception as e:
-                print(f"ⓘ Konnte CSV nicht senden: {e}")
+            bot_token, chat_id = _get_telegram_cfg()
+            if bot_token and chat_id:
+                try:
+                    send_document(bot_token, chat_id, csv_path, caption)
+                except Exception as e:
+                    print(f"ⓘ Konnte CSV nicht senden: {e}")
 
         # final_sim für Chart + Excel bestimmen
         if is_auto and results and 'final_result' in results:
