@@ -57,25 +57,25 @@ _WFV_TRAIN_RATIO = 0.70
 
 def objective(trial, symbol):
     params = {
-        'prediction_threshold': trial.suggest_float('prediction_threshold', 0.55, 0.82),
+        'prediction_threshold': trial.suggest_float('prediction_threshold', 0.58, 0.80),
         # Risiko & Positionsgröße
-        'risk_reward_ratio': trial.suggest_float('risk_reward_ratio', 1.5, 8.0),
-        'risk_per_trade_pct': trial.suggest_float('risk_per_trade_pct', 1.0, 5.0),
-        'leverage': trial.suggest_int('leverage', 10, 50),
-        # Dynamischer ATR-basierter Stop-Loss
-        'atr_multiplier_sl': trial.suggest_float('atr_multiplier_sl', 1.0, 4.0),
-        'min_sl_pct': trial.suggest_float('min_sl_pct', 0.2, 1.5),
-        'max_sl_pct': trial.suggest_float('max_sl_pct', 0.8, 3.0),
+        'risk_reward_ratio':   trial.suggest_float('risk_reward_ratio',   1.5, 8.0),
+        'risk_per_trade_pct':  trial.suggest_float('risk_per_trade_pct',  1.0, 5.0),
+        'leverage':            trial.suggest_int(  'leverage',            10, 50),
+        # Stop-Loss
+        'atr_multiplier_sl':   trial.suggest_float('atr_multiplier_sl',   1.0, 4.0),
+        'max_sl_pct':          trial.suggest_float('max_sl_pct',          0.8, 3.0),
         # Trailing Stop
-        'trailing_stop_activation_rr': trial.suggest_float('trailing_stop_activation_rr', 0.8, 3.0),
-        'trailing_stop_callback_rate_pct': trial.suggest_float('trailing_stop_callback_rate_pct', 0.3, 2.0),
+        'trailing_stop_activation_rr':      trial.suggest_float('trailing_stop_activation_rr',      0.8, 3.0),
+        'trailing_stop_callback_rate_pct':  trial.suggest_float('trailing_stop_callback_rate_pct',  0.3, 2.0),
         # Signal-Score Schwelle
-        'min_signal_score': trial.suggest_float('min_signal_score', 5.5, 9.0),
-        # ANN gate & weights
-        'min_ann_score':    trial.suggest_float('min_ann_score',    1.0, 3.0),
-        'ann_weight':       trial.suggest_float('ann_weight',       2.5, 5.0),
-        'volume_weight':    trial.suggest_float('volume_weight',    0.5, 2.5),
-        'structure_weight': trial.suggest_float('structure_weight', 0.0, 2.0),
+        'min_signal_score':    trial.suggest_float('min_signal_score',    5.0, 9.0),
+        # Fixe Defaults (nicht tunen — spart Suchraum)
+        'min_sl_pct':          0.3,
+        'min_ann_score':       1.5,
+        'ann_weight':          3.5,
+        'volume_weight':       1.5,
+        'structure_weight':    1.0,
     }
 
     # ── Schritt 1: Training-Backtest (70%) ───────────────────────────────────
