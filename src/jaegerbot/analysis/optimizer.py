@@ -115,9 +115,10 @@ def objective(trial, symbol):
                 raise optuna.exceptions.TrialPruned()
 
     # ── Score: 30% Training + 70% Out-of-Sample ──────────────────────────────
+    # train_dd ist ein Bruch (0.09 = 9%) → ×100 für konsistente Einheiten mit train_pnl (%)
     # log1p verhindert dass extreme PnL-Werte den Score dominieren
-    train_score = math.log1p(max(0.0, train_pnl)) / max(train_dd, 0.01)
-    test_score  = math.log1p(max(0.0, test_pnl))  / max(test_dd,  0.01)
+    train_score = math.log1p(max(0.0, train_pnl)) / max(train_dd * 100, 1.0)
+    test_score  = math.log1p(max(0.0, test_pnl))  / max(test_dd  * 100, 1.0)
     final_score = train_score * 0.30 + test_score * 0.70
 
     # Out-of-Sample PnL in Config speichern (realistische Erwartung)
