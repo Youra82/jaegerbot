@@ -41,6 +41,7 @@ deactivate
 # --- Abschluss ---
 echo -e "\n${YELLOW}5/5: Setze Ausführungsrechte für alle .sh-Skripte...${NC}"
 chmod +x *.sh
+chmod +x auto_optimizer_scheduler.py
 
 echo -e "\n${GREEN}======================================================="
 echo "✅  Installation erfolgreich abgeschlossen!"

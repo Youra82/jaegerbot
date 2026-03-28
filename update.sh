@@ -28,5 +28,6 @@ find . -type d -name "__pycache__" -delete
 # 6. Setze die Ausführungsrechte für alle Skripte
 echo "6. Setze Ausführungsrechte für alle .sh-Skripte..."
 chmod +x *.sh
+chmod +x auto_optimizer_scheduler.py
 
 echo "✅ Update erfolgreich abgeschlossen. Dein Bot ist jetzt auf dem neuesten Stand."
