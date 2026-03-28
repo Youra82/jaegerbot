@@ -1,12 +1,20 @@
 # ===============================================
 # JaegerBot Spezifische Ausschlüsse
 # ===============================================
-#/artifacts/
-#/data/
-#/logs/
-#secret.json
+# Modelle & Daten (groß, lokal generiert)
+/artifacts/models/
+/artifacts/db/
+/artifacts/results/
+/artifacts/charts/
+/data/
+/logs/
+# Credentials & lokale Einstellungen
+secret.json
+secret.json.bak
+settings.json.backup
+# Generierte Ergebnisse
+optimal_portfolio_equity.csv
 /.venv/
-#secret.json.bak
 
 # ===============================================
 # Allgemeine Python-Vorlage
@@ -81,5 +89,5 @@ dmypy.json
 .pytype/
 cython_debug/
 .idea/
-#*.db
-#*.csv
+*.db
+*.csv
