@@ -65,7 +65,7 @@ fi
 run_optimization() {
     local symbol=$1; local timeframe=$2;
     echo -e "\n${GREEN}>>> STUFE 3/3: Starte Optimierung für $symbol ($timeframe)...${NC}"
-    python3 "$OPTIMIZER" --symbols "$symbol" --timeframes "$timeframe" --start_date "$CURRENT_START_DATE" --end_date "$CURRENT_END_DATE" --jobs "$N_CORES" --max_drawdown "$MAX_DD" --start_capital "$START_CAPITAL" --min_win_rate "$MIN_WR" --trials "$N_TRIALS" --min_pnl "$MIN_PNL" --mode "$OPTIM_MODE_ARG" --threshold "$BEST_THRESHOLD"
+    python3 "$OPTIMIZER" --symbols "$symbol" --timeframes "$timeframe" --start_date "$CURRENT_START_DATE" --end_date "$END_DATE" --jobs "$N_CORES" --max_drawdown "$MAX_DD" --start_capital "$START_CAPITAL" --min_win_rate "$MIN_WR" --trials "$N_TRIALS" --min_pnl "$MIN_PNL" --mode "$OPTIM_MODE_ARG" --threshold "$BEST_THRESHOLD"
     if [ $? -ne 0 ]; then echo -e "${RED}Fehler im Optimierer für $symbol ($timeframe). Überspringe...${NC}"; fi
 }
 
@@ -74,7 +74,7 @@ for symbol in $SYMBOLS; do
         pipeline_success=false
         for i in {1..3}; do
             if [ "$START_DATE_INPUT" == "a" ]; then
-                lookback_days=365; case "$timeframe" in 5m|15m) lookback_days=60 ;; 30m|1h) lookback_days=365 ;; 2h|4h) lookback_days=730 ;; 6h|1d) lookback_days=1095 ;; esac
+                lookback_days=365; case "$timeframe" in 5m|15m) lookback_days=270 ;; 30m|1h) lookback_days=365 ;; 2h|4h) lookback_days=730 ;; 6h|1d) lookback_days=1095 ;; esac
                 start_year_offset=$(( (i - 1) * 365 )); total_offset=$(( lookback_days + start_year_offset ))
                 CURRENT_START_DATE=$(date -d "$total_offset days ago" +%F); CURRENT_END_DATE=$(date -d "$start_year_offset days ago" +%F)
             else
