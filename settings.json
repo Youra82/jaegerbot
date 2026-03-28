@@ -4,20 +4,38 @@
     "top_n_strategies_to_trade": 5,
     "active_strategies": [
       {
-        "symbol": "DOGE/USDT:USDT",
+        "symbol": "ARB/USDT:USDT",
         "timeframe": "6h",
         "use_macd_filter": false,
         "active": true
       },
       {
-        "symbol": "ETH/USDT:USDT",
+        "symbol": "INJ/USDT:USDT",
+        "timeframe": "4h",
+        "use_macd_filter": false,
+        "active": true
+      },
+      {
+        "symbol": "LTC/USDT:USDT",
         "timeframe": "6h",
         "use_macd_filter": false,
         "active": true
       },
       {
         "symbol": "SOL/USDT:USDT",
-        "timeframe": "5m",
+        "timeframe": "4h",
+        "use_macd_filter": false,
+        "active": true
+      },
+      {
+        "symbol": "TON/USDT:USDT",
+        "timeframe": "4h",
+        "use_macd_filter": false,
+        "active": true
+      },
+      {
+        "symbol": "BTC/USDT:USDT",
+        "timeframe": "4h",
         "use_macd_filter": false,
         "active": true
       }
