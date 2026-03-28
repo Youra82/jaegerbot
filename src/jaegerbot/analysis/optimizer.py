@@ -84,8 +84,10 @@ def objective(trial, symbol):
     train_dd   = r_train.get('max_drawdown_pct', 1.0)
     train_trades = r_train.get('trades_count', 0)
 
-    # Mindestzahl Trades proportional zum Split (~35 von 50)
-    min_train_trades = max(10, int(50 * _WFV_TRAIN_RATIO))
+    # Mindestzahl Trades — proportional zur Datenlänge (1 Trade pro 200 Kerzen als Minimum)
+    # Feste Zahl "50" war zu restriktiv nach EMA-Bias + Body-Filter
+    _train_len = len(TRAIN_DATA) if TRAIN_DATA is not None else 0
+    min_train_trades = max(5, _train_len // 200)
     if train_trades < min_train_trades or train_dd > MAX_DRAWDOWN_CONSTRAINT:
         raise optuna.exceptions.TrialPruned()
 
@@ -97,7 +99,8 @@ def objective(trial, symbol):
     test_wr     = r_test.get('win_rate', 0)
 
     # Constraints auf Out-of-Sample — hier entscheidet sich ob die Config live taugt
-    min_test_trades = max(5, int(50 * (1 - _WFV_TRAIN_RATIO)))
+    _test_len_data = len(TEST_DATA) if TEST_DATA is not None else 0
+    min_test_trades = max(3, _test_len_data // 200)
     if test_trades < min_test_trades or test_dd > MAX_DRAWDOWN_CONSTRAINT or test_pnl <= 0:
         raise optuna.exceptions.TrialPruned()
     if OPTIM_MODE == "strict" and (test_wr < MIN_WIN_RATE_CONSTRAINT or test_pnl < MIN_PNL_CONSTRAINT):
