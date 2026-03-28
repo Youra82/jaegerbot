@@ -116,11 +116,13 @@ def objective(trial, symbol):
 
     # ── Score: 30% Training + 70% Out-of-Sample ──────────────────────────────
     # train_dd ist ein Bruch (0.09 = 9%) → ×100 für konsistente Einheiten mit train_pnl (%)
-    # Win-Rate-Bonus: höhere WR = besserer Score (Ziel: 55%+)
-    wr_bonus = max(0.0, (test_wr - 40.0) / 10.0)  # +0.1 pro % WR über 40%
-    train_score = math.log1p(max(0.0, train_pnl)) / max(train_dd * 100, 1.0)
-    test_score  = math.log1p(max(0.0, test_pnl))  / max(test_dd  * 100, 1.0)
-    final_score = train_score * 0.30 + test_score * 0.70 + wr_bonus
+    train_score  = math.log1p(max(0.0, train_pnl)) / max(train_dd * 100, 1.0)
+    test_score   = math.log1p(max(0.0, test_pnl))  / max(test_dd  * 100, 1.0)
+    # Trade-Frequenz-Bonus: mehr Trades = mehr Compounding (wie vbot)
+    trade_bonus  = math.log1p(test_trades) * 2.0
+    # Win-Rate-Bonus: 55%+ WR belohnen
+    wr_bonus     = max(0.0, (test_wr - 40.0) / 10.0)
+    final_score  = train_score * 0.30 + test_score * 0.70 + trade_bonus + wr_bonus
 
     # Out-of-Sample PnL in Config speichern (realistische Erwartung)
     trial.set_user_attr('pnl_pct', round(test_pnl, 2))
