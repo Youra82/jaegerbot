@@ -1,0 +1,31 @@
+{
+    "_meta": {
+        "pnl_pct": 3028.1,
+        "pnl_pct_oos": 3028.1,
+        "pnl_pct_train": 16353.36,
+        "wfv": "70/30"
+    },
+    "market": {
+        "symbol": "ARB/USDT:USDT",
+        "timeframe": "6h"
+    },
+    "strategy": {
+        "prediction_threshold": 0.6,
+        "min_signal_score": 6.04
+    },
+    "risk": {
+        "margin_mode": "isolated",
+        "risk_per_trade_pct": 4.89,
+        "risk_reward_ratio": 4.64,
+        "leverage": 27,
+        "trailing_stop_activation_rr": 1.06,
+        "trailing_stop_callback_rate_pct": 0.32,
+        "atr_multiplier_sl": 3.58,
+        "min_sl_pct": 0.3,
+        "max_sl_pct": 0.8
+    },
+    "behavior": {
+        "use_longs": true,
+        "use_shorts": true
+    }
+}
