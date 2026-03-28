@@ -26,14 +26,15 @@ from typing import Optional
 
 
 DEFAULT_WEIGHTS = {
-    'ann_weight': 4.0,
-    'st_weight': 2.0,
-    'adx_weight': 2.0,
-    'volume_weight': 1.0,
+    'ann_weight':        3.5,
+    'st_weight':         1.5,
+    'adx_weight':        1.5,
+    'volume_weight':     1.5,
     'volatility_weight': 1.0,
+    'structure_weight':  1.0,
 }
 
-DEFAULT_MIN_SIGNAL_SCORE = 5.5
+DEFAULT_MIN_SIGNAL_SCORE = 6.5
 
 
 @dataclass
@@ -43,10 +44,11 @@ class ScoreBreakdown:
     adx: float = 0.0
     volume: float = 0.0
     volatility: float = 0.0
+    structure: float = 0.0
 
     @property
     def total(self) -> float:
-        return self.ann + self.supertrend + self.adx + self.volume + self.volatility
+        return self.ann + self.supertrend + self.adx + self.volume + self.volatility + self.structure
 
     def to_dict(self) -> dict:
         return {
@@ -55,6 +57,7 @@ class ScoreBreakdown:
             'adx': round(self.adx, 2),
             'volume': round(self.volume, 2),
             'volatility': round(self.volatility, 2),
+            'structure': round(self.structure, 2),
             'total': round(self.total, 2),
         }
 
@@ -66,7 +69,8 @@ class ScoreBreakdown:
             f"ST={d['supertrend']:.1f} "
             f"ADX={d['adx']:.1f} "
             f"Vol={d['volume']:.1f} "
-            f"Vola={d['volatility']:.1f}]"
+            f"Vola={d['volatility']:.1f} "
+            f"Struct={d['structure']:.1f}]"
         )
 
 
@@ -92,6 +96,11 @@ class SignalScorer:
         volume_ratio: float,        # current_volume / rolling_avg_volume (20 Kerzen)
         atr_normalized: float,      # aktueller normalisierter ATR
         avg_atr_normalized: float,  # 50-Kerzen Rolling-Mittel des norm. ATR
+        body_to_atr: float = 0.5,
+        upper_wick_ratio: float = 0.3,
+        lower_wick_ratio: float = 0.3,
+        dist_to_struct: float = 2.0,
+        in_fib_zone: float = 0.0,
     ) -> ScoreBreakdown:
         b = ScoreBreakdown()
 
@@ -151,5 +160,26 @@ class SignalScorer:
             # else: extremer Spike → 0
         else:
             b.volatility = vv * 0.5  # Neutral wenn noch keine Referenz
+
+        # ── 6. Structure Quality ───────────────────────────────────────────
+        _sw = self.weights.get('structure_weight', 1.0)
+        _spts = 0.0
+        if side == 'buy':
+            if body_to_atr >= 0.5 and upper_wick_ratio < 0.3:
+                _spts += 0.5
+            elif body_to_atr >= 0.25:
+                _spts += 0.25
+        else:
+            if body_to_atr >= 0.5 and lower_wick_ratio < 0.3:
+                _spts += 0.5
+            elif body_to_atr >= 0.25:
+                _spts += 0.25
+        if dist_to_struct >= 2.0:
+            _spts += 0.4
+        elif dist_to_struct >= 1.0:
+            _spts += 0.2
+        if in_fib_zone:
+            _spts += 0.1
+        b.structure = min(_sw, _spts * _sw)
 
         return b

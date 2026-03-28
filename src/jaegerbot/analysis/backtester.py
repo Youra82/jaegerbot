@@ -86,7 +86,7 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
     # *** ERWEITERTE FEATURE-LISTE FÜR BACKTEST ***
     # Feature 'ema_cross_20_50' entfernt (konsistent mit ann_model.py)
     feature_cols = [
-        'bb_width', 'bb_pband', 'obv', 'rsi', 'macd_diff', 'macd', 
+        'bb_width', 'bb_pband', 'obv', 'rsi', 'macd_diff', 'macd',
         'atr_normalized', 'adx', 'adx_pos', 'adx_neg',
         'volume_ratio', 'mfi', 'cmf',
         'price_to_ema20', 'price_to_ema50',
@@ -94,7 +94,18 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
         'price_to_resistance', 'price_to_support',
         'high_low_range', 'close_to_high', 'close_to_low',
         'day_of_week', 'hour_of_day',
-        'returns_lag1', 'returns_lag2', 'returns_lag3', 'hist_volatility'
+        'returns_lag1', 'returns_lag2', 'returns_lag3', 'hist_volatility',
+        # Candle DNA Features
+        'body_to_atr', 'upper_wick_ratio', 'lower_wick_ratio',
+        'candle_direction', 'body_midpoint_ratio',
+        'bull_streak', 'bear_streak',
+        # Pivot / Structure Features
+        'dist_to_struct_high', 'dist_to_struct_low',
+        'price_in_range_20', 'price_in_range_50',
+        # Fibonacci Zone Features
+        'fib_position', 'in_fib_zone',
+        # Volume Direction Features
+        'volume_direction', 'buying_pressure', 'selling_pressure',
     ]
     # ---
     
@@ -122,7 +133,15 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
 
     # Signal-Scoring Parameter
     min_signal_score = params.get('min_signal_score', DEFAULT_MIN_SIGNAL_SCORE)
-    scorer = SignalScorer(weights=DEFAULT_WEIGHTS)
+    scorer_weights = {
+        'ann_weight':        params.get('ann_weight',       DEFAULT_WEIGHTS['ann_weight']),
+        'volume_weight':     params.get('volume_weight',    DEFAULT_WEIGHTS['volume_weight']),
+        'structure_weight':  params.get('structure_weight', DEFAULT_WEIGHTS.get('structure_weight', 1.0)),
+        'st_weight':         DEFAULT_WEIGHTS['st_weight'],
+        'adx_weight':        DEFAULT_WEIGHTS['adx_weight'],
+        'volatility_weight': DEFAULT_WEIGHTS['volatility_weight'],
+    }
+    scorer = SignalScorer(weights=scorer_weights)
 
     leverage = params.get('leverage', 10)
     fee_pct = 0.05 / 100
@@ -209,6 +228,11 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
 
             if side:
                 # --- SIGNAL SCORING (konsistent mit trade_manager.py) ---
+                _body_to_atr     = float(current.get('body_to_atr',     0.5))
+                _upper_wick      = float(current.get('upper_wick_ratio', 0.3))
+                _lower_wick      = float(current.get('lower_wick_ratio', 0.3))
+                _in_fib          = float(current.get('in_fib_zone',      0.0))
+                _dist_struct     = float(current.get('dist_to_struct_high', 2.0)) if side == 'long' else float(current.get('dist_to_struct_low', 2.0))
                 breakdown = scorer.score(
                     prediction=current['prediction'],
                     pred_threshold=pred_threshold,
@@ -218,23 +242,42 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
                     volume_ratio=current.get('volume_ratio', 1.0),
                     atr_normalized=current.get('atr_normalized', 0.0),
                     avg_atr_normalized=current.get('avg_atr_normalized', current.get('atr_normalized', 0.0)),
+                    body_to_atr=_body_to_atr,
+                    upper_wick_ratio=_upper_wick,
+                    lower_wick_ratio=_lower_wick,
+                    dist_to_struct=_dist_struct,
+                    in_fib_zone=_in_fib,
                 )
                 trade_allowed = breakdown.total >= min_signal_score
                 # --- ENDE SIGNAL SCORING ---
+
+                # Minimum ANN gate
+                _min_ann = params.get('min_ann_score', 1.0)
+                if breakdown.ann < _min_ann:
+                    continue
 
                 if trade_allowed:
                     entry_price = current['close']
                     entry_time = data_with_features.index[i]
                     risk_amount_usd = current_capital * risk_per_trade_pct
 
-                    # Dynamische ATR-basierte SL-Berechnung (konsistent mit trade_manager.py)
-                    current_atr = current.get('atr', 0.0)
-                    if current_atr <= 0:
+                    # Structure-aware ATR-based SL calculation
+                    _atr_val    = float(current.get('atr', entry_price * 0.01))
+                    if _atr_val <= 0:
                         continue
+                    _sl_atr     = _atr_val * atr_multiplier_sl
+                    _min_sl     = entry_price * min_sl_pct
+                    _max_sl_pct = params.get('max_sl_pct', 4.0) / 100.0
 
-                    sl_distance_atr = current_atr * atr_multiplier_sl
-                    sl_distance_min = entry_price * min_sl_pct
-                    sl_distance = max(sl_distance_atr, sl_distance_min)
+                    if side == 'long':
+                        _pivot_low = float(current.get('pivot_low_live', 0.0))
+                        _sl_struct = (entry_price - _pivot_low + 0.25 * _atr_val) if _pivot_low > 0 else _sl_atr
+                    else:
+                        _pivot_high = float(current.get('pivot_high_live', 0.0))
+                        _sl_struct = (_pivot_high - entry_price + 0.25 * _atr_val) if _pivot_high > 0 else _sl_atr
+
+                    sl_distance = max(_sl_atr, _sl_struct, _min_sl)
+                    sl_distance = min(sl_distance, entry_price * _max_sl_pct)
                     if sl_distance == 0:
                         continue
 

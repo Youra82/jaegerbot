@@ -26,6 +26,18 @@ from jaegerbot.analysis.evaluator import evaluate_dataset
 from jaegerbot.utils.signal_scorer import DEFAULT_MIN_SIGNAL_SCORE
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+
+def _timeframe_hours(tf: str) -> float:
+    if 'm' in tf:
+        return int(tf.replace('m', '')) / 60.0
+    if 'h' in tf:
+        return float(tf.replace('h', ''))
+    if 'd' in tf:
+        return float(tf.replace('d', '')) * 24.0
+    return 1.0
+
+
 HISTORICAL_DATA = None
 TRAIN_DATA = None   # 70% — Optimierung
 TEST_DATA  = None   # 30% — Out-of-Sample Validierung
@@ -33,9 +45,9 @@ CURRENT_MODEL_PATHS = {}
 CURRENT_TIMEFRAME = None
 FIXED_THRESHOLD = None
 
-MAX_DRAWDOWN_CONSTRAINT = 0.30
+MAX_DRAWDOWN_CONSTRAINT = 0.25
 MIN_WIN_RATE_CONSTRAINT = 55.0
-MIN_PNL_CONSTRAINT = 0.0
+MIN_PNL_CONSTRAINT = 5.0
 START_CAPITAL = 1000
 OPTIM_MODE = "strict"
 
@@ -47,17 +59,23 @@ def objective(trial, symbol):
     params = {
         'prediction_threshold': FIXED_THRESHOLD,
         # Risiko & Positionsgröße
-        'risk_reward_ratio': trial.suggest_float('risk_reward_ratio', 1.0, 5.0),
+        'risk_reward_ratio': trial.suggest_float('risk_reward_ratio', 1.5, 5.0),
         'risk_per_trade_pct': trial.suggest_float('risk_per_trade_pct', 0.5, 2.0),
-        'leverage': trial.suggest_int('leverage', 5, 25),
+        'leverage': trial.suggest_int('leverage', 5, 20),
         # Dynamischer ATR-basierter Stop-Loss
-        'atr_multiplier_sl': trial.suggest_float('atr_multiplier_sl', 1.0, 4.0),
+        'atr_multiplier_sl': trial.suggest_float('atr_multiplier_sl', 1.5, 4.0),
         'min_sl_pct': trial.suggest_float('min_sl_pct', 0.3, 2.0),
+        'max_sl_pct': trial.suggest_float('max_sl_pct', 1.5, 4.0),
         # Trailing Stop
         'trailing_stop_activation_rr': trial.suggest_float('trailing_stop_activation_rr', 1.0, 4.0),
         'trailing_stop_callback_rate_pct': trial.suggest_float('trailing_stop_callback_rate_pct', 0.5, 3.0),
         # Signal-Score Schwelle
-        'min_signal_score': trial.suggest_float('min_signal_score', 3.0, 9.0),
+        'min_signal_score': trial.suggest_float('min_signal_score', 5.5, 9.0),
+        # ANN gate & weights
+        'min_ann_score':    trial.suggest_float('min_ann_score',    0.5, 2.5),
+        'ann_weight':       trial.suggest_float('ann_weight',       2.5, 5.0),
+        'volume_weight':    trial.suggest_float('volume_weight',    0.5, 2.5),
+        'structure_weight': trial.suggest_float('structure_weight', 0.0, 2.0),
     }
 
     # ── Schritt 1: Training-Backtest (70%) ───────────────────────────────────
@@ -84,6 +102,17 @@ def objective(trial, symbol):
         raise optuna.exceptions.TrialPruned()
     if OPTIM_MODE == "strict" and (test_wr < MIN_WIN_RATE_CONSTRAINT or test_pnl < MIN_PNL_CONSTRAINT):
         raise optuna.exceptions.TrialPruned()
+
+    # Anti-overtrading guard
+    _tf_str   = CURRENT_TIMEFRAME if CURRENT_TIMEFRAME else '1h'
+    _tf_hours = _timeframe_hours(_tf_str)
+    _test_len = len(TEST_DATA) if TEST_DATA is not None else 0
+    if _tf_hours > 0 and _test_len > 0:
+        _test_years = (_test_len * _tf_hours) / 8760.0
+        if _test_years > 0:
+            _tpy = test_trades / _test_years
+            if _tpy > 150:
+                raise optuna.exceptions.TrialPruned()
 
     # ── Score: 30% Training + 70% Out-of-Sample ──────────────────────────────
     # log1p verhindert dass extreme PnL-Werte den Score dominieren
