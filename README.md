@@ -452,10 +452,10 @@ Das Script staged nur geänderte Config-Dateien, committet mit Zeitstempel und p
 
 ```bash
 # Manuelle Auslösung (sofort)
-python auto_optimizer_scheduler.py --force
+./auto_optimizer_scheduler.py --force
 
 # Zeitplan-Check (wie der Cron es aufruft)
-python auto_optimizer_scheduler.py
+./auto_optimizer_scheduler.py
 ```
 
 ---
@@ -467,12 +467,12 @@ python auto_optimizer_scheduler.py
 ```bash
 # Einzelner Zyklus (für Cron)
 source .venv/bin/activate
-python master_runner.py
+python3 master_runner.py
 
 # Dauerbetrieb mit Screen
 screen -S jaegerbot
 source .venv/bin/activate
-python master_runner.py
+python3 master_runner.py
 # Ctrl+A, D zum Detachen
 ```
 
@@ -508,6 +508,14 @@ Der Bot sendet bei jedem Trade:
 ---
 
 ## Monitoring
+
+### Tests ausführen
+
+```bash
+./run_tests.sh
+```
+
+Führt alle Pytest-Tests aus (Live-Workflow, Trailing-Stop, Order-Placement). Gibt `3 passed, 3 skipped` bei korrekter Installation zurück.
 
 ### Live-Status anzeigen
 
