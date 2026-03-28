@@ -737,11 +737,21 @@ Die Eignung eines Coin/Timeframe-Paares ergibt sich direkt aus den **effektiven 
 |---|---|---|---|---|
 | **BTC** | Starke, lange Trends | Institutionelle S/R exakt an Fib-Levels | Sauberste Daten, konsistenteste Muster | ✅✅ Beste Wahl |
 | **ETH** | Ähnlich BTC, etwas mehr Volatilität | Gute Fib-Struktur | Sehr gute Datenbasis | ✅✅ Sehr gut |
-| **SOL** | Starke Trends, klare Breakouts | Klare Swings | Noch genug Liquidität | ✅ Gut |
-| **BNB** | Stabiler Trend, niedrige Volatilität | Moderate Swings | Zuverlässig | ✅ Gut |
+| **SOL** | Starke Trends, klare Breakouts | Klare Swings | Gute Liquidität | ✅ Gut |
+| **BNB** | Stabiler Trend, niedrige Volatilität | Moderate Swings | Zuverlässige Daten | ✅ Gut |
+| **LTC** | Folgt BTC-Muster eng, stabile Trends | Sehr gute Fib-Struktur (BTC-korreliert) | Hohe Liquidität, lange Historie | ✅ Gut |
+| **AVAX** | Starke Trends in Bullphasen, klare Swings | Gute Fib-Levels, institutionell gehandelt | Ausreichend Liquidität und Daten | ✅ Gut |
+| **TON** | Wachsendes Ecosystem, stabile Aufwärtstrends | Moderate Fib-Struktur | Zunehmende Liquidität | ✅ Gut |
+| **INJ** | Explosive Trends, starke Direktionalität | Klare Swings in Trendbewegungen | Hohes Volumen in Bullphasen | ✅ Gut |
+| **ARB** | ETH-korreliert, gute Trendbewegungen | Vernünftige Fib-Struktur | Gute Datenbasis seit 2023 | ✅ Gut |
+| **MATIC/POL** | Gute Trends in Bullphasen, rangelastig in Bear | Moderate Fib-Swings | Hohe Liquidität, lange Historie | ✅ Gut |
 | **XRP** | Kann monatelang seitwärts laufen | Moderat | Phasenabhängig | ⚠️ Mittel |
-| **LINK** | Starke Bullphasen, aber rangelastig | Moderat | Mittel | ⚠️ Mittel |
-| **ADA** | Lange Seitwärtsphasen | Schwache Swings | Schlecht in Bear | ⚠️ Schwach |
+| **LINK** | Starke Bullphasen, aber oft rangelastig | Moderat | Mittel | ⚠️ Mittel |
+| **DOT** | Lange Seitwärtsphasen, selten klare Trends | Schwache Fib-Gültigkeit in Seitwärtsmärkten | Unzuverlässig in Bear | ⚠️ Mittel |
+| **SUI** | Starke Trending-Phasen, aber junge Daten | Gute Swings wenn trending | Wenig historische Daten (ab 2023) | ⚠️ Mittel |
+| **NEAR** | Moderate Trends, häufige Konsolidierung | Schwache Fib-Struktur | Mittelmäßige Liquidität | ⚠️ Mittel |
+| **UNI** | DeFi-getrieben, trendabhängig | Moderat | Phasenweise gute Muster | ⚠️ Mittel |
+| **ADA** | Sehr lange Seitwärtsphasen | Schwache Swings | Schlecht in Bear | ⚠️ Schwach |
 | **DOGE** | Sentiment-getrieben, kaum Struktur | Geringe Fib-Gültigkeit | Hohe Noise-Rate | ❌ Schlecht |
 | **SHIB/PEPE** | Reine Pump-Coins | Keine Fib-Struktur | Nicht lernbar | ❌❌ Nicht geeignet |
 
@@ -756,8 +766,16 @@ Die Eignung eines Coin/Timeframe-Paares ergibt sich direkt aus den **effektiven 
 | 🥉 3 | **BTC 1h** | 68–75% | Mehr Trades, aber mehr Noise als 4h |
 | 4 | **SOL 4h** | 65–75% | Gute Trends, aber volatiler |
 | 4 | **BNB 4h** | 65–72% | Stabil, aber weniger Bewegung |
+| 4 | **LTC 4h / 6h** | 65–75% | BTC-Muster, hohe Liquidität |
+| 4 | **AVAX 4h** | 65–73% | Klare Bulltrends, gute Fib-Levels |
+| 5 | **ARB 4h** | 62–72% | ETH-korreliert, gute Trendbewegungen |
+| 5 | **MATIC 4h** | 62–70% | Gut in Bullphasen, sonst rangelastig |
+| 5 | **INJ 4h** | 62–72% | Explosiv in Trends, aber volatiler |
+| 5 | **TON 4h** | 60–70% | Wachsende Datenbasis, stabile Trends |
 | 5 | **BTC 1d** | 80–88% | Beste Accuracy, aber wenige Trades für Optimizer |
 | 6 | **XRP 4h / 6h** | 60–70% | Nur in Bullphasen sinnvoll |
+| 6 | **SUI 4h** | 58–68% | Gute Trends, aber wenig historische Daten |
+| ❌ | **DOT / ADA / NEAR auf beliebigem TF** | < 60% | Zu viele Seitwärtsphasen für EMA-Bias |
 | ❌ | **DOGE / SHIB auf 30m oder kürzer** | < 60% | Kein Fibonacci, kein Trend, hohe Noise-Rate |
 
 > **Empfehlung für den Einstieg:** `BTC 4h` und `ETH 4h` gleichzeitig optimieren. Diese Kombination liefert zuverlässig valide Configs und ist das Herzstück jedes JaegerBot-Portfolios.
