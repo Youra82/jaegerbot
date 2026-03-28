@@ -34,6 +34,21 @@ class Exchange:
             logger.warning(f"WARNUNG: Fehler beim Laden der Märkte: {e}")
             self.markets = None
 
+        # Konto-Modus erkennen (hedge_mode vs one_way_mode, cross vs isolated)
+        self.is_hedge_mode = False
+        self.default_margin_mode = 'isolated'
+        if self.markets:
+            try:
+                first_symbol = next((s for s in self.markets if 'USDT:USDT' in s), None)
+                if first_symbol:
+                    mm_info = self.exchange.fetch_margin_mode(first_symbol, params={'productType': 'USDT-FUTURES'})
+                    pos_mode = mm_info.get('info', {}).get('posMode', 'one_way_mode')
+                    self.is_hedge_mode = (pos_mode == 'hedge_mode')
+                    self.default_margin_mode = mm_info.get('marginMode', 'isolated')
+                    logger.info(f"Konto-Modus: posMode={pos_mode}, marginMode={self.default_margin_mode}")
+            except Exception as e:
+                logger.warning(f"Konto-Modus konnte nicht erkannt werden, verwende Standardwerte: {e}")
+
     def fetch_recent_ohlcv(self, symbol, timeframe, limit=100):
         # ... (Unveränderter Code von Zeile 37 bis 50)
         if not self.markets: return pd.DataFrame()
@@ -166,12 +181,15 @@ class Exchange:
             return False
 
     def create_market_order(self, symbol, side, amount, params=None):
-        # Standard-Params für USDT-Futures
         if params is None:
             params = {}
-        params.setdefault('productType', 'USDT-FUTURES')
-        params.setdefault('marginCoin', 'USDT')
-        params.setdefault('marginMode', os.getenv('JAEGER_MARGIN_MODE', 'isolated'))
+        clean_params = params.copy()
+        if 'instId' in clean_params: del clean_params['instId']
+        if 'symbol' in clean_params: del clean_params['symbol']
+        clean_params.setdefault('marginMode', self.default_margin_mode)
+        if self.is_hedge_mode:
+            clean_params.setdefault('hedged', True)
+        params = clean_params
 
         # Berechne vorläufig gerundete Menge
         # Sorgfältige Berechnung, so dass nach rounding der Order-Wert >= Exchange Minimum ist
@@ -289,22 +307,28 @@ class Exchange:
                 raise e
 
     def place_trigger_market_order(self, symbol, side, amount, trigger_price, params={}):
-        rounded_price = float(self.exchange.price_to_precision(symbol, trigger_price))
+        price_str = self.exchange.price_to_precision(symbol, trigger_price)
         rounded_amount = float(self.exchange.amount_to_precision(symbol, amount))
         order_params = {
-            'triggerPrice': rounded_price,
-            'reduceOnly': params.get('reduceOnly', False)
+            'triggerPrice': price_str,
+            'reduceOnly': params.get('reduceOnly', False),
+            'marginMode': self.default_margin_mode,
         }
+        if self.is_hedge_mode:
+            order_params['hedged'] = True
         order_params.update(params)
+        if 'instId' in order_params: del order_params['instId']
+        if 'symbol' in order_params: del order_params['symbol']
         return self.exchange.create_order(symbol, 'market', side, rounded_amount, params=order_params)
 
     def fetch_open_positions(self, symbol):
-        positions = self.exchange.fetch_positions([symbol])
+        params = {'productType': 'USDT-FUTURES'}
+        positions = self.exchange.fetch_positions([symbol], params=params)
         open_positions = [p for p in positions if p.get('contracts', 0.0) > 0.0]
         return open_positions
 
     def fetch_open_trigger_orders(self, symbol):
-        return self.exchange.fetch_open_orders(symbol, params={'stop': True})
+        return self.exchange.fetch_open_orders(symbol, params={'productType': 'USDT-FUTURES', 'stop': True})
 
     def fetch_balance_usdt(self):
         # ... (Unveränderter Code von Zeile 219 bis 242)
@@ -419,8 +443,10 @@ class Exchange:
                 **params,
                 'trailingTriggerPrice': rounded_activation,
                 'trailingPercent': callback_rate_float,
-                'productType': 'USDT-FUTURES'
+                'marginMode': self.default_margin_mode,
             }
+            if self.is_hedge_mode:
+                order_params['hedged'] = True
 
             logger.info(f"Sende TSL Order (MARKET): Side={side}, Amount={rounded_amount}, Activation={rounded_activation}, Callback={callback_rate_float}%")
 
