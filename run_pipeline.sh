@@ -43,7 +43,7 @@ fi
 read -p "Handelspaar(e) eingeben (ohne /USDT, z.B. BTC ETH): " SYMBOLS
 read -p "Zeitfenster eingeben (z.B. 1h 4h): " TIMEFRAMES
 echo -e "\n${BLUE}--- Empfehlung: Optimaler Rückblick-Zeitraum ---${NC}"
-printf "+-------------+--------------------------------+\n"; printf "| Zeitfenster | Empfohlener Rückblick (Tage)   |\n"; printf "+-------------+--------------------------------+\n"; printf "| 5m, 15m     | 15 - 90 Tage                   |\n"; printf "| 30m, 1h     | 180 - 365 Tage                 |\n"; printf "| 2h, 4h      | 550 - 730 Tage                 |\n"; printf "| 6h, 1d      | 1095 - 1825 Tage               |\n"; printf "+-------------+--------------------------------+\n"
+printf "+-------------+--------------------------------+\n"; printf "| Zeitfenster | Empfohlener Rückblick (Tage)   |\n"; printf "+-------------+--------------------------------+\n"; printf "| 5m, 15m     | 180 - 365 Tage                   |\n"; printf "| 30m, 1h     | 180 - 365 Tage                 |\n"; printf "| 2h, 4h      | 550 - 730 Tage                 |\n"; printf "| 6h, 1d      | 1095 - 1825 Tage               |\n"; printf "+-------------+--------------------------------+\n"
 read -p "Startdatum (JJJJ-MM-TT) oder 'a' für Automatik [Standard: a]: " START_DATE_INPUT; START_DATE_INPUT=${START_DATE_INPUT:-a}
 read -p "Enddatum (JJJJ-MM-TT) [Standard: Heute]: " END_DATE; END_DATE=${END_DATE:-$(date +%F)}
 read -p "Startkapital in USDT [Standard: 1000]: " START_CAPITAL; START_CAPITAL=${START_CAPITAL:-1000}
