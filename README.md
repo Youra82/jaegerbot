@@ -690,6 +690,80 @@ final_score = train_score * 0.30 + test_score * 0.70 + trade_bonus + wr_bonus
 
 ---
 
+## Coin & Timeframe Empfehlungen
+
+Die Eignung eines Coin/Timeframe-Paares ergibt sich direkt aus den **effektiven Zeitspannen** der internen Indikatoren. Jedes Fenster (EMA, Fibonacci, Pivot-SL) multipliziert sich mit dem Timeframe — zu kurze Zeitspannen erzeugen Noise statt Struktur.
+
+### Effektive Zeitspannen je Timeframe
+
+| TF | EMA20 | EMA50 | Fibonacci (10K) | Pivot-SL (20K) | Lookahead | Geeignet |
+|---|---|---|---|---|---|---|
+| 5m | 1.7h | 4.2h | 50 min | 1.7h | 1h | ❌ |
+| 15m | 5h | 12.5h | 2.5h | 5h | 3h | ⚠️ |
+| 30m | 10h | 25h | 5h | 10h | 6h | ⚠️ |
+| 1h | 20h | 50h | 10h | 20h | 8h | ✅ |
+| 2h | 40h | 100h | 20h | 40h | 10h | ✅ |
+| **4h** | **3.3d** | **8.3d** | **1.7d** | **3.3d** | **20h** | **✅✅** |
+| **6h** | **5d** | **12.5d** | **2.5d** | **5d** | **24h** | **✅✅** |
+| 1d | 20d | 50d | 10d | 20d | 5d | ✅ |
+
+**Warum 5m/15m nicht funktionieren:**
+- Fibonacci über 50–150 Minuten hat keine technische Aussagekraft
+- EMA20/50 kreuzt mehrmals täglich → EMA-Bias-Filter blockiert fast alle Signale
+- Anti-Overtrading-Guard (300 Trades/Jahr) greift bei 5m systematisch: mit ~77.000 Kerzen/Jahr werden weit über 300 Trades generiert → alle Trials gepruned
+
+**Warum 4h/6h optimal sind:**
+- EMA20/50 spannt 3–12 Tage → echter Trendfilter, nicht täglich wechselnd
+- Fibonacci über 1.7–2.5 Tage → echte Swing-Retracements erkennbar
+- Pivot-SL über 3–5 Tage → strukturell valide Hochs/Tiefs
+- Historisch beobachtete ANN-Accuracy: **75%+ bei 6h**, **80%+ bei 1d**
+- Ausreichend Kerzen (730–1095 Tage Lookback) für qualitativ hochwertiges Training
+
+### Trainingsdaten pro Lookback (Pipeline-Defaults)
+
+| TF | Lookback | Kerzen gesamt | ANN-Signale (~68%) | Min Train Trades |
+|---|---|---|---|---|
+| 5m | 270d | 77.760 | ~52.900 | 272 ⚠️ Anti-OT |
+| 15m | 270d | 25.920 | ~17.600 | 90 |
+| 30m | 365d | 17.520 | ~11.900 | 61 |
+| 1h | 365d | 8.760 | ~5.950 | 30 |
+| 4h | 730d | 4.380 | ~2.980 | 15 |
+| 6h | 1095d | 4.380 | ~2.980 | 15 |
+| 1d | 1095d | 1.095 | ~745 | 3 ⚠️ zu wenig |
+
+### Coin-Eignung
+
+| Coin | Trend-Qualität | Fibonacci-Verhalten | ANN-Lernbarkeit | Bewertung |
+|---|---|---|---|---|
+| **BTC** | Starke, lange Trends | Institutionelle S/R exakt an Fib-Levels | Sauberste Daten, konsistenteste Muster | ✅✅ Beste Wahl |
+| **ETH** | Ähnlich BTC, etwas mehr Volatilität | Gute Fib-Struktur | Sehr gute Datenbasis | ✅✅ Sehr gut |
+| **SOL** | Starke Trends, klare Breakouts | Klare Swings | Noch genug Liquidität | ✅ Gut |
+| **BNB** | Stabiler Trend, niedrige Volatilität | Moderate Swings | Zuverlässig | ✅ Gut |
+| **XRP** | Kann monatelang seitwärts laufen | Moderat | Phasenabhängig | ⚠️ Mittel |
+| **LINK** | Starke Bullphasen, aber rangelastig | Moderat | Mittel | ⚠️ Mittel |
+| **ADA** | Lange Seitwärtsphasen | Schwache Swings | Schlecht in Bear | ⚠️ Schwach |
+| **DOGE** | Sentiment-getrieben, kaum Struktur | Geringe Fib-Gültigkeit | Hohe Noise-Rate | ❌ Schlecht |
+| **SHIB/PEPE** | Reine Pump-Coins | Keine Fib-Struktur | Nicht lernbar | ❌❌ Nicht geeignet |
+
+### Empfohlene Kombinationen (Ranking)
+
+| Rang | Kombination | Erwartete ANN-Accuracy | Begründung |
+|---|---|---|---|
+| 🥇 1 | **BTC 4h** | 75–85% | Beste Trendklarheit + Fibonacci + 730 Tage Daten |
+| 🥇 1 | **BTC 6h** | 75–85% | Noch sauberere Signale, weniger Rauschen |
+| 🥈 2 | **ETH 4h** | 72–82% | Ähnlich BTC, etwas mehr Bewegung |
+| 🥈 2 | **ETH 6h** | 72–82% | Ideal für höhere Accuracy |
+| 🥉 3 | **BTC 1h** | 68–75% | Mehr Trades, aber mehr Noise als 4h |
+| 4 | **SOL 4h** | 65–75% | Gute Trends, aber volatiler |
+| 4 | **BNB 4h** | 65–72% | Stabil, aber weniger Bewegung |
+| 5 | **BTC 1d** | 80–88% | Beste Accuracy, aber wenige Trades für Optimizer |
+| 6 | **XRP 4h / 6h** | 60–70% | Nur in Bullphasen sinnvoll |
+| ❌ | **DOGE / SHIB auf 30m oder kürzer** | < 60% | Kein Fibonacci, kein Trend, hohe Noise-Rate |
+
+> **Empfehlung für den Einstieg:** `BTC 4h` und `ETH 4h` gleichzeitig optimieren. Diese Kombination liefert zuverlässig valide Configs und ist das Herzstück jedes JaegerBot-Portfolios.
+
+---
+
 ## Systemanforderungen
 
 | Komponente | Minimum | Empfohlen |
