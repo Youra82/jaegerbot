@@ -57,7 +57,7 @@ _WFV_TRAIN_RATIO = 0.70
 
 def objective(trial, symbol):
     params = {
-        'prediction_threshold': FIXED_THRESHOLD,
+        'prediction_threshold': trial.suggest_float('prediction_threshold', 0.55, 0.82),
         # Risiko & Positionsgröße
         'risk_reward_ratio': trial.suggest_float('risk_reward_ratio', 1.5, 8.0),
         'risk_per_trade_pct': trial.suggest_float('risk_per_trade_pct', 1.0, 5.0),
@@ -72,7 +72,7 @@ def objective(trial, symbol):
         # Signal-Score Schwelle
         'min_signal_score': trial.suggest_float('min_signal_score', 5.5, 9.0),
         # ANN gate & weights
-        'min_ann_score':    trial.suggest_float('min_ann_score',    0.5, 2.5),
+        'min_ann_score':    trial.suggest_float('min_ann_score',    1.0, 3.0),
         'ann_weight':       trial.suggest_float('ann_weight',       2.5, 5.0),
         'volume_weight':    trial.suggest_float('volume_weight',    0.5, 2.5),
         'structure_weight': trial.suggest_float('structure_weight', 0.0, 2.0),
@@ -116,10 +116,11 @@ def objective(trial, symbol):
 
     # ── Score: 30% Training + 70% Out-of-Sample ──────────────────────────────
     # train_dd ist ein Bruch (0.09 = 9%) → ×100 für konsistente Einheiten mit train_pnl (%)
-    # log1p verhindert dass extreme PnL-Werte den Score dominieren
+    # Win-Rate-Bonus: höhere WR = besserer Score (Ziel: 55%+)
+    wr_bonus = max(0.0, (test_wr - 40.0) / 10.0)  # +0.1 pro % WR über 40%
     train_score = math.log1p(max(0.0, train_pnl)) / max(train_dd * 100, 1.0)
     test_score  = math.log1p(max(0.0, test_pnl))  / max(test_dd  * 100, 1.0)
-    final_score = train_score * 0.30 + test_score * 0.70
+    final_score = train_score * 0.30 + test_score * 0.70 + wr_bonus
 
     # Out-of-Sample PnL in Config speichern (realistische Erwartung)
     trial.set_user_attr('pnl_pct', round(test_pnl, 2))
