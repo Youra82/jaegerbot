@@ -259,7 +259,8 @@ def main():
                 "trailing_stop_activation_rr": round(best_params['trailing_stop_activation_rr'], 2),
                 "trailing_stop_callback_rate_pct": round(best_params['trailing_stop_callback_rate_pct'], 2),
                 "atr_multiplier_sl": round(best_params['atr_multiplier_sl'], 2),
-                "min_sl_pct": round(best_params['min_sl_pct'], 2),
+                "min_sl_pct": round(best_params.get('min_sl_pct', 0.3), 2),
+                "max_sl_pct": round(best_params.get('max_sl_pct', 2.0), 2),
             },
             "behavior": behavior_config,
         }
