@@ -1,0 +1,31 @@
+{
+    "_meta": {
+        "pnl_pct": 208.56,
+        "pnl_pct_oos": 208.56,
+        "pnl_pct_train": 194.56,
+        "wfv": "70/30"
+    },
+    "market": {
+        "symbol": "BNB/USDT:USDT",
+        "timeframe": "6h"
+    },
+    "strategy": {
+        "prediction_threshold": 0.63,
+        "min_signal_score": 6.37
+    },
+    "risk": {
+        "margin_mode": "isolated",
+        "risk_per_trade_pct": 1.01,
+        "risk_reward_ratio": 3.34,
+        "leverage": 16,
+        "trailing_stop_activation_rr": 0.8,
+        "trailing_stop_callback_rate_pct": 0.38,
+        "atr_multiplier_sl": 2.75,
+        "min_sl_pct": 0.3,
+        "max_sl_pct": 0.84
+    },
+    "behavior": {
+        "use_longs": true,
+        "use_shorts": true
+    }
+}

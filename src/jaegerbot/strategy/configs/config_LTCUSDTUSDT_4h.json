@@ -1,0 +1,31 @@
+{
+    "_meta": {
+        "pnl_pct": 1360.1,
+        "pnl_pct_oos": 1360.1,
+        "pnl_pct_train": 30277.8,
+        "wfv": "70/30"
+    },
+    "market": {
+        "symbol": "LTC/USDT:USDT",
+        "timeframe": "4h"
+    },
+    "strategy": {
+        "prediction_threshold": 0.6,
+        "min_signal_score": 5.08
+    },
+    "risk": {
+        "margin_mode": "isolated",
+        "risk_per_trade_pct": 2.83,
+        "risk_reward_ratio": 1.64,
+        "leverage": 32,
+        "trailing_stop_activation_rr": 0.8,
+        "trailing_stop_callback_rate_pct": 0.43,
+        "atr_multiplier_sl": 3.52,
+        "min_sl_pct": 0.3,
+        "max_sl_pct": 0.8
+    },
+    "behavior": {
+        "use_longs": true,
+        "use_shorts": true
+    }
+}

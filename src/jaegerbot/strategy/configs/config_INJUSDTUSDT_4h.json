@@ -1,0 +1,31 @@
+{
+    "_meta": {
+        "pnl_pct": 77.18,
+        "pnl_pct_oos": 77.18,
+        "pnl_pct_train": 816.65,
+        "wfv": "70/30"
+    },
+    "market": {
+        "symbol": "INJ/USDT:USDT",
+        "timeframe": "4h"
+    },
+    "strategy": {
+        "prediction_threshold": 0.61,
+        "min_signal_score": 5.12
+    },
+    "risk": {
+        "margin_mode": "isolated",
+        "risk_per_trade_pct": 1.12,
+        "risk_reward_ratio": 6.82,
+        "leverage": 42,
+        "trailing_stop_activation_rr": 0.8,
+        "trailing_stop_callback_rate_pct": 0.34,
+        "atr_multiplier_sl": 3.73,
+        "min_sl_pct": 0.3,
+        "max_sl_pct": 0.8
+    },
+    "behavior": {
+        "use_longs": true,
+        "use_shorts": true
+    }
+}
