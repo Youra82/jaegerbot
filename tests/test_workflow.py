@@ -49,24 +49,23 @@ class FakeSuperTrendLocal:
 def create_fake_features(ohlcv_data):
     """
     Erstellt Fake-Features die alle Filter passieren.
-    ADX > 20, Volume hoch, ATR normal.
+    ADX > 20, Volume hoch, ATR normal, EMA20 > EMA50, body_to_atr >= 0.25, in_fib_zone = 1.
     """
     df = ohlcv_data.copy()
-    n = len(df)
-    
-    # Alle benötigten Feature-Spalten mit Werten die Filter passieren
+
+    # Basis-Features
     df['bb_width'] = 0.02
     df['bb_pband'] = 0.5
     df['obv'] = 1000000
     df['rsi'] = 50.0
     df['macd_diff'] = 0.0
     df['macd'] = 0.0
-    df['atr'] = df['close'] * 0.02  # 2% ATR
-    df['atr_normalized'] = 2.0  # Normal, nicht zu hoch
-    df['adx'] = 35.0  # Über 20 - passiert ADX-Filter!
+    df['atr'] = df['close'] * 0.02
+    df['atr_normalized'] = 2.0
+    df['adx'] = 35.0
     df['adx_pos'] = 20.0
     df['adx_neg'] = 15.0
-    df['volume_ratio'] = 1.5  # Über 0.8 - passiert Volume-Filter!
+    df['volume_ratio'] = 1.5
     df['mfi'] = 50.0
     df['cmf'] = 0.1
     df['price_to_ema20'] = 1.0
@@ -87,7 +86,30 @@ def create_fake_features(ohlcv_data):
     df['returns_lag2'] = 0.0
     df['returns_lag3'] = 0.0
     df['hist_volatility'] = 0.02
-    
+    # EMA Bias Gate: ema20 > ema50 → LONG erlaubt
+    df['ema20'] = df['close'] * 1.02
+    df['ema50'] = df['close']
+    # Candle Body Quality Gate: body_to_atr >= 0.25
+    df['body_to_atr'] = 0.5
+    df['upper_wick_ratio'] = 0.2
+    df['lower_wick_ratio'] = 0.2
+    df['candle_direction'] = 1
+    df['body_midpoint_ratio'] = 0.5
+    df['bull_streak'] = 2
+    df['bear_streak'] = 0
+    # Pivot / Structure Features
+    df['dist_to_struct_high'] = 0.02
+    df['dist_to_struct_low'] = 0.02
+    df['price_in_range_20'] = 0.5
+    df['price_in_range_50'] = 0.5
+    # Fibonacci Zone: in_fib_zone = 1 → Zone aktiv
+    df['fib_position'] = 0.5
+    df['in_fib_zone'] = 1.0
+    # Volume Direction
+    df['volume_direction'] = 1.0
+    df['buying_pressure'] = 0.6
+    df['selling_pressure'] = 0.4
+
     return df
 
 
@@ -142,7 +164,7 @@ def test_setup():
     # Test-Parameter für JaegerBot
     params = {
         'market': {'symbol': symbol, 'timeframe': '15m'},
-        'strategy': {'prediction_threshold': 0.6},
+        'strategy': {'prediction_threshold': 0.6, 'min_signal_score': 1.0},
         'behavior': {'use_longs': True, 'use_shorts': True},
         'risk': {
             'risk_per_trade_pct': 50.0,       # Erhöht für Test: 50% um Mindestgrößenprobleme zu vermeiden
