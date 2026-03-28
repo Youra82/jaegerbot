@@ -1,0 +1,30 @@
+{
+    "_meta": {
+        "pnl_pct": 25.37,
+        "pnl_pct_oos": 25.37,
+        "pnl_pct_train": 130.72,
+        "wfv": "70/30"
+    },
+    "market": {
+        "symbol": "SOL/USDT:USDT",
+        "timeframe": "1d"
+    },
+    "strategy": {
+        "prediction_threshold": 0.6,
+        "min_signal_score": 5.69
+    },
+    "risk": {
+        "margin_mode": "isolated",
+        "risk_per_trade_pct": 0.54,
+        "risk_reward_ratio": 2.57,
+        "leverage": 19,
+        "trailing_stop_activation_rr": 1.2,
+        "trailing_stop_callback_rate_pct": 0.59,
+        "atr_multiplier_sl": 2.75,
+        "min_sl_pct": 1.2
+    },
+    "behavior": {
+        "use_longs": true,
+        "use_shorts": true
+    }
+}

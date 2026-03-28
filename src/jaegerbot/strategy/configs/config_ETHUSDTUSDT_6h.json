@@ -1,14 +1,17 @@
 {
     "_meta": {
-        "pnl_pct": 0
+        "pnl_pct": 0,
+        "pnl_pct_oos": 0,
+        "pnl_pct_train": 0,
+        "wfv": "70/30"
     },
     "market": {
         "symbol": "ETH/USDT:USDT",
         "timeframe": "6h"
     },
     "strategy": {
-        "prediction_threshold": 0.6,
-        "min_signal_score": 5.5
+        "prediction_threshold": 0.61,
+        "min_signal_score": 6.5
     },
     "risk": {
         "margin_mode": "isolated",
