@@ -16,26 +16,20 @@
         "active": true
       },
       {
-        "symbol": "LTC/USDT:USDT",
-        "timeframe": "6h",
-        "use_macd_filter": false,
-        "active": true
-      },
-      {
         "symbol": "SOL/USDT:USDT",
-        "timeframe": "4h",
+        "timeframe": "1d",
         "use_macd_filter": false,
         "active": true
       },
       {
-        "symbol": "TON/USDT:USDT",
+        "symbol": "LTC/USDT:USDT",
         "timeframe": "4h",
         "use_macd_filter": false,
         "active": true
       },
       {
         "symbol": "BTC/USDT:USDT",
-        "timeframe": "4h",
+        "timeframe": "1d",
         "use_macd_filter": false,
         "active": true
       }
