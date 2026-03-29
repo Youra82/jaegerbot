@@ -63,15 +63,17 @@ def _generate_trades_excel(final_sim, capital):
         exit_p   = round(float(t.get('exit',  0)), 6)
         ergebnis = 'TP erreicht' if pnl > 0 else 'SL erreicht'
         rows.append({
-            'Nr':         i + 1,
-            'Datum':      str(t.get('entry_time', t.get('ts', '')))[:16].replace('T', ' '),
-            'Strategie':  strat,
-            'Richtung':   dir_,
-            'Entry':      entry,
-            'Exit':       exit_p,
-            'Ergebnis':   ergebnis,
-            'PnL (USDT)': round(pnl,    4),
-            'Kapital':    round(equity, 4),
+            'Nr':           i + 1,
+            'Datum':        str(t.get('entry_time', t.get('ts', '')))[:16].replace('T', ' '),
+            'Strategie':    strat,
+            'Richtung':     dir_,
+            'Hebel':        t.get('leverage', '—'),
+            'Einsatz (USDT)': round(float(t.get('margin_used', 0)), 2),
+            'Entry':        entry,
+            'Exit':         exit_p,
+            'Ergebnis':     ergebnis,
+            'PnL (USDT)':   round(pnl,    4),
+            'Kapital':      round(equity, 4),
         })
 
     wb = openpyxl.Workbook()
@@ -88,6 +90,7 @@ def _generate_trades_excel(final_sim, capital):
     )
     col_widths = {
         'Nr': 5, 'Datum': 18, 'Strategie': 22, 'Richtung': 10,
+        'Hebel': 8, 'Einsatz (USDT)': 16,
         'Entry': 14, 'Exit': 14, 'Ergebnis': 14, 'PnL (USDT)': 14, 'Kapital': 16,
     }
 
@@ -115,6 +118,8 @@ def _generate_trades_excel(final_sim, capital):
             cell.alignment = Alignment(horizontal='center', vertical='center')
             if key in ('Entry', 'Exit', 'PnL (USDT)', 'Kapital'):
                 cell.number_format = '#,##0.0000'
+            elif key == 'Einsatz (USDT)':
+                cell.number_format = '#,##0.00'
         ws.row_dimensions[r_idx].height = 18
 
     total     = len(rows)
