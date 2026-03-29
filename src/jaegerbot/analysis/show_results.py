@@ -215,6 +215,38 @@ def _generate_portfolio_chart(final_sim, portfolio_files, capital, start_date, e
         annotation_position='top left',
     )
 
+    # Individuelle Equity-Linien pro Strategie (gedimmt im Hintergrund)
+    STRAT_COLORS = [
+        '#f59e0b', '#10b981', '#8b5cf6', '#f97316',
+        '#ec4899', '#14b8a6', '#a3e635', '#fb923c',
+        '#e879f9', '#38bdf8',
+    ]
+    # Gruppiere Trades nach Strategie (symbol + timeframe)
+    strat_trades = {}
+    for t in trade_history:
+        key = f"{t.get('symbol', '').split('/')[0]}/{t.get('timeframe', '')}"
+        strat_trades.setdefault(key, []).append(t)
+
+    for idx, (strat_key, trades) in enumerate(sorted(strat_trades.items())):
+        trades_sorted = sorted(trades, key=lambda x: x.get('ts', ''))
+        eq = capital
+        xs = [str(trades_sorted[0].get('ts', ''))[:16]]
+        ys = [capital]
+        for t in trades_sorted:
+            eq += float(t['pnl'])
+            xs.append(str(t.get('ts', ''))[:16])
+            ys.append(round(eq, 4))
+        color = STRAT_COLORS[idx % len(STRAT_COLORS)]
+        fig.add_trace(go.Scatter(
+            x=xs, y=ys,
+            mode='lines',
+            name=strat_key,
+            line=dict(color=color, width=1.2, dash='dot'),
+            opacity=0.6,
+            hovertemplate=f"{strat_key}: %{{y:.2f}} USDT<extra></extra>",
+        ))
+
+    # Portfolio-Gesamtlinie (Vordergrund, blau, fett)
     fig.add_trace(go.Scatter(
         x=eq_times, y=eq_vals,
         mode='lines', name='Portfolio Equity',
