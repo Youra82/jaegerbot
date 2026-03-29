@@ -523,6 +523,14 @@ Führt alle Pytest-Tests aus (Live-Workflow, Trailing-Stop, Order-Placement). Gi
 ./show_status.sh
 ```
 
+### Hebel & Risikoparameter anzeigen
+
+```bash
+python3 show_leverage.py
+```
+
+Zeigt für alle aktiven Strategien: Hebel, Risiko/Trade, Risk-Reward-Ratio, Max-SL, OOS-PnL und Margin-Mode. Liest automatisch aus `settings.json` (manueller Modus) oder `optimization_results.json` (Autopilot-Modus).
+
 ### Portfolio analysieren & Strategien wählen
 
 ```bash
