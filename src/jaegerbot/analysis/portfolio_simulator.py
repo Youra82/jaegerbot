@@ -313,8 +313,9 @@ def run_portfolio_simulation(start_capital, strategies_data, start_date, end_dat
                 continue
 
             # Risiko- und Positionsberechnung
+            # params ist ein flaches Dict ({**strategy, **risk}) — kein 'risk'-Unterkey
             params = signal['params']
-            risk_params = params.get('risk', {})
+            risk_params = params
 
             risk_per_trade_pct = signal.get('risk_per_trade_pct', 1.0)
             risk_reward_ratio = signal.get('risk_reward_ratio', 2.0) # Nutze den Wert, den wir im Signal gespeichert haben
