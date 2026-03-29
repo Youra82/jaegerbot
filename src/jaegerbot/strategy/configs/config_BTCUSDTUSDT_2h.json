@@ -1,0 +1,31 @@
+{
+    "_meta": {
+        "pnl_pct": 47.53,
+        "pnl_pct_oos": 47.53,
+        "pnl_pct_train": 16.82,
+        "wfv": "70/30"
+    },
+    "market": {
+        "symbol": "BTC/USDT:USDT",
+        "timeframe": "2h"
+    },
+    "strategy": {
+        "prediction_threshold": 0.61,
+        "min_signal_score": 5.01
+    },
+    "risk": {
+        "margin_mode": "isolated",
+        "risk_per_trade_pct": 4.68,
+        "risk_reward_ratio": 7.08,
+        "leverage": 39,
+        "trailing_stop_activation_rr": 0.8,
+        "trailing_stop_callback_rate_pct": 0.36,
+        "atr_multiplier_sl": 2.32,
+        "min_sl_pct": 0.3,
+        "max_sl_pct": 1.17
+    },
+    "behavior": {
+        "use_longs": true,
+        "use_shorts": true
+    }
+}

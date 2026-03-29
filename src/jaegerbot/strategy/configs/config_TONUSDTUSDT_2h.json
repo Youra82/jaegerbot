@@ -1,0 +1,31 @@
+{
+    "_meta": {
+        "pnl_pct": 14.94,
+        "pnl_pct_oos": 14.94,
+        "pnl_pct_train": 556.0,
+        "wfv": "70/30"
+    },
+    "market": {
+        "symbol": "TON/USDT:USDT",
+        "timeframe": "2h"
+    },
+    "strategy": {
+        "prediction_threshold": 0.6,
+        "min_signal_score": 6.07
+    },
+    "risk": {
+        "margin_mode": "isolated",
+        "risk_per_trade_pct": 2.09,
+        "risk_reward_ratio": 2.91,
+        "leverage": 43,
+        "trailing_stop_activation_rr": 0.99,
+        "trailing_stop_callback_rate_pct": 0.36,
+        "atr_multiplier_sl": 1.72,
+        "min_sl_pct": 0.3,
+        "max_sl_pct": 0.85
+    },
+    "behavior": {
+        "use_longs": true,
+        "use_shorts": true
+    }
+}
