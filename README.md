@@ -553,11 +553,17 @@ Modus 3 generiert automatisch:
 ### Logs
 
 ```bash
-# Live-Trading-Log
+# Live-Trading-Log (live)
 tail -f logs/cron.log
 
-# Optimizer-Log
+# Live-Trading-Log (letzte 500 Zeilen)
+tail -n 500 logs/cron.log
+
+# Optimizer-Log (live)
 tail -f logs/auto_optimizer_trigger.log
+
+# Optimizer-Log (letzte 500 Zeilen)
+tail -n 500 logs/auto_optimizer_trigger.log
 ```
 
 ---
