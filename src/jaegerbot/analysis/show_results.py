@@ -62,18 +62,28 @@ def _generate_trades_excel(final_sim, capital):
         entry    = round(float(t.get('entry', 0)), 6)
         exit_p   = round(float(t.get('exit',  0)), 6)
         ergebnis = 'TP erreicht' if pnl > 0 else 'SL erreicht'
+        min_sl   = t.get('min_sl_pct', 0)
+        max_sl   = t.get('max_sl_pct', 0)
+        act_rr   = t.get('tsl_activation_rr', 0)
+        callback = t.get('tsl_callback_pct', 0)
+        sl_str   = f"{min_sl:.2f}%-{max_sl:.2f}%" if (min_sl or max_sl) else '—'
+        act_str  = f"@{act_rr:.2f}x" if act_rr else '—'
+        cb_str   = f"{callback:.3f}%" if callback else '—'
         rows.append({
-            'Nr':           i + 1,
-            'Datum':        str(t.get('entry_time', t.get('ts', '')))[:16].replace('T', ' '),
-            'Strategie':    strat,
-            'Richtung':     dir_,
-            'Hebel':        t.get('leverage', '—'),
-            'Einsatz (USDT)': round(float(t.get('margin_used', 0)), 2),
-            'Entry':        entry,
-            'Exit':         exit_p,
-            'Ergebnis':     ergebnis,
-            'PnL (USDT)':   round(pnl,    4),
-            'Kapital':      round(equity, 4),
+            'Nr':              i + 1,
+            'Datum':           str(t.get('entry_time', t.get('ts', '')))[:16].replace('T', ' '),
+            'Strategie':       strat,
+            'Richtung':        dir_,
+            'Hebel':           t.get('leverage', '—'),
+            'Einsatz (USDT)':  round(float(t.get('margin_used', 0)), 2),
+            'SL-Bereich':      sl_str,
+            'TSL Akt.':        act_str,
+            'TSL Callback':    cb_str,
+            'Entry':           entry,
+            'Exit':            exit_p,
+            'Ergebnis':        ergebnis,
+            'PnL (USDT)':      round(pnl,    4),
+            'Kapital':         round(equity, 4),
         })
 
     wb = openpyxl.Workbook()
@@ -91,6 +101,7 @@ def _generate_trades_excel(final_sim, capital):
     col_widths = {
         'Nr': 5, 'Datum': 18, 'Strategie': 22, 'Richtung': 10,
         'Hebel': 8, 'Einsatz (USDT)': 16,
+        'SL-Bereich': 16, 'TSL Akt.': 10, 'TSL Callback': 13,
         'Entry': 14, 'Exit': 14, 'Ergebnis': 14, 'PnL (USDT)': 14, 'Kapital': 16,
     }
 

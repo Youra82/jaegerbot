@@ -281,6 +281,10 @@ def run_portfolio_simulation(start_capital, strategies_data, start_date, end_dat
                     'pnl': net_pnl,
                     'leverage': pos.get('leverage', 0),
                     'margin_used': round(pos.get('margin_used', 0), 4),
+                    'min_sl_pct': pos.get('min_sl_pct', 0.0),
+                    'max_sl_pct': pos.get('max_sl_pct', 0.0),
+                    'tsl_activation_rr': pos.get('activation_rr', 0.0),
+                    'tsl_callback_pct': round(pos.get('callback_rate', 0.0) * 100, 3),
                 })
                 
                 positions_to_close.append(key)
@@ -378,8 +382,12 @@ def run_portfolio_simulation(start_capital, strategies_data, start_date, end_dat
                 'stop_loss': stop_loss, 'take_profit': take_profit,
                 'notional_value': final_notional_value, 'margin_used': margin_used,
                 'leverage': leverage,
+                'min_sl_pct': risk_params.get('min_sl_pct', 0.0),
+                'max_sl_pct': risk_params.get('max_sl_pct', 0.0),
+                'activation_rr': activation_rr,
+                'callback_rate': callback_rate,
                 'trailing_active': False, 'activation_price': activation_price,
-                'peak_price': entry_price, 'callback_rate': callback_rate,
+                'peak_price': entry_price,
                 'last_known_price': entry_price,
                 'symbol_key': symbol_key,
                 'config_key': config_key,
