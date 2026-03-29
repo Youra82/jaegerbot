@@ -1,14 +1,8 @@
 {
   "live_trading_settings": {
     "use_auto_optimizer_results": false,
-    "top_n_strategies_to_trade": 5,
+    "top_n_strategies_to_trade": 7,
     "active_strategies": [
-      {
-        "symbol": "ARB/USDT:USDT",
-        "timeframe": "6h",
-        "use_macd_filter": false,
-        "active": true
-      },
       {
         "symbol": "INJ/USDT:USDT",
         "timeframe": "4h",
@@ -16,20 +10,38 @@
         "active": true
       },
       {
-        "symbol": "SOL/USDT:USDT",
-        "timeframe": "1d",
+        "symbol": "ARB/USDT:USDT",
+        "timeframe": "6h",
         "use_macd_filter": false,
         "active": true
       },
       {
         "symbol": "LTC/USDT:USDT",
-        "timeframe": "4h",
+        "timeframe": "2h",
+        "use_macd_filter": false,
+        "active": true
+      },
+      {
+        "symbol": "SOL/USDT:USDT",
+        "timeframe": "6h",
         "use_macd_filter": false,
         "active": true
       },
       {
         "symbol": "BTC/USDT:USDT",
         "timeframe": "1d",
+        "use_macd_filter": false,
+        "active": true
+      },
+      {
+        "symbol": "TON/USDT:USDT",
+        "timeframe": "4h",
+        "use_macd_filter": false,
+        "active": true
+      },
+      {
+        "symbol": "SOL/USDT:USDT",
+        "timeframe": "4h",
         "use_macd_filter": false,
         "active": true
       }
@@ -41,7 +53,7 @@
     "symbols_to_optimize": "auto",
     "timeframes_to_optimize": "auto",
     "lookback_days": "auto",
-    "start_capital": 50,
+    "start_capital": 15,
     "num_trials": 500,
     "cpu_cores": -1,
     "mode": "strict",
