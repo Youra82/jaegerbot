@@ -279,6 +279,8 @@ def run_portfolio_simulation(start_capital, strategies_data, start_date, end_dat
                     'entry': pos['entry_price'],
                     'exit': exit_price,
                     'pnl': net_pnl,
+                    'leverage': pos.get('leverage', 0),
+                    'margin_used': round(pos.get('margin_used', 0), 4),
                 })
                 
                 positions_to_close.append(key)
@@ -374,6 +376,7 @@ def run_portfolio_simulation(start_capital, strategies_data, start_date, end_dat
                 'side': signal['side'], 'entry_price': entry_price,
                 'stop_loss': stop_loss, 'take_profit': take_profit,
                 'notional_value': final_notional_value, 'margin_used': margin_used,
+                'leverage': leverage,
                 'trailing_active': False, 'activation_price': activation_price,
                 'peak_price': entry_price, 'callback_rate': callback_rate,
                 'last_known_price': entry_price,
