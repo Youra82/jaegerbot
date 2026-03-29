@@ -344,14 +344,21 @@ def test_full_jaegerbot_workflow_on_bitget(test_setup):
                     account_name = exchange.account.get('name', 'Account')
                     final_amount = float(pos_info.get('contracts'))
                     leverage = params['risk'].get('leverage', 20)
-                    tsl_msg = "TSL aktiv (Aktivierung @ ${:.4f})".format(activation_price) if 'activation_price' in locals() else "KEIN TSL aktiv (nur fixer SL)"
+                    tf = params['market'].get('timeframe', '?')
+                    base_risk_pct = params['risk'].get('risk_per_trade_pct', 50.0)
+                    sl_pct = (sl_price - current_price) / current_price * 100
+                    tsl_line = f"🎯 TSL Aktivierung: ${activation_price:.4f}\n" if 'activation_price' in locals() else "⚠️ Kein TSL aktiv (nur fixer SL)\n"
                     message = (
-                        f"🧠 ANN Signal für *{account_name}* ({symbol}, BUY)\n"
-                        f"- Entry @ Market (≈${current_price:.4f})\n"
-                        f"- Positionswert: ${position_value:.2f} | Menge: {final_amount:.4f} Contracts\n"
-                        f"- SL: ${sl_price:.4f} (DYNAMISCHE SICHERHEIT)\n"
-                        f"- TP: , {tsl_msg}\n"
-                        f"- Hebel: {leverage}x | Margin Mode: {params['risk'].get('margin_mode', 'isolated')}"
+                        f"🧠 JAEGER SIGNAL: {symbol} ({tf})\n"
+                        f"*{account_name}*\n"
+                        f"{'—' * 32}\n"
+                        f"📈 Richtung: BUY\n"
+                        f"💰 Entry: ${current_price:.4f}\n"
+                        f"🛑 SL: ${sl_price:.4f} ({sl_pct:+.2f}%)\n"
+                        f"{tsl_line}"
+                        f"⚙️ Hebel: {leverage}x | Margin: {params['risk'].get('margin_mode', 'isolated')}\n"
+                        f"🛡️ Risiko: {base_risk_pct:.1f}% ({bal * base_risk_pct / 100:.2f} USDT)\n"
+                        f"📦 Menge: {final_amount:.4f} Contracts (${position_value:.2f})"
                     )
                     sent = send_message(telegram_config.get('bot_token'), telegram_config.get('chat_id'), message)
                     if sent:

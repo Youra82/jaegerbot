@@ -357,14 +357,21 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
 
             tsl_status = f"TSL aktiv (Aktivierung @ ${activation_price_rounded:.4f})" if tsl_placed else "KEIN TSL aktiv (nur fixer SL)"
 
-            # Erweiterte Telegram-Nachricht (ähnlich der gewünschten Vorlage)
+            sl_pct = (sl_rounded - entry_price) / entry_price * 100
+            direction_arrow = "📈" if side == 'buy' else "📉"
+            tsl_line = f"🎯 TSL Aktivierung: ${activation_price_rounded:.4f} (RR: {activation_rr:.2f}x)\n" if tsl_placed else "⚠️ Kein TSL aktiv (nur fixer SL)\n"
+
             message = (
-                f"🧠 ANN Signal für *{account_name}* ({symbol}, {side.upper()})\n"
-                f"- Entry @ Market (≈${entry_price:.4f})\n"
-                f"- Positionswert: ${notional_value:.2f} | Menge: {final_amount:.4f} Contracts\n"
-                f"- SL: ${sl_rounded:.4f} (DYNAMISCHE SICHERHEIT)\n"
-                f"- TP: , {tsl_status}\n"
-                f"- Hebel: {leverage}x | Margin Mode: {p.get('margin_mode', 'isolated')}"
+                f"🧠 JAEGER SIGNAL: {symbol} ({timeframe})\n"
+                f"*{account_name}*\n"
+                f"{'—' * 32}\n"
+                f"{direction_arrow} Richtung: {side.upper()}\n"
+                f"💰 Entry: ${entry_price:.4f}\n"
+                f"🛑 SL: ${sl_rounded:.4f} ({sl_pct:+.2f}%)\n"
+                f"{tsl_line}"
+                f"⚙️ Hebel: {leverage}x | Margin: {p.get('margin_mode', 'isolated')}\n"
+                f"🛡️ Risiko: {base_risk_pct:.1f}% ({risk_amount_usd:.2f} USDT)\n"
+                f"📦 Menge: {final_amount:.4f} Contracts (${notional_value:.2f})"
             )
             sent = send_message(telegram_config.get('bot_token'), telegram_config.get('chat_id'), message)
             if sent:
