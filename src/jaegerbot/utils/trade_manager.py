@@ -274,6 +274,27 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
         sl_distance_atr = current_atr * atr_multiplier_sl
         sl_distance_min = entry_price * min_sl_pct
         sl_distance = max(sl_distance_atr, sl_distance_min)
+
+        # --- Liquidation Guard: SL muss vor Liquidation feuern ---
+        _mmr = p.get('maintenance_margin_rate', 0.004)
+        _liq_dist = entry_price * ((1.0 / leverage) - _mmr)
+        if sl_distance >= _liq_dist * 0.90:
+            logger.warning(
+                f"SL-Distanz {sl_distance/entry_price*100:.3f}% >= 90% der Liquidationsgrenze "
+                f"{(1.0/leverage - _mmr)*100:.3f}% bei {leverage}x. Reduziere Leverage..."
+            )
+            _adj_lev = leverage
+            while _adj_lev > 1:
+                _adj_lev -= 1
+                if sl_distance < entry_price * ((1.0 / _adj_lev) - _mmr) * 0.90:
+                    break
+            leverage = _adj_lev
+            _liq_dist = entry_price * ((1.0 / leverage) - _mmr)
+            logger.info(f"Leverage angepasst auf {leverage}x (Liquidationsgrenze: {_liq_dist/entry_price*100:.3f}%)")
+            # Hard-Cap als Sicherheitsnetz
+            if sl_distance >= _liq_dist * 0.90:
+                sl_distance = _liq_dist * 0.90
+                logger.warning(f"SL hard-gecappt auf {sl_distance/entry_price*100:.3f}%")
         # --- ENDE DYNAMISCHE SL-DISTANZ-BERECHNUNG ---
 
         if sl_distance == 0: logger.error("SL-Distanz Null."); return
@@ -360,6 +381,7 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
             sl_pct = (sl_rounded - entry_price) / entry_price * 100
             direction_arrow = "📈" if side == 'buy' else "📉"
             tsl_line = f"🎯 TSL Aktivierung: ${activation_price_rounded:.4f} (RR: {activation_rr:.2f}x)\n" if tsl_placed else "⚠️ Kein TSL aktiv (nur fixer SL)\n"
+            _liq_p = entry_price * (1.0 - (1.0 / leverage) + _mmr) if side == 'buy' else entry_price * (1.0 + (1.0 / leverage) - _mmr)
 
             message = (
                 f"🧠 JAEGER SIGNAL: {symbol} ({timeframe})\n"
@@ -368,6 +390,7 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
                 f"{direction_arrow} Richtung: {side.upper()}\n"
                 f"💰 Entry: ${entry_price:.4f}\n"
                 f"🛑 SL: ${sl_rounded:.4f} ({sl_pct:+.2f}%)\n"
+                f"💥 Liq: ${_liq_p:.4f} ({(1.0/leverage - _mmr)*100:.2f}%)\n"
                 f"{tsl_line}"
                 f"⚙️ Hebel: {leverage}x | Margin: {p.get('margin_mode', 'isolated')}\n"
                 f"🛡️ Risiko: {base_risk_pct:.1f}% ({risk_amount_usd:.2f} USDT)\n"

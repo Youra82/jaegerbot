@@ -20,6 +20,8 @@ def main():
     parser.add_argument('--timeframes', required=True, type=str)
     parser.add_argument('--start_date', required=True, type=str)
     parser.add_argument('--end_date', required=True, type=str)
+    parser.add_argument('--training_leverage', type=int, default=20,
+                        help='Reference leverage for liquidation-aware labeling (default: 20)')
     args = parser.parse_args()
 
     symbols, timeframes = args.symbols.split(), args.timeframes.split()
@@ -38,7 +40,7 @@ def main():
         data = load_data(symbol, timeframe, args.start_date, args.end_date)
         if data.empty: continue
 
-        X, y = ann_model.prepare_data_for_ann(data, timeframe)
+        X, y = ann_model.prepare_data_for_ann(data, timeframe, training_leverage=args.training_leverage)
         
         if X.empty:
             print("Fehler: Keine klaren Handelssignale im Datensatz gefunden.")

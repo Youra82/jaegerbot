@@ -131,7 +131,9 @@ def create_ann_features(df):
 
     return df
 
-def prepare_data_for_ann(df, timeframe: str, verbose: bool = True):
+def prepare_data_for_ann(df, timeframe: str, verbose: bool = True,
+                         training_leverage: int = 20,
+                         maintenance_margin_rate: float = 0.004):
     """
     Definiert ein "gutes Signal" basierend auf einem dynamischen Threshold,
     der sich an der Volatilität (ATR) des jeweiligen Datensatzes orientiert.
@@ -187,10 +189,19 @@ def prepare_data_for_ann(df, timeframe: str, verbose: bool = True):
     _n       = len(df_signals)
     _targets = np.zeros(_n, dtype=int)
 
+    # Liquidation distance fraction at training_leverage (e.g. 20x → 4.6%)
+    _liq_frac = (1.0 / training_leverage) - maintenance_margin_rate
+
     for _i in range(_n - _max_fwd):
-        _tp_p = _closes[_i] + _tp_arr[_i]
-        _sl_p = _closes[_i] - _sl_arr[_i]
+        _tp_p        = _closes[_i] + _tp_arr[_i]
+        _sl_p        = _closes[_i] - _sl_arr[_i]
+        _liq_p_long  = _closes[_i] * (1.0 - _liq_frac)  # liquidation for long
+        _liq_p_short = _closes[_i] * (1.0 + _liq_frac)  # liquidation for short
         for _j in range(_i + 1, _i + 1 + _max_fwd):
+            # Liquidation check (takes priority — closer than SL at high leverage)
+            if _lows[_j] <= _liq_p_long or _highs[_j] >= _liq_p_short:
+                _targets[_i] = -1
+                break
             if _lows[_j] <= _sl_p:
                 _targets[_i] = -1
                 break
