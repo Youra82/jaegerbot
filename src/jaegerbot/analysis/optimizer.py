@@ -76,7 +76,20 @@ def objective(trial, symbol):
         'ann_weight':          3.5,
         'volume_weight':       1.5,
         'structure_weight':    1.0,
+        'maintenance_margin_rate': 0.004,
     }
+
+    # ── Liquidation Guard: SL muss vor Liquidation feuern ───────────────────
+    _mmr = 0.004
+    _max_safe_sl_pct = (1.0 / params['leverage']) - _mmr  # z.B. 2.54% bei 34x
+    if params['max_sl_pct'] / 100.0 > _max_safe_sl_pct:
+        # Leverage reduzieren bis SL passt
+        _safe_lev = max(1, int(1.0 / (params['max_sl_pct'] / 100.0 + _mmr)))
+        params['leverage'] = _safe_lev
+        _max_safe_sl_pct = (1.0 / params['leverage']) - _mmr
+    # SL zusätzlich auf 90% der Liquidationsgrenze cappen (10% Puffer)
+    params['max_sl_pct'] = min(params['max_sl_pct'], _max_safe_sl_pct * 100.0 * 0.90)
+    # ── Ende Liquidation Guard ───────────────────────────────────────────────
 
     # ── Schritt 1: Training-Backtest (70%) ───────────────────────────────────
     r_train = run_ann_backtest(TRAIN_DATA.copy(), params, CURRENT_MODEL_PATHS, START_CAPITAL, timeframe=CURRENT_TIMEFRAME)

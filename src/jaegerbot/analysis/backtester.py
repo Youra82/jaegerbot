@@ -162,41 +162,50 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
         if position:
             exit_price, reason = None, None
 
-            # *** TSL-Logik (unverändert) ***
-            if position['side'] == 'long':
-                if not position['trailing_active'] and current['high'] >= position['activation_price']:
-                    position['trailing_active'] = True
-                if position['trailing_active']:
-                    position['peak_price'] = max(position['peak_price'], current['high'])
-                    trailing_sl = position['peak_price'] * (1 - callback_rate)
-                    position['stop_loss'] = max(position['stop_loss'], trailing_sl)
-                if current['low'] <= position['stop_loss']: exit_price = position['stop_loss']
-                elif not position['trailing_active'] and current['high'] >= position['take_profit']: exit_price = position['take_profit']
+            # *** Liquidation check (vor SL/TSL — tritt bei höherem Leverage früher ein) ***
+            if position['side'] == 'long' and current['low'] <= position['liq_price']:
+                exit_price = position['liq_price']
+                reason = 'liquidation'
+            elif position['side'] == 'short' and current['high'] >= position['liq_price']:
+                exit_price = position['liq_price']
+                reason = 'liquidation'
 
-            elif position['side'] == 'short':
-                if not position['trailing_active'] and current['low'] <= position['activation_price']:
-                    position['trailing_active'] = True
-                if position['trailing_active']:
-                    position['peak_price'] = min(position['peak_price'], current['low'])
-                    trailing_sl = position['peak_price'] * (1 + callback_rate)
-                    position['stop_loss'] = min(position['stop_loss'], trailing_sl)
-                if current['high'] >= position['stop_loss']: exit_price = position['stop_loss']
-                elif not position['trailing_active'] and current['low'] <= position['take_profit']: exit_price = position['take_profit']
+            # *** TSL-Logik (nur wenn keine Liquidation) ***
+            if not reason:
+                if position['side'] == 'long':
+                    if not position['trailing_active'] and current['high'] >= position['activation_price']:
+                        position['trailing_active'] = True
+                    if position['trailing_active']:
+                        position['peak_price'] = max(position['peak_price'], current['high'])
+                        trailing_sl = position['peak_price'] * (1 - callback_rate)
+                        position['stop_loss'] = max(position['stop_loss'], trailing_sl)
+                    if current['low'] <= position['stop_loss']: exit_price = position['stop_loss']
+                    elif not position['trailing_active'] and current['high'] >= position['take_profit']: exit_price = position['take_profit']
+
+                elif position['side'] == 'short':
+                    if not position['trailing_active'] and current['low'] <= position['activation_price']:
+                        position['trailing_active'] = True
+                    if position['trailing_active']:
+                        position['peak_price'] = min(position['peak_price'], current['low'])
+                        trailing_sl = position['peak_price'] * (1 + callback_rate)
+                        position['stop_loss'] = min(position['stop_loss'], trailing_sl)
+                    if current['high'] >= position['stop_loss']: exit_price = position['stop_loss']
+                    elif not position['trailing_active'] and current['low'] <= position['take_profit']: exit_price = position['take_profit']
             # *** Ende TSL-Logik ***
 
             if exit_price:
-                pnl_pct = (exit_price / position['entry_price'] - 1) if position['side'] == 'long' else (1 - exit_price / position['entry_price'])
-                notional_value = position['margin_used'] * leverage
-                pnl_usd = notional_value * pnl_pct
-                total_fees = notional_value * fee_pct * 2
-                
-                # Begrenze Verlust auf den riskierten Betrag (Fix gegen Overflow)
-                risk_amount_usd = start_capital * risk_per_trade_pct
-                
-                net_pnl = pnl_usd - total_fees
-                
-                if net_pnl < -risk_amount_usd:
-                    net_pnl = -risk_amount_usd
+                if reason == 'liquidation':
+                    # Gesamte Margin verloren + Fees
+                    net_pnl = -(position['margin_used']) - (position['notional_value'] * fee_pct * 2)
+                else:
+                    pnl_pct = (exit_price / position['entry_price'] - 1) if position['side'] == 'long' else (1 - exit_price / position['entry_price'])
+                    notional_value = position['margin_used'] * leverage
+                    pnl_usd = notional_value * pnl_pct
+                    total_fees = notional_value * fee_pct * 2
+                    risk_amount_usd = start_capital * risk_per_trade_pct
+                    net_pnl = pnl_usd - total_fees
+                    if net_pnl < -risk_amount_usd:
+                        net_pnl = -risk_amount_usd
                     
                 current_capital += net_pnl
                 
@@ -306,12 +315,20 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
                     take_profit = entry_price + sl_distance * risk_reward_ratio if side == 'long' else entry_price - sl_distance * risk_reward_ratio
                     activation_price = entry_price + sl_distance * activation_rr if side == 'long' else entry_price - sl_distance * activation_rr
 
+                    # Liquidation price (isolated margin)
+                    _mmr = params.get('maintenance_margin_rate', 0.004)
+                    if side == 'long':
+                        liq_price = entry_price * (1.0 - (1.0 / leverage) + _mmr)
+                    else:
+                        liq_price = entry_price * (1.0 + (1.0 / leverage) - _mmr)
+
                     position = {
                         'side': side,
                         'entry_price': entry_price,
                         'entry_time': entry_time,
                         'stop_loss': stop_loss,
                         'take_profit': take_profit,
+                        'liq_price': liq_price,
                         'margin_used': margin_used,
                         'notional_value': notional_value,
                         'trailing_active': False,
