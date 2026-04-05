@@ -221,7 +221,7 @@ def main():
         # Predictions EINMAL vorberechnen — spart 1000× model.predict() über alle Trials
         print("Berechne ANN-Predictions einmalig vor der Optimierung...")
         from jaegerbot.utils.ann_model import load_model_and_scaler, create_ann_features
-        from jaegerbot.utils.supertrend_indicator import SuperTrendLocal
+        from jaegerbot.analysis.backtester import calculate_supertrend_direction
         import pandas as pd
         _model, _scaler = load_model_and_scaler(CURRENT_MODEL_PATHS['model'], CURRENT_MODEL_PATHS['scaler'])
         if not _model or not _scaler:
@@ -249,11 +249,7 @@ def main():
             d = create_ann_features(df.copy())
             d.dropna(inplace=True)
             if d.empty: return d
-            st = SuperTrendLocal()
-            d['supertrend_direction'] = pd.Series(
-                [st.update(row['high'], row['low'], row['close'], row['atr_normalized']) for _, row in d.iterrows()],
-                index=d.index
-            )
+            d['supertrend_direction'] = calculate_supertrend_direction(d)
             d['avg_atr_normalized'] = d['atr_normalized'].rolling(50).mean()
             d.dropna(inplace=True)
             if d.empty: return d
