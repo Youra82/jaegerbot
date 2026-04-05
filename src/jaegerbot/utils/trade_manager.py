@@ -275,6 +275,10 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
         sl_distance_min = entry_price * min_sl_pct
         sl_distance = max(sl_distance_atr, sl_distance_min)
 
+        # max_sl_pct Cap (wie im Backtester)
+        max_sl_pct_val = p.get('max_sl_pct', 4.0) / 100.0
+        sl_distance = min(sl_distance, entry_price * max_sl_pct_val)
+
         # --- Liquidation Guard: SL muss vor Liquidation feuern ---
         _mmr = p.get('maintenance_margin_rate', 0.004)
         _liq_dist = entry_price * ((1.0 / leverage) - _mmr)
