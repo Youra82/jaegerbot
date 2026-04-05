@@ -41,6 +41,8 @@ def _timeframe_hours(tf: str) -> float:
 HISTORICAL_DATA = None
 TRAIN_DATA = None   # 70% — Optimierung
 TEST_DATA  = None   # 30% — Out-of-Sample Validierung
+TRAIN_DATA_WITH_PREDICTIONS = None  # Vorberechnete Predictions (Train)
+TEST_DATA_WITH_PREDICTIONS  = None  # Vorberechnete Predictions (Test)
 CURRENT_MODEL_PATHS = {}
 CURRENT_TIMEFRAME = None
 FIXED_THRESHOLD = None
@@ -92,20 +94,18 @@ def objective(trial, symbol):
     # ── Ende Liquidation Guard ───────────────────────────────────────────────
 
     # ── Schritt 1: Training-Backtest (70%) ───────────────────────────────────
-    r_train = run_ann_backtest(TRAIN_DATA.copy(), params, CURRENT_MODEL_PATHS, START_CAPITAL, timeframe=CURRENT_TIMEFRAME)
+    r_train = run_ann_backtest(TRAIN_DATA_WITH_PREDICTIONS.copy(), params, CURRENT_MODEL_PATHS, START_CAPITAL, timeframe=CURRENT_TIMEFRAME, precomputed=True)
     train_pnl  = r_train.get('total_pnl_pct', -1000)
     train_dd   = r_train.get('max_drawdown_pct', 1.0)
     train_trades = r_train.get('trades_count', 0)
 
-    # Mindestzahl Trades — proportional zur Datenlänge (1 Trade pro 200 Kerzen als Minimum)
-    # Feste Zahl "50" war zu restriktiv nach EMA-Bias + Body-Filter
     _train_len = len(TRAIN_DATA) if TRAIN_DATA is not None else 0
     min_train_trades = max(5, _train_len // 200)
     if train_trades < min_train_trades or train_dd > MAX_DRAWDOWN_CONSTRAINT:
         raise optuna.exceptions.TrialPruned()
 
     # ── Schritt 2: Out-of-Sample Test (30%) ──────────────────────────────────
-    r_test = run_ann_backtest(TEST_DATA.copy(), params, CURRENT_MODEL_PATHS, START_CAPITAL, timeframe=CURRENT_TIMEFRAME)
+    r_test = run_ann_backtest(TEST_DATA_WITH_PREDICTIONS.copy(), params, CURRENT_MODEL_PATHS, START_CAPITAL, timeframe=CURRENT_TIMEFRAME, precomputed=True)
     test_pnl    = r_test.get('total_pnl_pct', -1000)
     test_dd     = r_test.get('max_drawdown_pct', 1.0)
     test_trades = r_test.get('trades_count', 0)
@@ -150,7 +150,7 @@ def create_safe_filename(symbol, timeframe):
 
 
 def main():
-    global HISTORICAL_DATA, TRAIN_DATA, TEST_DATA, CURRENT_MODEL_PATHS, CURRENT_TIMEFRAME, FIXED_THRESHOLD, MAX_DRAWDOWN_CONSTRAINT, MIN_WIN_RATE_CONSTRAINT, MIN_PNL_CONSTRAINT, START_CAPITAL, OPTIM_MODE
+    global HISTORICAL_DATA, TRAIN_DATA, TEST_DATA, TRAIN_DATA_WITH_PREDICTIONS, TEST_DATA_WITH_PREDICTIONS, CURRENT_MODEL_PATHS, CURRENT_TIMEFRAME, FIXED_THRESHOLD, MAX_DRAWDOWN_CONSTRAINT, MIN_WIN_RATE_CONSTRAINT, MIN_PNL_CONSTRAINT, START_CAPITAL, OPTIM_MODE
 
     parser = argparse.ArgumentParser(description="Parameter-Optimierung für JaegerBot")
     parser.add_argument('--symbols', required=True, type=str)
@@ -217,6 +217,52 @@ def main():
         TRAIN_DATA = HISTORICAL_DATA.iloc[:split_idx]
         TEST_DATA  = HISTORICAL_DATA.iloc[split_idx:]
         print(f"Walk-Forward: {len(TRAIN_DATA)} Kerzen Training / {len(TEST_DATA)} Kerzen Test (70/30)")
+
+        # Predictions EINMAL vorberechnen — spart 1000× model.predict() über alle Trials
+        print("Berechne ANN-Predictions einmalig vor der Optimierung...")
+        from jaegerbot.utils.ann_model import load_model_and_scaler, create_ann_features
+        from jaegerbot.utils.supertrend_indicator import SuperTrendLocal
+        import pandas as pd
+        _model, _scaler = load_model_and_scaler(CURRENT_MODEL_PATHS['model'], CURRENT_MODEL_PATHS['scaler'])
+        if not _model or not _scaler:
+            run_results['failed'].append({'symbol': symbol, 'timeframe': timeframe, 'reason': 'model_not_found'})
+            continue
+        _feature_cols = [
+            'bb_width', 'bb_pband', 'obv', 'rsi', 'macd_diff', 'macd',
+            'atr_normalized', 'adx', 'adx_pos', 'adx_neg',
+            'volume_ratio', 'mfi', 'cmf',
+            'price_to_ema20', 'price_to_ema50',
+            'stoch_k', 'stoch_d', 'williams_r', 'roc', 'cci',
+            'price_to_resistance', 'price_to_support',
+            'high_low_range', 'close_to_high', 'close_to_low',
+            'day_of_week', 'hour_of_day',
+            'returns_lag1', 'returns_lag2', 'returns_lag3', 'hist_volatility',
+            'body_to_atr', 'upper_wick_ratio', 'lower_wick_ratio',
+            'candle_direction', 'body_midpoint_ratio',
+            'bull_streak', 'bear_streak',
+            'dist_to_struct_high', 'dist_to_struct_low',
+            'price_in_range_20', 'price_in_range_50',
+            'fib_position', 'in_fib_zone',
+            'volume_direction', 'buying_pressure', 'selling_pressure',
+        ]
+        def _precompute(df):
+            d = create_ann_features(df.copy())
+            d.dropna(inplace=True)
+            if d.empty: return d
+            st = SuperTrendLocal()
+            d['supertrend_direction'] = pd.Series(
+                [st.update(row['high'], row['low'], row['close'], row['atr_normalized']) for _, row in d.iterrows()],
+                index=d.index
+            )
+            d['avg_atr_normalized'] = d['atr_normalized'].rolling(50).mean()
+            d.dropna(inplace=True)
+            if d.empty: return d
+            scaled = _scaler.transform(d[_feature_cols])
+            d['prediction'] = _model.predict(scaled, verbose=0).flatten()
+            return d
+        TRAIN_DATA_WITH_PREDICTIONS = _precompute(TRAIN_DATA.copy())
+        TEST_DATA_WITH_PREDICTIONS  = _precompute(TEST_DATA.copy())
+        print(f"✔ Predictions vorberechnet: {len(TRAIN_DATA_WITH_PREDICTIONS)} Train / {len(TEST_DATA_WITH_PREDICTIONS)} Test Kerzen")
 
         print("\n--- Bewertung der Datensatz-Qualität ---")
         evaluation = evaluate_dataset(HISTORICAL_DATA.copy(), timeframe)
