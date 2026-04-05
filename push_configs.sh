@@ -28,7 +28,7 @@ done
 echo ""
 
 # Aenderungen pruefen
-git add "$CONFIGS_DIR"/config_*.json
+git add "$CONFIGS_DIR"/config_*.json auto_optimizer_scheduler.py push_configs.sh
 STAGED=$(git diff --cached --name-only)
 
 if [ -z "$STAGED" ]; then
@@ -52,7 +52,7 @@ fi
 git stash pop 2>/dev/null
 
 # Erneut stagen (nach stash pop koennen die Dateien dirty sein)
-git add "$CONFIGS_DIR"/config_*.json
+git add "$CONFIGS_DIR"/config_*.json auto_optimizer_scheduler.py push_configs.sh
 
 # Commit
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M')
