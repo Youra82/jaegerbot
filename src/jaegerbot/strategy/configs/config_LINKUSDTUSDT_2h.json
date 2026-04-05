@@ -1,0 +1,31 @@
+{
+    "_meta": {
+        "pnl_pct": 14.34,
+        "pnl_pct_oos": 14.34,
+        "pnl_pct_train": 1949.64,
+        "wfv": "70/30"
+    },
+    "market": {
+        "symbol": "LINK/USDT:USDT",
+        "timeframe": "2h"
+    },
+    "strategy": {
+        "prediction_threshold": 0.6,
+        "min_signal_score": 8.13
+    },
+    "risk": {
+        "margin_mode": "isolated",
+        "risk_per_trade_pct": 2.2,
+        "risk_reward_ratio": 1.79,
+        "leverage": 10,
+        "trailing_stop_activation_rr": 0.83,
+        "trailing_stop_callback_rate_pct": 0.54,
+        "atr_multiplier_sl": 1.76,
+        "min_sl_pct": 0.3,
+        "max_sl_pct": 0.97
+    },
+    "behavior": {
+        "use_longs": true,
+        "use_shorts": true
+    }
+}

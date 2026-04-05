@@ -10,7 +10,7 @@
         "timeframe": "6h"
     },
     "strategy": {
-        "prediction_threshold": 0.61,
+        "prediction_threshold": 0.6,
         "min_signal_score": 5.01
     },
     "risk": {
