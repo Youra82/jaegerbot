@@ -60,64 +60,60 @@ def calculate_supertrend_direction(data):
     return st_indicator.get_supertrend_direction().shift(1) # Shift, um den ST der VORHERIGEN Kerze zu verwenden
 
 # *** KORRIGIERTE BACKTESTER FUNKTION (SuperTrend-Filter) ***
-def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_filter=False, htf_data=None, timeframe=None, verbose=False, params_for_htf_load=None):
-
-    model, scaler = load_model_and_scaler(model_paths['model'], model_paths['scaler'])
-    if not model or not scaler: raise Exception("Modell/Scaler nicht gefunden!")
+def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_filter=False, htf_data=None, timeframe=None, verbose=False, params_for_htf_load=None, precomputed=False):
 
     if not timeframe:
         raise ValueError("Backtester benötigt ein 'timeframe' Argument für die Daten-Vorbereitung!")
 
-    data_with_features = create_ann_features(data.copy())
-    data_with_features.dropna(inplace=True)
+    if precomputed:
+        # Predictions wurden vom Optimizer vorberechnet — Modell-Load + predict überspringen
+        data_with_features = data
+        if data_with_features.empty or len(data_with_features) < 10:
+            return {"total_pnl_pct": 0, "trades_count": 0, "win_rate": 0, "max_drawdown_pct": 1.0, "end_capital": start_capital}
+    else:
+        model, scaler = load_model_and_scaler(model_paths['model'], model_paths['scaler'])
+        if not model or not scaler: raise Exception("Modell/Scaler nicht gefunden!")
 
-    if data_with_features.empty or len(data_with_features) < 10:
-        return {"total_pnl_pct": 0, "trades_count": 0, "win_rate": 0, "max_drawdown_pct": 1.0, "end_capital": start_capital}
+        data_with_features = create_ann_features(data.copy())
+        data_with_features.dropna(inplace=True)
 
-    # SuperTrend Richtung der VORHERIGEN Kerze vorberechnen
-    data_with_features['supertrend_direction'] = calculate_supertrend_direction(data_with_features)
-    # Rolling-Mittel für Scorer vorberechnen (spart Loop-Overhead)
-    data_with_features['avg_atr_normalized'] = data_with_features['atr_normalized'].rolling(50).mean()
-    data_with_features.dropna(inplace=True)
+        if data_with_features.empty or len(data_with_features) < 10:
+            return {"total_pnl_pct": 0, "trades_count": 0, "win_rate": 0, "max_drawdown_pct": 1.0, "end_capital": start_capital}
 
-    if data_with_features.empty:
-        return {"total_pnl_pct": 0, "trades_count": 0, "win_rate": 0, "max_drawdown_pct": 1.0, "end_capital": start_capital}
+        # SuperTrend Richtung der VORHERIGEN Kerze vorberechnen
+        data_with_features['supertrend_direction'] = calculate_supertrend_direction(data_with_features)
+        # Rolling-Mittel für Scorer vorberechnen (spart Loop-Overhead)
+        data_with_features['avg_atr_normalized'] = data_with_features['atr_normalized'].rolling(50).mean()
+        data_with_features.dropna(inplace=True)
 
-    # *** ERWEITERTE FEATURE-LISTE FÜR BACKTEST ***
-    # Feature 'ema_cross_20_50' entfernt (konsistent mit ann_model.py)
-    feature_cols = [
-        'bb_width', 'bb_pband', 'obv', 'rsi', 'macd_diff', 'macd',
-        'atr_normalized', 'adx', 'adx_pos', 'adx_neg',
-        'volume_ratio', 'mfi', 'cmf',
-        'price_to_ema20', 'price_to_ema50',
-        'stoch_k', 'stoch_d', 'williams_r', 'roc', 'cci',
-        'price_to_resistance', 'price_to_support',
-        'high_low_range', 'close_to_high', 'close_to_low',
-        'day_of_week', 'hour_of_day',
-        'returns_lag1', 'returns_lag2', 'returns_lag3', 'hist_volatility',
-        # Candle DNA Features
-        'body_to_atr', 'upper_wick_ratio', 'lower_wick_ratio',
-        'candle_direction', 'body_midpoint_ratio',
-        'bull_streak', 'bear_streak',
-        # Pivot / Structure Features
-        'dist_to_struct_high', 'dist_to_struct_low',
-        'price_in_range_20', 'price_in_range_50',
-        # Fibonacci Zone Features
-        'fib_position', 'in_fib_zone',
-        # Volume Direction Features
-        'volume_direction', 'buying_pressure', 'selling_pressure',
-    ]
-    # ---
-    
-    missing_cols = [col for col in feature_cols if col not in data_with_features.columns]
-    if missing_cols:
-        raise ValueError(f"Fehlende Spalten in data_with_features: {missing_cols}")
+        if data_with_features.empty:
+            return {"total_pnl_pct": 0, "trades_count": 0, "win_rate": 0, "max_drawdown_pct": 1.0, "end_capital": start_capital}
 
-    data_for_scaling = data_with_features[feature_cols]
+        feature_cols = [
+            'bb_width', 'bb_pband', 'obv', 'rsi', 'macd_diff', 'macd',
+            'atr_normalized', 'adx', 'adx_pos', 'adx_neg',
+            'volume_ratio', 'mfi', 'cmf',
+            'price_to_ema20', 'price_to_ema50',
+            'stoch_k', 'stoch_d', 'williams_r', 'roc', 'cci',
+            'price_to_resistance', 'price_to_support',
+            'high_low_range', 'close_to_high', 'close_to_low',
+            'day_of_week', 'hour_of_day',
+            'returns_lag1', 'returns_lag2', 'returns_lag3', 'hist_volatility',
+            'body_to_atr', 'upper_wick_ratio', 'lower_wick_ratio',
+            'candle_direction', 'body_midpoint_ratio',
+            'bull_streak', 'bear_streak',
+            'dist_to_struct_high', 'dist_to_struct_low',
+            'price_in_range_20', 'price_in_range_50',
+            'fib_position', 'in_fib_zone',
+            'volume_direction', 'buying_pressure', 'selling_pressure',
+        ]
+        missing_cols = [col for col in feature_cols if col not in data_with_features.columns]
+        if missing_cols:
+            raise ValueError(f"Fehlende Spalten in data_with_features: {missing_cols}")
 
-    features_scaled = scaler.transform(data_for_scaling)
-    predictions = model.predict(features_scaled, verbose=0).flatten()
-    data_with_features['prediction'] = pd.Series(predictions, index=data_with_features.index)
+        features_scaled = scaler.transform(data_with_features[feature_cols])
+        predictions = model.predict(features_scaled, verbose=0).flatten()
+        data_with_features['prediction'] = pd.Series(predictions, index=data_with_features.index)
 
     pred_threshold = params.get('prediction_threshold', 0.6)
     risk_reward_ratio = params.get('risk_reward_ratio', 1.5)
