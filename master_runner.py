@@ -21,7 +21,6 @@ def main():
     """
     settings_file = os.path.join(SCRIPT_DIR, 'settings.json')
     optimization_results_file = os.path.join(SCRIPT_DIR, 'artifacts', 'results', 'optimization_results.json')
-    last_optimizer_run_file   = os.path.join(SCRIPT_DIR, 'artifacts', 'results', 'last_optimizer_run.json')
     bot_runner_script = os.path.join(SCRIPT_DIR, 'src', 'jaegerbot', 'strategy', 'run.py')
     secret_file = os.path.join(SCRIPT_DIR, 'secret.json')
 
@@ -60,27 +59,8 @@ def main():
                 with open(optimization_results_file, 'r') as f:
                     strategy_config = json.load(f)
                 strategy_list = strategy_config.get('optimal_portfolio', [])
-            elif os.path.exists(last_optimizer_run_file):
-                # Neueres Format: last_optimizer_run.json (saved-Einträge)
-                print(f"  → optimization_results.json fehlt, verwende last_optimizer_run.json")
-                with open(last_optimizer_run_file, 'r') as f:
-                    run_data = json.load(f)
-                saved = run_data.get('saved', [])
-                # Baue strategy_list als Liste von Dicts (gleich wie manueller Modus)
-                strategy_list = [
-                    {
-                        'symbol': entry['symbol'],
-                        'timeframe': entry['timeframe'],
-                        'use_macd_filter': False,
-                        'active': True,
-                    }
-                    for entry in saved
-                ]
-                if not strategy_list:
-                    print("  → Keine gespeicherten Optimierungsergebnisse gefunden. Falle auf manuellen Modus zurück.")
-                    strategy_list = live_settings.get('active_strategies', [])
             else:
-                print(f"  → Keine Optimierungsdatei gefunden. Falle auf manuellen Modus zurück.")
+                print("  → Keine Optimierungsdatei gefunden. Falle auf manuellen Modus zurück.")
                 strategy_list = live_settings.get('active_strategies', [])
         else:
             print("Modus: Manuell. Lese Strategien aus den manuellen Einstellungen...")
@@ -89,6 +69,21 @@ def main():
         if not strategy_list:
             print("Keine aktiven Strategien zum Ausführen gefunden.")
             return
+
+        # Sicherheitscheck: pro Symbol darf nur EIN Timeframe gleichzeitig laufen.
+        # Bei Duplikaten wird der erste aktive Eintrag behalten.
+        seen_symbols = {}
+        filtered_list = []
+        for s in strategy_list:
+            sym = s.get('symbol') if isinstance(s, dict) else s
+            if sym in seen_symbols:
+                tf_existing = seen_symbols[sym]
+                tf_new = s.get('timeframe', '?') if isinstance(s, dict) else '?'
+                print(f"WARNUNG: {sym} bereits als ({tf_existing}) registriert — überspringe ({tf_new}). Nur ein Timeframe pro Symbol erlaubt!")
+                continue
+            seen_symbols[sym] = s.get('timeframe', '?') if isinstance(s, dict) else '?'
+            filtered_list.append(s)
+        strategy_list = filtered_list
             
         print("=======================================================")
 
