@@ -1,17 +1,17 @@
 {
   "live_trading_settings": {
-    "use_auto_optimizer_results": false,
-    "top_n_strategies_to_trade": 7,
+    "use_auto_optimizer_results": true,
+    "top_n_strategies_to_trade": 15,
     "active_strategies": [
       {
-        "symbol": "INJ/USDT:USDT",
-        "timeframe": "4h",
+        "symbol": "ARB/USDT:USDT",
+        "timeframe": "6h",
         "use_macd_filter": false,
         "active": true
       },
       {
-        "symbol": "ARB/USDT:USDT",
-        "timeframe": "6h",
+        "symbol": "INJ/USDT:USDT",
+        "timeframe": "4h",
         "use_macd_filter": false,
         "active": true
       },
@@ -22,13 +22,25 @@
         "active": true
       },
       {
+        "symbol": "ADA/USDT:USDT",
+        "timeframe": "4h",
+        "use_macd_filter": false,
+        "active": true
+      },
+      {
+        "symbol": "BTC/USDT:USDT",
+        "timeframe": "1d",
+        "use_macd_filter": false,
+        "active": true
+      },
+      {
         "symbol": "SOL/USDT:USDT",
         "timeframe": "6h",
         "use_macd_filter": false,
         "active": true
       },
       {
-        "symbol": "BTC/USDT:USDT",
+        "symbol": "XRP/USDT:USDT",
         "timeframe": "1d",
         "use_macd_filter": false,
         "active": true
@@ -40,7 +52,31 @@
         "active": true
       },
       {
-        "symbol": "SOL/USDT:USDT",
+        "symbol": "LINK/USDT:USDT",
+        "timeframe": "1d",
+        "use_macd_filter": false,
+        "active": true
+      },
+      {
+        "symbol": "AVAX/USDT:USDT",
+        "timeframe": "1d",
+        "use_macd_filter": false,
+        "active": true
+      },
+      {
+        "symbol": "DOGE/USDT:USDT",
+        "timeframe": "1d",
+        "use_macd_filter": false,
+        "active": true
+      },
+      {
+        "symbol": "ETH/USDT:USDT",
+        "timeframe": "6h",
+        "use_macd_filter": false,
+        "active": true
+      },
+      {
+        "symbol": "AAVE/USDT:USDT",
         "timeframe": "4h",
         "use_macd_filter": false,
         "active": true
