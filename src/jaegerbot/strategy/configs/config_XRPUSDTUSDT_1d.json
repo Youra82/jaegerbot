@@ -1,0 +1,31 @@
+{
+    "_meta": {
+        "pnl_pct": 437.49,
+        "pnl_pct_oos": 437.49,
+        "pnl_pct_train": 404.45,
+        "wfv": "70/30"
+    },
+    "market": {
+        "symbol": "XRP/USDT:USDT",
+        "timeframe": "1d"
+    },
+    "strategy": {
+        "prediction_threshold": 0.6,
+        "min_signal_score": 8.8
+    },
+    "risk": {
+        "margin_mode": "isolated",
+        "risk_per_trade_pct": 3.25,
+        "risk_reward_ratio": 6.59,
+        "leverage": 14,
+        "trailing_stop_activation_rr": 0.94,
+        "trailing_stop_callback_rate_pct": 0.34,
+        "atr_multiplier_sl": 3.75,
+        "min_sl_pct": 0.3,
+        "max_sl_pct": 0.97
+    },
+    "behavior": {
+        "use_longs": true,
+        "use_shorts": true
+    }
+}
