@@ -271,15 +271,24 @@ def main():
         study_name = f"ann_{safe_filename}_{OPTIM_MODE}"
 
         # Studie laden — aber prüfen ob alte Trials vom kaputten Backtester (start_capital-Bug)
-        # vorhanden sind. Score > 100 ist unrealistisch (Bug produzierte Billionen-%-Werte).
+        # vorhanden sind. Erkennungsmerkmale:
+        #   1. Score > 30 (mit fixem Backtester unrealistisch — max realistisch ~20)
+        #   2. train_pnl_pct > 10000% in einem Trial-Attribut
         # Falls ja: Studie löschen und neu anlegen für saubere Ergebnisse.
         try:
             existing_study = optuna.load_study(storage=STORAGE_URL, study_name=study_name)
             complete_trials = [t for t in existing_study.trials if t.state == optuna.trial.TrialState.COMPLETE]
-            if complete_trials and max(t.value for t in complete_trials) > 100:
-                print(f"⚠️  Alte Studie '{study_name}' enthält unrealistische Werte (Backtester-Bug). Studie wird zurückgesetzt...")
-                optuna.delete_study(study_name=study_name, storage=STORAGE_URL)
-                print(f"✔ Studie gelöscht. Starte sauber.")
+            if complete_trials:
+                max_score     = max(t.value for t in complete_trials)
+                max_train_pnl = max(
+                    t.user_attrs.get('train_pnl_pct', 0) for t in complete_trials
+                )
+                if max_score > 30 or max_train_pnl > 10000:
+                    print(f"⚠️  Alte Studie '{study_name}' enthält unrealistische Werte "
+                          f"(max_score={max_score:.1f}, max_train_pnl={max_train_pnl:.0f}%). "
+                          f"Studie wird zurückgesetzt...")
+                    optuna.delete_study(study_name=study_name, storage=STORAGE_URL)
+                    print(f"✔ Studie gelöscht. Starte sauber.")
         except Exception:
             pass  # Studie existiert noch nicht — normal
         study = optuna.create_study(storage=STORAGE_URL, study_name=study_name, direction="maximize", load_if_exists=True)
