@@ -1,0 +1,31 @@
+{
+    "_meta": {
+        "pnl_pct": 127.36,
+        "pnl_pct_oos": 127.36,
+        "pnl_pct_train": 80.3,
+        "wfv": "70/30"
+    },
+    "market": {
+        "symbol": "SUI/USDT:USDT",
+        "timeframe": "4h"
+    },
+    "strategy": {
+        "prediction_threshold": 0.6,
+        "min_signal_score": 8.37
+    },
+    "risk": {
+        "margin_mode": "isolated",
+        "risk_per_trade_pct": 1.58,
+        "risk_reward_ratio": 4.31,
+        "leverage": 11,
+        "trailing_stop_activation_rr": 0.8,
+        "trailing_stop_callback_rate_pct": 0.74,
+        "atr_multiplier_sl": 1.27,
+        "min_sl_pct": 0.3,
+        "max_sl_pct": 1.98
+    },
+    "behavior": {
+        "use_longs": true,
+        "use_shorts": true
+    }
+}

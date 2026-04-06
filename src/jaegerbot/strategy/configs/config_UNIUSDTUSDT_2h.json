@@ -1,0 +1,31 @@
+{
+    "_meta": {
+        "pnl_pct": 23.44,
+        "pnl_pct_oos": 23.44,
+        "pnl_pct_train": 261.15,
+        "wfv": "70/30"
+    },
+    "market": {
+        "symbol": "UNI/USDT:USDT",
+        "timeframe": "2h"
+    },
+    "strategy": {
+        "prediction_threshold": 0.6,
+        "min_signal_score": 8.06
+    },
+    "risk": {
+        "margin_mode": "isolated",
+        "risk_per_trade_pct": 1.0,
+        "risk_reward_ratio": 2.6,
+        "leverage": 13,
+        "trailing_stop_activation_rr": 0.8,
+        "trailing_stop_callback_rate_pct": 0.41,
+        "atr_multiplier_sl": 3.41,
+        "min_sl_pct": 0.3,
+        "max_sl_pct": 0.91
+    },
+    "behavior": {
+        "use_longs": true,
+        "use_shorts": true
+    }
+}
