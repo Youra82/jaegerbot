@@ -68,7 +68,7 @@ def objective(trial, symbol):
         'atr_multiplier_sl':   trial.suggest_float('atr_multiplier_sl',   1.0, 4.0),
         'max_sl_pct':          trial.suggest_float('max_sl_pct',          0.8, 3.0),
         # Trailing Stop
-        'trailing_stop_activation_rr':      trial.suggest_float('trailing_stop_activation_rr',      0.8, 3.0),
+        'trailing_stop_activation_rr':      trial.suggest_float('trailing_stop_activation_rr',      1.0, 3.0),
         'trailing_stop_callback_rate_pct':  trial.suggest_float('trailing_stop_callback_rate_pct',  0.3, 2.0),
         # Signal-Score Schwelle
         'min_signal_score':    trial.suggest_float('min_signal_score',    5.0, 9.0),
