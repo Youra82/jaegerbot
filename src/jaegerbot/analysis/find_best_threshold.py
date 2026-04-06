@@ -35,7 +35,7 @@ def find_best_threshold(symbol: str, timeframe: str, start_date: str, end_date: 
         return None
 
     # 2. Vorhersagen für den gesamten Datensatz einmalig erstellen
-    X, y_true = prepare_data_for_ann(data, timeframe, verbose=False)
+    X, y_true = prepare_data_for_ann(data, timeframe, training_leverage=20, verbose=False)
     if X.empty:
         print("❌ Fehler: Keine Handelssignale im Datensatz gefunden.")
         return None
