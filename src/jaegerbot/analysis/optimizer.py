@@ -270,6 +270,18 @@ def main():
         STORAGE_URL = f"sqlite:///{DB_FILE}?timeout=60"
         study_name = f"ann_{safe_filename}_{OPTIM_MODE}"
 
+        # Studie laden — aber prüfen ob alte Trials vom kaputten Backtester (start_capital-Bug)
+        # vorhanden sind. Score > 100 ist unrealistisch (Bug produzierte Billionen-%-Werte).
+        # Falls ja: Studie löschen und neu anlegen für saubere Ergebnisse.
+        try:
+            existing_study = optuna.load_study(storage=STORAGE_URL, study_name=study_name)
+            complete_trials = [t for t in existing_study.trials if t.state == optuna.trial.TrialState.COMPLETE]
+            if complete_trials and max(t.value for t in complete_trials) > 100:
+                print(f"⚠️  Alte Studie '{study_name}' enthält unrealistische Werte (Backtester-Bug). Studie wird zurückgesetzt...")
+                optuna.delete_study(study_name=study_name, storage=STORAGE_URL)
+                print(f"✔ Studie gelöscht. Starte sauber.")
+        except Exception:
+            pass  # Studie existiert noch nicht — normal
         study = optuna.create_study(storage=STORAGE_URL, study_name=study_name, direction="maximize", load_if_exists=True)
 
         objective_wrapper = lambda trial: objective(trial, symbol)

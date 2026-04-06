@@ -250,7 +250,7 @@ def run_portfolio_simulation(start_capital, strategies_data, start_date, end_dat
                 # --- KORREKTUR: Begrenzung des maximalen Verlusts und Gewinns ---
                 # Dies verhindert PnL-Überläufe in der Simulation
                 risk_per_trade_pct = pos['risk_per_trade_pct']
-                risk_amount_usd = start_capital * risk_per_trade_pct
+                risk_amount_usd = equity * risk_per_trade_pct
                 
                 net_pnl = pnl_usd - total_fees
                 

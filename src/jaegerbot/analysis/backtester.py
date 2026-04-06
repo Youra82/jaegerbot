@@ -198,7 +198,7 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
                     notional_value = position['margin_used'] * leverage
                     pnl_usd = notional_value * pnl_pct
                     total_fees = notional_value * fee_pct * 2
-                    risk_amount_usd = start_capital * risk_per_trade_pct
+                    risk_amount_usd = current_capital * risk_per_trade_pct
                     net_pnl = pnl_usd - total_fees
                     if net_pnl < -risk_amount_usd:
                         net_pnl = -risk_amount_usd

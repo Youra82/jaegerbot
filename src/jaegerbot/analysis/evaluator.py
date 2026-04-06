@@ -51,7 +51,7 @@ def evaluate_dataset(data: pd.DataFrame, timeframe: str):
 
     # --- Metrik 2: Handelbarkeit / Actionability (max. 4 Punkte) ---
     try:
-        X, _ = prepare_data_for_ann(data.copy(), timeframe, verbose=False)
+        X, _ = prepare_data_for_ann(data.copy(), timeframe, training_leverage=20, verbose=False)
         signal_count = len(X)
         signal_density = (signal_count / len(data)) * 100 if len(data) > 0 else 0
     except Exception:
