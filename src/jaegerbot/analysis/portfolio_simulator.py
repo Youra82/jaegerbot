@@ -155,6 +155,10 @@ def run_portfolio_simulation(start_capital, strategies_data, start_date, end_dat
                 'in_fib_zone':       float(row.get('in_fib_zone', 0.0)),
             })
 
+    # Signale auf den gewünschten Zeitraum einschränken (Warmup-Daten herausfiltern)
+    start_dt = pd.to_datetime(start_date, utc=True)
+    all_signals = [s for s in all_signals if s['timestamp'] >= start_dt]
+
     if not all_signals:
         print("Keine Handelssignale im gewählten Zeitraum gefunden.")
         return {

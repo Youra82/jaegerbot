@@ -4,7 +4,7 @@ import sys
 import json
 import pandas as pd
 import numpy as np # Import für np.nan
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import logging
 import argparse
 
@@ -19,6 +19,16 @@ from jaegerbot.utils.ann_model import load_model_and_scaler
 from jaegerbot.analysis.portfolio_simulator import run_portfolio_simulation
 from jaegerbot.analysis.portfolio_optimizer import run_portfolio_optimizer
 from jaegerbot.utils.telegram import send_document
+
+def get_warmup_start_date(start_date_str, timeframe):
+    """Berechnet ein früheres Startdatum für den Daten-Download (Indikator-Warmup).
+    300 Kerzen Warmup, damit EMA200/ATR/ADX etc. valide Werte haben."""
+    tf_to_hours = {'1h': 1, '2h': 2, '4h': 4, '6h': 6, '8h': 8, '12h': 12, '1d': 24}
+    hours = tf_to_hours.get(timeframe, 24)
+    warmup_days = max(int((300 * hours) / 24) + 1, 14)
+    start_dt = datetime.strptime(start_date_str, "%Y-%m-%d")
+    return (start_dt - timedelta(days=warmup_days)).strftime("%Y-%m-%d")
+
 
 GREEN = '\033[0;32m'
 YELLOW = '\033[1;33m'
@@ -344,7 +354,7 @@ def run_single_analysis_via_simulator(start_date, end_date, start_capital):
         if not os.path.exists(model_paths['model']):
             print(f"--> WARNUNG: Modell nicht gefunden. Überspringe."); continue
 
-        data = load_data(symbol, timeframe, start_date, end_date)
+        data = load_data(symbol, timeframe, get_warmup_start_date(start_date, timeframe), end_date)
         if data.empty:
             print(f"--> WARNUNG: Konnte keine Daten laden. Überspringe."); continue
 
@@ -448,7 +458,7 @@ def run_shared_mode(is_auto: bool, start_date, end_date, start_capital, max_draw
             print(f"WARNUNG: Konnte Modell/Scaler für {filename} nicht laden. Fehler: {e}. Wird ignoriert.")
             continue
             
-        data = load_data(symbol, timeframe, start_date, end_date)
+        data = load_data(symbol, timeframe, get_warmup_start_date(start_date, timeframe), end_date)
         if model and scaler and not data.empty:
             strategies_data[symbol] = {'symbol': symbol, 'timeframe': timeframe, 'data': data, 'model': model, 'scaler': scaler, 'params': {**config.get('strategy', {}), **config.get('risk', {})}}
         else:
@@ -487,7 +497,7 @@ def run_shared_mode(is_auto: bool, start_date, end_date, start_capital, max_draw
                 m_path    = os.path.join(models_dir, f'ann_predictor_{safe_fn}.h5')
                 s_path    = os.path.join(models_dir, f'ann_scaler_{safe_fn}.joblib')
                 model, scaler = load_model_and_scaler(m_path, s_path)
-                data = load_data(symbol, timeframe, start_date, end_date)
+                data = load_data(symbol, timeframe, get_warmup_start_date(start_date, timeframe), end_date)
                 if model and scaler and not data.empty:
                     strategies_data_for_optimizer[filename] = {
                         'symbol': symbol, 'timeframe': timeframe, 'data': data,
