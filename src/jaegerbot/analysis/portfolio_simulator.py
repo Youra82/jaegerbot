@@ -12,7 +12,8 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 sys.path.append(os.path.join(PROJECT_ROOT, 'src'))
 
 from jaegerbot.utils.ann_model import prepare_data_for_ann, create_ann_features
-from jaegerbot.analysis.backtester import load_data, calculate_supertrend_direction # NEU: Importiere ST-Funktion
+from jaegerbot.analysis.backtester import load_data, calculate_supertrend_direction
+from jaegerbot.utils.signal_scorer import SignalScorer, DEFAULT_WEIGHTS, DEFAULT_MIN_SIGNAL_SCORE
 # --- ENDE PFAD-DEFINITION ---
 
 
@@ -115,32 +116,45 @@ def run_portfolio_simulation(start_capital, strategies_data, start_date, end_dat
         data_with_features.dropna(subset=['st_direction'], inplace=True) 
 
         pred_threshold = params.get('prediction_threshold', 0.65)
+        min_signal_score = params.get('min_signal_score', DEFAULT_MIN_SIGNAL_SCORE)
+        scoring_weights = params.get('scoring', DEFAULT_WEIGHTS)
+        scorer = SignalScorer(weights=scoring_weights)
+        avg_atr_series = data_with_features['atr_normalized'].rolling(50).mean()
 
-        # Wende SuperTrend-Filter an: Nur Longs im Long-Trend (1.0), nur Shorts im Short-Trend (-1.0)
-        long_signals_filtered = data_with_features[(predictions >= pred_threshold) & (data_with_features['st_direction'] == 1.0)]
-        short_signals_filtered = data_with_features[(predictions <= (1 - pred_threshold)) & (data_with_features['st_direction'] == -1.0)]
+        # Sammle alle Signale mit vollem Signal-Scoring (identisch zu trade_manager.py)
+        for index, row in data_with_features.iterrows():
+            pred = row['prediction']
+            st_dir = row.get('st_direction', 0.0)
 
-        # Sammle alle Signale
-        # Speichere RR-Ratio für den Exit-PnL-Cap
-        for index, row in long_signals_filtered.iterrows():
+            if pred >= pred_threshold:
+                side = 'long'
+            elif pred <= (1 - pred_threshold):
+                side = 'short'
+            else:
+                continue
+
+            # Signal Scoring — identisch zu trade_manager.py
+            avg_atr_norm = avg_atr_series.get(index, data_with_features['atr_normalized'].mean())
+            breakdown = scorer.score(
+                prediction=pred,
+                pred_threshold=pred_threshold,
+                side=side,
+                st_direction=float(st_dir),
+                adx=float(row.get('adx', 0.0)),
+                volume_ratio=float(row.get('volume_ratio', 1.0)),
+                atr_normalized=float(row.get('atr_normalized', 0.0)),
+                avg_atr_normalized=float(avg_atr_norm) if pd.notna(avg_atr_norm) else 0.0,
+                body_to_atr=float(row.get('body_to_atr', 0.5)),
+                upper_wick_ratio=float(row.get('upper_wick_ratio', 0.3)),
+                lower_wick_ratio=float(row.get('lower_wick_ratio', 0.3)),
+                dist_to_struct=float(row.get('dist_to_struct_high', 2.0)) if side == 'long' else float(row.get('dist_to_struct_low', 2.0)),
+                in_fib_zone=float(row.get('in_fib_zone', 0.0)),
+            )
+            if breakdown.total < min_signal_score:
+                continue
+
             all_signals.append({
-                'timestamp': index, 'symbol': symbol, 'timeframe': timeframe, 'side': 'long',
-                'entry_price': row['close'], 'params': params, 'config_key': key,
-                'risk_per_trade_pct': params.get('risk_per_trade_pct', 1.0) / 100,
-                'risk_reward_ratio': rr_ratio,
-                'atr':               float(row.get('atr', 0.0)),
-                'pivot_low_live':    float(row.get('pivot_low_live', 0.0)),
-                'pivot_high_live':   float(row.get('pivot_high_live', 0.0)),
-                'body_to_atr':       float(row.get('body_to_atr', 0.5)),
-                'upper_wick_ratio':  float(row.get('upper_wick_ratio', 0.3)),
-                'lower_wick_ratio':  float(row.get('lower_wick_ratio', 0.3)),
-                'dist_to_struct_high': float(row.get('dist_to_struct_high', 2.0)),
-                'dist_to_struct_low':  float(row.get('dist_to_struct_low', 2.0)),
-                'in_fib_zone':       float(row.get('in_fib_zone', 0.0)),
-            })
-        for index, row in short_signals_filtered.iterrows():
-            all_signals.append({
-                'timestamp': index, 'symbol': symbol, 'timeframe': timeframe, 'side': 'short',
+                'timestamp': index, 'symbol': symbol, 'timeframe': timeframe, 'side': side,
                 'entry_price': row['close'], 'params': params, 'config_key': key,
                 'risk_per_trade_pct': params.get('risk_per_trade_pct', 1.0) / 100,
                 'risk_reward_ratio': rr_ratio,

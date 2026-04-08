@@ -172,26 +172,6 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
 
     logger.info(f"Signal-Entscheidung für {symbol} @ {last_candle_timestamp}: {side if side else 'NEUTRAL'} | Grund: {signal_reason}")
 
-    # ── EMA Bias Filter (stbot MTF-inspired) ─────────────────────────────────
-    if side:
-        last_c = data_with_features.iloc[-2]
-        _ema20 = float(last_c.get('ema20', 0.0))
-        _ema50 = float(last_c.get('ema50', 0.0))
-        if _ema20 > 0 and _ema50 > 0:
-            if side == 'buy' and _ema20 < _ema50:
-                logger.info(f"EMA Bias Filter: EMA20({_ema20:.4f}) < EMA50({_ema50:.4f}) → kein LONG in Abwärtstrend.")
-                side = None
-            elif side == 'sell' and _ema20 > _ema50:
-                logger.info(f"EMA Bias Filter: EMA20({_ema20:.4f}) > EMA50({_ema50:.4f}) → kein SHORT in Aufwärtstrend.")
-                side = None
-
-    # ── Candle Body Quality Gate (vbot-inspired) ─────────────────────────────
-    if side:
-        _bta = float(data_with_features['body_to_atr'].iloc[-2]) if 'body_to_atr' in data_with_features.columns else 0.5
-        if _bta < 0.25:
-            logger.info(f"Candle Body Filter: body_to_atr={_bta:.3f} < 0.25 → Doji/Indecision-Kerze, Trade abgelehnt.")
-            side = None
-
     # --- SIGNAL SCORING: Gewichtetes Punktesystem statt binärer Filter-Kaskade ---
     # Kein Indikator kann einen Trade mehr alleine blockieren.
     # SuperTrend, ADX, Volumen und Volatilität tragen zum Score bei.
