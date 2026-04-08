@@ -172,6 +172,26 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
 
     logger.info(f"Signal-Entscheidung für {symbol} @ {last_candle_timestamp}: {side if side else 'NEUTRAL'} | Grund: {signal_reason}")
 
+    # ── EMA Bias Filter (identisch zu backtester.py) ──────────────────────────
+    if side:
+        last_c = data_with_features.iloc[-2]
+        _ema20 = float(last_c.get('ema20', 0.0))
+        _ema50 = float(last_c.get('ema50', 0.0))
+        if _ema20 > 0 and _ema50 > 0:
+            if side == 'buy' and _ema20 < _ema50:
+                logger.info(f"EMA Bias Filter: EMA20({_ema20:.4f}) < EMA50({_ema50:.4f}) -> kein LONG in Abwaertstrend.")
+                side = None
+            elif side == 'sell' and _ema20 > _ema50:
+                logger.info(f"EMA Bias Filter: EMA20({_ema20:.4f}) > EMA50({_ema50:.4f}) -> kein SHORT in Aufwaertstrend.")
+                side = None
+
+    # ── Candle Body Quality Gate (identisch zu backtester.py) ────────────────
+    if side:
+        _bta = float(data_with_features['body_to_atr'].iloc[-2]) if 'body_to_atr' in data_with_features.columns else 0.5
+        if _bta < 0.25:
+            logger.info(f"Candle Body Filter: body_to_atr={_bta:.3f} < 0.25 -> Doji/Indecision-Kerze, Trade abgelehnt.")
+            side = None
+
     # --- SIGNAL SCORING: Gewichtetes Punktesystem statt binärer Filter-Kaskade ---
     # Kein Indikator kann einen Trade mehr alleine blockieren.
     # SuperTrend, ADX, Volumen und Volatilität tragen zum Score bei.
@@ -253,7 +273,16 @@ def check_and_open_new_position(exchange: Exchange, model, scaler, params, teleg
 
         sl_distance_atr = current_atr * atr_multiplier_sl
         sl_distance_min = entry_price * min_sl_pct
-        sl_distance = max(sl_distance_atr, sl_distance_min)
+
+        # Structure-aware Pivot-SL (identisch zu backtester.py)
+        if side == 'buy':
+            _pivot_low = float(last_candle.get('pivot_low_live', 0.0))
+            _sl_struct = (entry_price - _pivot_low + 0.25 * current_atr) if _pivot_low > 0 else sl_distance_atr
+        else:
+            _pivot_high = float(last_candle.get('pivot_high_live', 0.0))
+            _sl_struct = (_pivot_high - entry_price + 0.25 * current_atr) if _pivot_high > 0 else sl_distance_atr
+
+        sl_distance = max(sl_distance_atr, _sl_struct, sl_distance_min)
 
         # max_sl_pct Cap (wie im Backtester)
         max_sl_pct_val = p.get('max_sl_pct', 4.0) / 100.0
