@@ -133,6 +133,19 @@ def run_portfolio_simulation(start_capital, strategies_data, start_date, end_dat
             else:
                 continue
 
+            # ── EMA Bias Filter (identisch zu backtester.py) ──────────────
+            _ema20 = float(row.get('ema20', 0.0))
+            _ema50 = float(row.get('ema50', 0.0))
+            if _ema20 > 0 and _ema50 > 0:
+                if side == 'long' and _ema20 < _ema50:
+                    continue
+                if side == 'short' and _ema20 > _ema50:
+                    continue
+
+            # ── Candle Body Quality Gate (identisch zu backtester.py) ─────
+            if float(row.get('body_to_atr', 0.5)) < 0.25:
+                continue
+
             # Signal Scoring — identisch zu trade_manager.py
             avg_atr_norm = avg_atr_series.get(index, data_with_features['atr_normalized'].mean())
             breakdown = scorer.score(
@@ -205,8 +218,6 @@ def run_portfolio_simulation(start_capital, strategies_data, start_date, end_dat
     equity_curve = []
 
     fee_pct = 0.05 / 100
-    max_allowed_effective_leverage = 10
-    absolute_max_notional_value = 1000000
     min_notional = 5.0 # Bitget Minimum Notional Value
 
     signal_idx = 0
@@ -228,8 +239,17 @@ def run_portfolio_simulation(start_capital, strategies_data, start_date, end_dat
             current_candle = strat_data['data'].loc[ts]
             pos['last_known_price'] = current_candle['close']
             exit_price = None
+            reason = None
 
-            if pos['side'] == 'long':
+            # Liquidation check (identisch zu backtester.py)
+            if pos['side'] == 'long' and current_candle['low'] <= pos.get('liq_price', 0):
+                exit_price = pos['liq_price']
+                reason = 'liquidation'
+            elif pos['side'] == 'short' and current_candle['high'] >= pos.get('liq_price', float('inf')):
+                exit_price = pos['liq_price']
+                reason = 'liquidation'
+
+            if not reason and pos['side'] == 'long':
                 # 1. TSL-Aktivierung prüfen
                 if not pos['trailing_active'] and current_candle['high'] >= pos['activation_price']:
                     pos['trailing_active'] = True
@@ -244,7 +264,7 @@ def run_portfolio_simulation(start_capital, strategies_data, start_date, end_dat
                 if current_candle['low'] <= pos['stop_loss']: exit_price = pos['stop_loss']
                 elif not pos['trailing_active'] and current_candle['high'] >= pos['take_profit']: exit_price = pos['take_profit']
 
-            elif pos['side'] == 'short':
+            elif not reason and pos['side'] == 'short':
                 # 1. TSL-Aktivierung prüfen
                 if not pos['trailing_active'] and current_candle['low'] <= pos['activation_price']:
                     pos['trailing_active'] = True
@@ -261,28 +281,18 @@ def run_portfolio_simulation(start_capital, strategies_data, start_date, end_dat
 
 
             if exit_price:
-                pnl_pct = (exit_price / pos['entry_price'] - 1) if pos['side'] == 'long' else (1 - exit_price / pos['entry_price'])
-                pnl_usd = pos['notional_value'] * pnl_pct
-                total_fees = pos['notional_value'] * fee_pct * 2
-                
-                # --- KORREKTUR: Begrenzung des maximalen Verlusts und Gewinns ---
-                # Dies verhindert PnL-Überläufe in der Simulation
-                risk_per_trade_pct = pos['risk_per_trade_pct']
-                risk_amount_usd = equity * risk_per_trade_pct
-                
-                net_pnl = pnl_usd - total_fees
-                
-                # 1. Max. Verlust ist der riskierte Betrag pro Trade
-                if net_pnl < -risk_amount_usd:
-                    net_pnl = -risk_amount_usd
-                    
-                # 2. Max. Gewinn ist der riskierte Betrag * Risk/Reward Ratio
-                risk_reward_ratio = pos['risk_reward_ratio']
-                max_profit_usd = risk_amount_usd * risk_reward_ratio
-
-                if net_pnl > max_profit_usd:
-                    net_pnl = max_profit_usd
-                # --- ENDE KORREKTUR ---
+                if reason == 'liquidation':
+                    # Gesamte Margin verloren + Fees (identisch zu backtester.py)
+                    net_pnl = -pos['margin_used'] - (pos['notional_value'] * fee_pct * 2)
+                else:
+                    pnl_pct = (exit_price / pos['entry_price'] - 1) if pos['side'] == 'long' else (1 - exit_price / pos['entry_price'])
+                    pnl_usd = pos['notional_value'] * pnl_pct
+                    total_fees = pos['notional_value'] * fee_pct * 2
+                    net_pnl = pnl_usd - total_fees
+                    # Max. Verlust = riskierter Betrag (identisch zu backtester.py)
+                    risk_amount_usd = equity * pos['risk_per_trade_pct']
+                    if net_pnl < -risk_amount_usd:
+                        net_pnl = -risk_amount_usd
                     
                 equity += net_pnl
                 
@@ -371,15 +381,12 @@ def run_portfolio_simulation(start_capital, strategies_data, start_date, end_dat
 
             # Berechnung der Positionsgröße basierend auf sl_distance
             notional_value = risk_amount_usd / (sl_distance / entry_price)
-            
-            max_notional_by_leverage = equity * max_allowed_effective_leverage
-            final_notional_value = min(notional_value, max_notional_by_leverage, absolute_max_notional_value)
 
-            if final_notional_value < min_notional:
+            if notional_value < min_notional:
                 signal_idx += 1
                 continue
 
-            margin_used = final_notional_value / leverage
+            margin_used = notional_value / leverage
             current_total_margin = sum(p['margin_used'] for p in open_positions.values())
             if current_total_margin + margin_used > equity:
                 signal_idx += 1
@@ -395,10 +402,18 @@ def run_portfolio_simulation(start_capital, strategies_data, start_date, end_dat
                 take_profit = entry_price - sl_distance * risk_reward_ratio
                 activation_price = entry_price - sl_distance * activation_rr
 
+            # Liquidation price (identisch zu backtester.py)
+            _mmr = params.get('maintenance_margin_rate', 0.004)
+            if signal['side'] == 'long':
+                liq_price = entry_price * (1.0 - (1.0 / leverage) + _mmr)
+            else:
+                liq_price = entry_price * (1.0 + (1.0 / leverage) - _mmr)
+
             open_positions[pos_key] = {
                 'side': signal['side'], 'entry_price': entry_price,
                 'stop_loss': stop_loss, 'take_profit': take_profit,
-                'notional_value': final_notional_value, 'margin_used': margin_used,
+                'liq_price': liq_price,
+                'notional_value': notional_value, 'margin_used': margin_used,
                 'leverage': leverage,
                 'min_sl_pct': risk_params.get('min_sl_pct', 0.0),
                 'max_sl_pct': risk_params.get('max_sl_pct', 0.0),
