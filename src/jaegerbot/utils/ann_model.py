@@ -10,7 +10,11 @@ import os
 logger = logging.getLogger(__name__)
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
+MIN_CANDLES_FOR_FEATURES = 200  # EMA200 ist das größte Window
+
 def create_ann_features(df):
+    if len(df) < MIN_CANDLES_FOR_FEATURES:
+        return pd.DataFrame()
     # Bestehende Features
     bollinger = ta.volatility.BollingerBands(close=df['close'], window=20, window_dev=2)
     df['bb_width'] = bollinger.bollinger_wband()
