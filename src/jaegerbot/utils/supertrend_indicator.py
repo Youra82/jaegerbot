@@ -20,6 +20,10 @@ class SuperTrendLocal:
         self._run()
 
     def _run(self):
+        if len(self._close) < self._window:
+            self.supertrend = pd.Series(np.nan, index=self._close.index)
+            self.supertrend_direction = pd.Series(np.nan, index=self._close.index)
+            return
         # KORRIGIERT: ta.volatility.average_true_range wird jetzt korrekt aufgerufen
         # Muss als Series erstellt werden, um den Index zu behalten
         atr_indicator = pd.Series(ta.volatility.average_true_range(self._high, self._low, self._close, window=self._window, fillna=self._fillna))
