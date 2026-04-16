@@ -4,14 +4,68 @@
     "top_n_strategies_to_trade": 15,
     "active_strategies": [
       {
-        "symbol": "ARB/USDT:USDT",
+        "symbol": "INJ/USDT:USDT",
+        "timeframe": "4h",
+        "use_macd_filter": false,
+        "active": true
+      },
+      {
+        "symbol": "LINK/USDT:USDT",
         "timeframe": "6h",
         "use_macd_filter": false,
         "active": true
       },
       {
-        "symbol": "INJ/USDT:USDT",
+        "symbol": "DOT/USDT:USDT",
         "timeframe": "4h",
+        "use_macd_filter": false,
+        "active": true
+      },
+      {
+        "symbol": "XRP/USDT:USDT",
+        "timeframe": "6h",
+        "use_macd_filter": false,
+        "active": true
+      },
+      {
+        "symbol": "AVAX/USDT:USDT",
+        "timeframe": "6h",
+        "use_macd_filter": false,
+        "active": true
+      },
+      {
+        "symbol": "BTC/USDT:USDT",
+        "timeframe": "6h",
+        "use_macd_filter": false,
+        "active": true
+      },
+      {
+        "symbol": "UNI/USDT:USDT",
+        "timeframe": "4h",
+        "use_macd_filter": false,
+        "active": true
+      },
+      {
+        "symbol": "BNB/USDT:USDT",
+        "timeframe": "2h",
+        "use_macd_filter": false,
+        "active": true
+      },
+      {
+        "symbol": "ADA/USDT:USDT",
+        "timeframe": "1h",
+        "use_macd_filter": false,
+        "active": true
+      },
+      {
+        "symbol": "ETH/USDT:USDT",
+        "timeframe": "2h",
+        "use_macd_filter": false,
+        "active": true
+      },
+      {
+        "symbol": "SUI/USDT:USDT",
+        "timeframe": "1h",
         "use_macd_filter": false,
         "active": true
       },
@@ -22,62 +76,8 @@
         "active": true
       },
       {
-        "symbol": "ADA/USDT:USDT",
-        "timeframe": "4h",
-        "use_macd_filter": false,
-        "active": true
-      },
-      {
-        "symbol": "BTC/USDT:USDT",
-        "timeframe": "1d",
-        "use_macd_filter": false,
-        "active": true
-      },
-      {
-        "symbol": "SOL/USDT:USDT",
-        "timeframe": "6h",
-        "use_macd_filter": false,
-        "active": true
-      },
-      {
-        "symbol": "XRP/USDT:USDT",
-        "timeframe": "1d",
-        "use_macd_filter": false,
-        "active": true
-      },
-      {
-        "symbol": "TON/USDT:USDT",
-        "timeframe": "4h",
-        "use_macd_filter": false,
-        "active": true
-      },
-      {
-        "symbol": "LINK/USDT:USDT",
-        "timeframe": "1d",
-        "use_macd_filter": false,
-        "active": true
-      },
-      {
-        "symbol": "AVAX/USDT:USDT",
-        "timeframe": "1d",
-        "use_macd_filter": false,
-        "active": true
-      },
-      {
-        "symbol": "DOGE/USDT:USDT",
-        "timeframe": "1d",
-        "use_macd_filter": false,
-        "active": true
-      },
-      {
-        "symbol": "ETH/USDT:USDT",
-        "timeframe": "6h",
-        "use_macd_filter": false,
-        "active": true
-      },
-      {
-        "symbol": "AAVE/USDT:USDT",
-        "timeframe": "4h",
+        "symbol": "NEAR/USDT:USDT",
+        "timeframe": "2h",
         "use_macd_filter": false,
         "active": true
       }
