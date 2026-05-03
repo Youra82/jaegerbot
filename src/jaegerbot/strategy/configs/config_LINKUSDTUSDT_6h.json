@@ -1,8 +1,8 @@
 {
     "_meta": {
-        "pnl_pct": 3700.33,
-        "pnl_pct_oos": 3700.33,
-        "pnl_pct_train": 10201.25,
+        "pnl_pct": 29.25,
+        "pnl_pct_oos": 29.25,
+        "pnl_pct_train": 341.01,
         "wfv": "70/30"
     },
     "market": {
@@ -11,18 +11,18 @@
     },
     "strategy": {
         "prediction_threshold": 0.6,
-        "min_signal_score": 7.75
+        "min_signal_score": 6.03
     },
     "risk": {
         "margin_mode": "isolated",
-        "risk_per_trade_pct": 1.27,
-        "risk_reward_ratio": 2.29,
-        "leverage": 10,
-        "trailing_stop_activation_rr": 0.84,
-        "trailing_stop_callback_rate_pct": 0.38,
-        "atr_multiplier_sl": 1.81,
+        "risk_per_trade_pct": 1.41,
+        "risk_reward_ratio": 3.23,
+        "leverage": 15,
+        "trailing_stop_activation_rr": 1.02,
+        "trailing_stop_callback_rate_pct": 0.87,
+        "atr_multiplier_sl": 2.0,
         "min_sl_pct": 0.3,
-        "max_sl_pct": 0.8
+        "max_sl_pct": 2.01
     },
     "behavior": {
         "use_longs": true,
