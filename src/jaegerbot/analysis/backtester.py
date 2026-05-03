@@ -166,28 +166,19 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
                 exit_price = position['liq_price']
                 reason = 'liquidation'
 
-            # *** TSL-Logik (nur wenn keine Liquidation) ***
+            # *** SL / TP Logik ***
             if not reason:
                 if position['side'] == 'long':
-                    if not position['trailing_active'] and current['high'] >= position['activation_price']:
-                        position['trailing_active'] = True
-                    if position['trailing_active']:
-                        position['peak_price'] = max(position['peak_price'], current['high'])
-                        trailing_sl = position['peak_price'] * (1 - callback_rate)
-                        position['stop_loss'] = max(position['stop_loss'], trailing_sl)
-                    if current['low'] <= position['stop_loss']: exit_price = position['stop_loss']
-                    elif not position['trailing_active'] and current['high'] >= position['take_profit']: exit_price = position['take_profit']
-
+                    if current['low'] <= position['stop_loss']:
+                        exit_price = position['stop_loss']
+                    elif current['high'] >= position['take_profit']:
+                        exit_price = position['take_profit']
                 elif position['side'] == 'short':
-                    if not position['trailing_active'] and current['low'] <= position['activation_price']:
-                        position['trailing_active'] = True
-                    if position['trailing_active']:
-                        position['peak_price'] = min(position['peak_price'], current['low'])
-                        trailing_sl = position['peak_price'] * (1 + callback_rate)
-                        position['stop_loss'] = min(position['stop_loss'], trailing_sl)
-                    if current['high'] >= position['stop_loss']: exit_price = position['stop_loss']
-                    elif not position['trailing_active'] and current['low'] <= position['take_profit']: exit_price = position['take_profit']
-            # *** Ende TSL-Logik ***
+                    if current['high'] >= position['stop_loss']:
+                        exit_price = position['stop_loss']
+                    elif current['low'] <= position['take_profit']:
+                        exit_price = position['take_profit']
+            # *** Ende SL / TP Logik ***
 
             if exit_price:
                 if reason == 'liquidation':
@@ -227,6 +218,7 @@ def run_ann_backtest(data, params, model_paths, start_capital=1000, use_macd_fil
                     drawdown = (peak_capital - current_capital) / peak_capital
                     max_drawdown_pct = max(max_drawdown_pct, drawdown)
                 if current_capital <= 0: break
+                continue  # Kein Re-Entry auf derselben Kerze nach Trade-Schluss
 
         if not position:
             side = 'long' if current['prediction'] >= pred_threshold else 'short' if current['prediction'] <= (1 - pred_threshold) else None
