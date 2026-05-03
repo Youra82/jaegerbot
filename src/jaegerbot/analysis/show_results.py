@@ -74,26 +74,37 @@ def _generate_trades_excel(final_sim, capital):
         ergebnis = 'TP erreicht' if pnl > 0 else 'SL erreicht'
         min_sl   = t.get('min_sl_pct', 0)
         max_sl   = t.get('max_sl_pct', 0)
+        lev      = float(t.get('leverage', 1) or 1)
+        margin   = float(t.get('margin_used', 0))
         act_rr   = t.get('tsl_activation_rr', 0)
         callback = t.get('tsl_callback_pct', 0)
         sl_str   = f"{min_sl:.2f}%-{max_sl:.2f}%" if (min_sl or max_sl) else '—'
         act_str  = f"@{act_rr:.2f}x" if act_rr else '—'
         cb_str   = f"{callback:.3f}%" if callback else '—'
+        if entry > 0:
+            raw_move = (exit_p - entry) / entry * 100.0
+            move_pct = raw_move if dir_ == 'LONG' else -raw_move
+        else:
+            move_pct = 0.0
+        avg_sl   = (min_sl + max_sl) / 2.0 if (min_sl or max_sl) else 0.0
+        riskiert = round(margin * (avg_sl / 100.0) * lev, 4) if avg_sl else 0.0
         rows.append({
-            'Nr':              i + 1,
-            'Datum':           str(t.get('entry_time', t.get('ts', '')))[:16].replace('T', ' '),
-            'Strategie':       strat,
-            'Richtung':        dir_,
-            'Hebel':           t.get('leverage', '—'),
-            'Einsatz (USDT)':  round(float(t.get('margin_used', 0)), 2),
-            'SL-Bereich':      sl_str,
-            'TSL Akt.':        act_str,
-            'TSL Callback':    cb_str,
-            'Entry':           entry,
-            'Exit':            exit_p,
-            'Ergebnis':        ergebnis,
-            'PnL (USDT)':      round(pnl,    4),
-            'Kapital':         round(equity, 4),
+            'Nr':                 i + 1,
+            'Datum':              str(t.get('entry_time', t.get('ts', '')))[:16].replace('T', ' '),
+            'Strategie':          strat,
+            'Richtung':           dir_,
+            'Hebel':              t.get('leverage', '—'),
+            'Reale Bewegung (%)': round(move_pct, 4),
+            'Riskiert (USDT)':    riskiert,
+            'Marge (USDT)':       round(margin, 4),
+            'SL-Bereich':         sl_str,
+            'TSL Akt.':           act_str,
+            'TSL Callback':       cb_str,
+            'Entry':              entry,
+            'Exit':               exit_p,
+            'Ergebnis':           ergebnis,
+            'PnL (USDT)':         round(pnl,    4),
+            'Kapital':            round(equity, 4),
         })
 
     wb = openpyxl.Workbook()
@@ -110,7 +121,7 @@ def _generate_trades_excel(final_sim, capital):
     )
     col_widths = {
         'Nr': 5, 'Datum': 18, 'Strategie': 22, 'Richtung': 10,
-        'Hebel': 8, 'Einsatz (USDT)': 16,
+        'Hebel': 8, 'Reale Bewegung (%)': 18, 'Riskiert (USDT)': 16, 'Marge (USDT)': 14,
         'SL-Bereich': 16, 'TSL Akt.': 10, 'TSL Callback': 13,
         'Entry': 14, 'Exit': 14, 'Ergebnis': 14, 'PnL (USDT)': 14, 'Kapital': 16,
     }
@@ -137,10 +148,9 @@ def _generate_trades_excel(final_sim, capital):
             cell.fill      = fill
             cell.border    = thin_border
             cell.alignment = Alignment(horizontal='center', vertical='center')
-            if key in ('Entry', 'Exit', 'PnL (USDT)', 'Kapital'):
+            if key in ('Entry', 'Exit', 'PnL (USDT)', 'Kapital',
+                       'Reale Bewegung (%)', 'Riskiert (USDT)', 'Marge (USDT)'):
                 cell.number_format = '#,##0.0000'
-            elif key == 'Einsatz (USDT)':
-                cell.number_format = '#,##0.00'
         ws.row_dimensions[r_idx].height = 18
 
     total     = len(rows)
