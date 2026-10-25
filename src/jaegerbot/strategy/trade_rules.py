@@ -31,6 +31,7 @@ _GEO_VARIANTS = {
     'kv6': {'warmup': 2000},                       # Basis-Timeframe 2h (Lauf mit --timeframes 2h)
     'kv7': {'human': True, 'candles': True},       # Chart-Geometrie + Kerzenformen ("wie ein Mensch")
     'kv8': {'candles': True},                      # nur Kerzenformen
+    'kv9': {'human': True, 'candles': True, 'clean_lines': True},   # V7 mit sauberen Linien nach fibot-Regeln
 }
 # Live-Name der in forschung/kanal_varianten bestaetigten Variante V7 (Chart-Geometrie + Kerzenformen, Short-Seite)
 _GEO_VARIANTS['mensch'] = _GEO_VARIANTS['kv7']
@@ -39,7 +40,7 @@ for _name, _cfg in _GEO_VARIANTS.items():
 GEO_FEATURES = bool(_PROFILES[PROFILE].get('geo_features'))
 HTF_FEATURES = bool(_PROFILES[PROFILE].get('htf_features'))
 GEO_CFG = {'windows': (50, 150), 'htf': '1D', 'htf_windows': (50, 150), 'edge': 0.15, 'warmup': 1000,
-           'human': False, 'candles': False, **_PROFILES[PROFILE].get('geo_cfg', {})}
+           'human': False, 'candles': False, 'clean_lines': False, **_PROFILES[PROFILE].get('geo_cfg', {})}
 SL_ATR_MULT = _PROFILES[PROFILE]['sl']
 RISK_REWARD = _PROFILES[PROFILE]['rr']
 MAX_HOLD = _PROFILES[PROFILE]['hold']

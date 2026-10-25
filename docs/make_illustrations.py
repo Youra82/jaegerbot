@@ -484,6 +484,128 @@ ALL['short_trade'] = short_trade
 ALL['variants'] = variants
 
 
+# --- 11 Beispiel-Trades der Live-Strategie (Long + Short, OOS, Gewinner und Verlierer) -------------------------
+def _example_panel(ax, e, title, show_v7):
+    """Ein Trade: Kerzen, saubere Linien (fibot-Regeln, durchgezogen), optional V7-Hoch/Tief-Abfolge (gestrichelt)."""
+    import ta
+    from jaegerbot.utils.data import load_data
+    from jaegerbot.strategy.human_geometry import pivots, best_line
+    from jaegerbot.strategy import trade_rules as tr
+    df = load_data(f"{e['coin']}/USDT:USDT", '4h')
+    df['atr'] = ta.volatility.AverageTrueRange(df['high'], df['low'], df['close'], 14).average_true_range()
+    o, h, l, c, atr = (df[k].to_numpy(float) for k in ('open', 'high', 'low', 'close', 'atr'))
+    tf = pd.Timedelta('4h')
+    i = df.index.get_loc(e['time'] - tf)
+    j = df.index.get_loc(e['exit_time'] - tf)
+    lo = i - 90
+    xs = np.arange(lo, min(j + 6, len(c)))
+    up = c[xs] >= o[xs]
+    ax.vlines(xs, l[xs], h[xs], color=MUTED, lw=0.8)
+    ax.bar(xs, np.abs(c[xs] - o[xs]), bottom=np.minimum(c[xs], o[xs]), width=0.7,
+           color=np.where(up, '#5b5a55', '#3a3936'), edgecolor=INK2, lw=0.3)
+    k = 5
+    ph, pl = pivots(h[:i + 1], k, 'high'), pivots(l[:i + 1], k, 'low')
+    if show_v7:
+        phc, plc = ph[(ph <= i - k) & (ph >= i - 300)], pl[(pl <= i - k) & (pl >= i - 300)]
+        for P, arr, col in ((phc, h, ORANGE), (plc, l, AQUA)):
+            if len(P) >= 2 and P[-2] >= lo:
+                a_, b_ = P[-2], P[-1]
+                sl_ = (arr[b_] - arr[a_]) / (b_ - a_)
+                ax.plot([a_, i + 4], [arr[a_], arr[b_] + sl_ * (i + 4 - b_)], color=col, lw=1.3, ls='--', alpha=0.9)
+    for side, piv, arr, col in (('res', ph, h, ORANGE), ('sup', pl, l, AQUA)):
+        ln = best_line(i, piv, arr, c, atr[i], k, side)
+        if ln is None:
+            continue
+        p1, p2, sl_, ic, t = ln
+        a0 = max(p1, lo)
+        ax.plot([a0, i + 4], [ic + sl_ * a0, ic + sl_ * (i + 4)], color=col, lw=2.2)
+        cand = piv[(piv >= p1) & (piv <= i - k)]
+        hit = cand[np.abs(arr[cand] - (ic + sl_ * cand)) <= 0.3 * atr[i]]
+        hit = hit[hit >= lo]
+        ax.scatter(hit, arr[hit], color=col, s=28, zorder=5)
+    ax.hlines([e['sl']], i, j, color=CRITICAL, lw=1.6, ls=':')
+    ax.hlines([e['tp']], i, j, color=GOOD, lw=1.6, ls=':')
+    ef = tr.fill_price(e['signal_close'], e['side'], True)
+    pnl, xf = tr.trade_pnl(e['side'], 1.0, ef, e['exit_raw'])
+    R = pnl / abs(ef - e['sl'])
+    ax.scatter([i], [c[i]], marker='v' if e['side'] == 'short' else '^', s=120, color=VIOLET, edgecolor=SURFACE, lw=1.5, zorder=6)
+    ax.scatter([j], [e['exit_raw']], marker='o', s=70, color=GOOD if R > 0 else CRITICAL, edgecolor=SURFACE, lw=1.5, zorder=6)
+    why = {'tp': 'Ziel', 'sl': 'Stop', 'time': 'Zeitausstieg'}[e['reason']]
+    ax.set_title(f"{title} · {e['coin']} {e['side'].upper()} {df.index[i]:%d.%m.%Y} · {why} {R:+.2f} R",
+                 color=GOOD if R > 0 else CRITICAL, fontsize=10, loc='left')
+    ax.set_xlim(lo - 1, j + 7)
+    ymin, ymax = l[lo:j + 6].min(), h[lo:j + 6].max()
+    pad = (ymax - ymin) * 0.12
+    ax.set_ylim(ymin - pad, ymax + pad)
+    ax.set_xticks([])
+    ax.grid(False)
+    return R
+
+
+def examples():
+    """Braucht %TMP%/jaeger_trend_events.pkl und jaeger_mensch_events.pkl (forschung). Zufallsauswahl mit festem Seed."""
+    import pickle
+    from jaegerbot.analysis.optimizer import oos_start
+    from jaegerbot.strategy import trade_rules as tr
+    T = os.environ.get('TMP', '/tmp')
+    L = pickle.load(open(os.path.join(T, 'jaeger_trend_events.pkl'), 'rb'))['events']
+    S = pickle.load(open(os.path.join(T, 'jaeger_mensch_events.pkl'), 'rb'))
+    ob = oos_start()
+    rng = np.random.default_rng(11)
+    # nur Trades, die der Bot mit Live-Einstellungen wirklich ausfuehrt (ein Coin nur einmal, max. Positionen)
+    from jaegerbot.analysis.backtester import run_portfolio
+    lt = _team()
+    for e in L:
+        e['prio'] = 0
+    done = run_portfolio([], 100, lt['risk_per_trade_pct'], lt['max_open_positions'], lt['max_leverage'],
+                         events=[dict(e) for e in L + S if e['time'] >= ob])['trades']
+    executed = {(r.coin, r.time, r.side) for r in done.itertuples()}
+    L = [e for e in L if (e['coin'], e['time'], e['side']) in executed]
+    S = [e for e in S if (e['coin'], e['time'], e['side']) in executed]
+
+    def R(e):
+        ef = tr.fill_price(e['signal_close'], e['side'], True)
+        return tr.trade_pnl(e['side'], 1.0, ef, e['exit_raw'])[0] / abs(ef - e['sl'])
+
+    def pick(ev, n_win, n_loss):
+        uniq = {}
+        for e in ev:                                    # gleiche Coin+Kerze nur einmal
+            uniq.setdefault((e['coin'], e['time']), e)
+        ev = [e for e in uniq.values() if e['time'] >= ob and e['exit_time'] is not None]
+        win, loss = [e for e in ev if R(e) > 0], [e for e in ev if R(e) <= 0]
+        out = [win[x] for x in rng.choice(len(win), min(n_win, len(win)), replace=False)]
+        out += [loss[x] for x in rng.choice(len(loss), min(n_loss, len(loss)), replace=False)]
+        return sorted(out, key=lambda e: e['time']), ev
+    longs, l_all = pick(L, 2, 1)
+    shorts, s_all = pick(S, 2, 1)
+    fig, axes = _fig(15, 13, rows=3)
+    plt.close(fig)
+    fig, axes = plt.subplots(3, 2, figsize=(15, 13), facecolor=SURFACE)
+    for ax in axes.flat:
+        ax.set_facecolor(SURFACE)
+        ax.tick_params(colors=MUTED, labelsize=8, length=0)
+        for sp in ax.spines.values():
+            sp.set_color(GRID)
+    for r_, e in enumerate(longs):
+        _example_panel(axes[r_, 0], e, 'Long-Netz', show_v7=False)
+    for r_, e in enumerate(shorts):
+        _example_panel(axes[r_, 1], e, 'Short-Netz „Mensch“', show_v7=True)
+    rl = np.array([R(e) for e in l_all])
+    rs = np.array([R(e) for e in s_all])
+    fig.subplots_adjust(top=0.875, bottom=0.03, left=0.05, right=0.98, hspace=0.25, wspace=0.12)
+    fig.text(0.02, 0.975, 'So handelt der Bot: echte Trades aus den letzten 26 Wochen (OOS)', fontsize=15, fontweight='bold',
+             color=INK, va='top')
+    fig.text(0.02, 0.948, f"Je Seite 2 Gewinner + 1 Verlierer zufällig gezogen · alle ausgeführten OOS-Trades: Long {len(rl)} (Ø {rl.mean():+.2f} R, "
+             f"Treffer {np.mean(rl > 0) * 100:.0f} %), Short {len(rs)} (Ø {rs.mean():+.2f} R, Treffer {np.mean(rs > 0) * 100:.0f} %)",
+             fontsize=10, color=INK2, va='top')
+    fig.text(0.02, 0.925, 'durchgezogen + Punkte = Linien nach fibot-Regeln (Orientierung) · gestrichelt = Eingabe des Short-Netzes: '
+             'jüngste Hoch-/Tief-Abfolge · ▲▼ Einstieg · ● Ausstieg · rot/grün gepunktet = SL/TP', fontsize=9, color=MUTED, va='top')
+    _save(fig, 'examples.png')
+
+
+ALL['examples'] = examples
+
+
 if __name__ == '__main__':
     for name in (sys.argv[1:] or ALL):
         ALL[name]()

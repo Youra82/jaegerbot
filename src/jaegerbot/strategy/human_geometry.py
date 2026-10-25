@@ -89,3 +89,90 @@ def human_geometry(h, l, c, atr, k, lookback, prefix):
         for key, v in o.items():
             out[f"{prefix}{key}"][i] = v
     return out
+
+
+# --- Saubere Linien nach fibot-Regeln (forschung/kanal_varianten V9) ----------------------------------------
+LINE_NAMES = ['lsup_ok', 'lsup_slope', 'lsup_dist', 'lsup_touch', 'lsup_age',
+              'lres_ok', 'lres_slope', 'lres_dist', 'lres_touch', 'lres_age',
+              'chan_width', 'chan_pos', 'brk_lsup', 'brk_lres']
+LINE_RULES = {'window': 150, 'max_pivots': 8, 'touch_atr': 0.3, 'break_atr': 0.5, 'min_span': 20, 'max_dist_atr': 6.0}
+
+
+def best_line(i, piv, price, closes, atr_i, k, side, rules=LINE_RULES):
+    """Beste gueltige Linie an Kerze i (nur bestaetigte Pivots bis i-k), Regeln wie fibot find_channel, jede Steigung.
+    side='sup': Linie durch Pivot-Tiefs, kein Schlusskurs/Pivot darunter; side='res' gespiegelt.
+    Rueckgabe (p1, p2, slope, intercept, touches) oder None."""
+    lo_win = i - rules['window']
+    cand = piv[(piv >= lo_win) & (piv <= i - k)][-rules['max_pivots']:]
+    if len(cand) < 2:
+        return None
+    sgn = 1.0 if side == 'sup' else -1.0           # Widerstand = Unterstuetzung der gespiegelten Reihe
+    tol_b, tol_t = rules['break_atr'] * atr_i, rules['touch_atr'] * atr_i
+    best = None
+    for x in range(len(cand) - 1):
+        p1 = cand[x]
+        if i - p1 < rules['min_span']:
+            break                                   # spaetere Anker sind noch juenger
+        seg_c = sgn * closes[p1:i + 1]
+        idx = np.arange(p1, i + 1)
+        lp = cand[cand >= p1]
+        for y in range(x + 1, len(cand)):
+            p2 = cand[y]
+            if p2 - p1 < 2 * k:
+                continue
+            slope = (price[p2] - price[p1]) / (p2 - p1)
+            icpt = price[p1] - slope * p1
+            if abs(closes[i] - (icpt + slope * i)) > rules['max_dist_atr'] * atr_i:   # zu weit weg: fuer die Lage irrelevant
+                continue
+            if np.any(seg_c < sgn * (icpt + slope * idx) - tol_b):    # Schlusskurs-Bruch
+                continue
+            dev = sgn * (price[lp] - (icpt + slope * lp))
+            if np.any(dev < -tol_b):                                  # Pivot jenseits der Linie
+                continue
+            touches = int(np.count_nonzero(np.abs(dev) <= tol_t))
+            if touches < 2:
+                continue
+            key = (touches, p2)
+            if best is None or key > best[0]:
+                best = (key, (int(p1), int(p2), float(slope), float(icpt), touches))
+    return best[1] if best else None
+
+
+def clean_lines(h, l, c, atr, k, prefix, rules=LINE_RULES):
+    n = len(c)
+    out = {f"{prefix}{name}": np.zeros(n) for name in LINE_NAMES}
+    for key in ('lsup_dist', 'lres_dist'):
+        out[f"{prefix}{key}"][:] = 10.0
+    ph, pl = pivots(h, k, 'high'), pivots(l, k, 'low')
+    prev = {'sup': None, 'res': None}
+    for i in range(n):
+        a = atr[i]
+        if not np.isfinite(a) or a <= 0:
+            prev = {'sup': None, 'res': None}
+            continue
+        cur = {}
+        for side, piv, price in (('sup', pl, l), ('res', ph, h)):
+            pv = prev[side]                         # Ausbruch: gestern gueltige Linie heute gebrochen
+            if pv is not None:
+                lv = pv[3] + pv[2] * i
+                if (side == 'sup' and c[i] < lv - rules['break_atr'] * a) or \
+                        (side == 'res' and c[i] > lv + rules['break_atr'] * a):
+                    out[f"{prefix}brk_l{side}"][i] = 1.0
+            ln = best_line(i, piv, price, c, a, k, side, rules)
+            cur[side] = ln
+            if ln is not None:
+                p1, p2, slope, icpt, touches = ln
+                lv = icpt + slope * i
+                out[f"{prefix}l{side}_ok"][i] = 1.0
+                out[f"{prefix}l{side}_slope"][i] = slope / a
+                out[f"{prefix}l{side}_dist"][i] = (c[i] - lv) / a
+                out[f"{prefix}l{side}_touch"][i] = touches
+                out[f"{prefix}l{side}_age"][i] = (i - p1) / rules['window']
+        if cur['sup'] is not None and cur['res'] is not None:
+            s_ = cur['sup'][3] + cur['sup'][2] * i
+            r_ = cur['res'][3] + cur['res'][2] * i
+            if r_ > s_:
+                out[f"{prefix}chan_width"][i] = (r_ - s_) / a
+                out[f"{prefix}chan_pos"][i] = (c[i] - s_) / (r_ - s_)
+        prev = cur
+    return out

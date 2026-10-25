@@ -27,6 +27,10 @@ Neu aufgebaut am 25.10.2026. Der alte jaegerbot (v4) verlor live, weil sein Back
 
 Das aktuelle Team steht in `settings.json` (`active_strategies`), die Regeln mit IS/OOS-Zahlen zeigt `./show_results.sh`.
 
+![Echte Long- und Short-Trades aus den letzten 26 Wochen, Gewinner und Verlierer, mit Linien, SL, TP und Ergebnis](docs/images/examples.png)
+
+*So handelt der Bot: sechs Trades, die er in den letzten 26 Wochen (von keiner Auswahl gesehen) mit den Live-Einstellungen ausgeführt hätte — je Seite zwei Gewinner und ein Verlierer, zufällig gezogen. Durchgezogene Linien mit Punkten = Trendlinien nach fibot-Regeln als Orientierung, gestrichelt = was das Short-Netz als Eingabe nutzt (jüngste Hoch-/Tief-Abfolge). Erzeugt mit `python docs/make_illustrations.py examples`.*
+
 ![Echter Trade aus dem OOS: Einstieg, SL, TP und die ANN-Wahrscheinlichkeit gegen die Schwelle](docs/images/trade.png)
 
 *Ein echter Trade aus den letzten 26 Wochen: Das Modell, das dieses Signal gab, wurde nur mit Kerzen vor Quartalsbeginn trainiert. Unten die ANN-Wahrscheinlichkeit „TP vor SL“; gehandelt wird nur über der Schwelle (stärkste 1 %) und nur, wenn EMA20 über EMA50 liegt.*
@@ -97,6 +101,12 @@ Ein Pivot zählt erst, wenn er bestätigt ist (4h: 5 Kerzen später, Tag: 3 Tage
 Die Auswahl dieser Variante lief vorregistriert (`forschung/kanal_varianten/PREREG.md`): sechs Varianten **nur im IS** verglichen, danach **einmal** OOS. Kerzenformen allein hätten geschadet; erst zusammen mit der Chart-Geometrie wurde das Netz stark. Ein gemeinsames Netz für Long und Short war deutlich schwächer als zwei Spezialisten.
 
 ![Vergleich der Short-Varianten im IS und OOS-Bestätigung](docs/images/variants.png)
+
+**Schöne Linien gegen schnelle Hoch-/Tief-Abfolge (V9 gegen V7):** Getestet wurde auch ein Netz, das statt der kurzen Hoch-/Tief-Linien saubere Trendlinien nach fibot-Regeln bekommt (≥ 2 Berührungen, kein Schlusskurs-Bruch, höchstens 6 ATR vom Kurs). Die Linien sehen deutlich menschlicher aus, das Netz wurde damit aber schwächer: im IS +45 % statt +51 %/Jahr, und es wählte statt Short eine Long-Regel. Live bleibt deshalb V7.
+
+![Beispiele aus dem Test: V7 (live, gestrichelt) und V9 (saubere Linien, durchgezogen) an echten OOS-Trades](docs/images/examples_v7_v9.png)
+
+*Oben/Mitte: Short-Trades des Live-Netzes V7; unten rechts/links: Trades von V9 (dessen IS-Regel Long wählte). OOS-Bilanz aller Signale: V7 59 Shorts, Ø +0,45 R, Treffer 59 % — V9 100 Longs, Ø −0,10 R, Treffer 43 %. Erzeugt mit `forschung/kanal_varianten/examples_v7_v9.py`.*
 
 ## Wie der Bot sich selbst prüft
 

@@ -54,3 +54,30 @@ E = **ein** V7-Modell (alle 158 Eingaben) für **beide** Richtungen: Long-Regel 
 V7-Modell im IS gewählt (je Seite: Schwelle Top 10/5/2,5/1 % × Trendfilter an/aus, Auswahl nach IS-avgR, ≥ 100 IS-Trades).
 Vergleich im IS (Kombination, DD ≤ 30 %) gegen die beste Zwei-Modell-Kombination (Live-Long + Short-Variante).
 E wird genommen, wenn es im IS mindestens gleich gut ist (einfacher: ein Modell); OOS einmalig wie oben.
+
+---
+
+## V9 „Mensch mit sauberen Linien“ (25.10.2026, 17:20 — nach User-Kritik an V7-Trendlinien, VOR jedem V9-Ergebnis)
+User: „Er findet keine schönen Trendlinien … geraten, nicht intelligent eingezeichnet. Guck, wie der fibot das macht.“
+V7 verband die letzten zwei Pivots, auch wenn Schlusskurse die Linie danach brechen. V9 = V7, aber die Trendlinien-
+Merkmale (`tlu_*`, `tll_*`, `converg`) werden ersetzt durch Linien nach **fibot-Regeln** (confluence_logic.find_channel),
+erweitert auf beide Seiten und jede Steigung:
+- Kandidaten: Paare bestätigter Pivots (Tiefs für Unterstützung, Hochs für Widerstand) aus den letzten 8 Pivots im
+  Fenster (4h: 150 Kerzen, k = 5; Tag: 150 Tage, k = 3); Abstand ≥ 2k; Linie mindestens 20 Kerzen alt.
+- Gültig nur ohne Schlusskurs-Bruch (> 0,5 ATR) seit dem ersten Anker und ohne Pivot jenseits der Linie (> 0,5 ATR);
+  ≥ 2 Berührungen (Pivots ≤ 0,3 ATR an der Linie). Auswahl: meiste Berührungen, dann jüngster zweiter Anker.
+- Merkmale je Linie: gültig, Steigung/ATR, Abstand Schlusskurs/ATR, Berührungen, Alter; Kanal: Breite/ATR, Lage im Kanal;
+  „Linie gebrochen“: Schlusskurs bricht die in der Vorkerze gültige Linie (> 0,5 ATR).
+Auswahl wie alle Varianten: IS gegen die Live-Variante V7 („mensch“), nur wenn besser → einmal OOS + Parität.
+Wird V9 gewählt und bestätigt, ersetzt es live die Short-Seite; sonst bleibt V7.
+- **Nachtrag V9 (nach Sichtprüfung der gefundenen Linien an 4 Beispielen, vor jedem Training/Ergebnis):** eine Linie
+  zählt nur, wenn der Schlusskurs höchstens 6 ATR von ihr entfernt ist (Relevanz). Beispiel BTC 19.09.: steiler
+  „Widerstand“ durch zwei alte Hochs ~10 ATR über dem Kurs — nie gebrochen, aber für die Lage bedeutungslos.
+
+## Ergebnis V9 (25.10.2026, 17:45) — im IS nicht besser, V7 bleibt
+- V7 („mensch“, live): IS-Regel Short Top 1 %, Kombi mit Long +51,4 %/J (DD 29,6).
+- V9 (saubere Linien nach fibot-Regeln + Relevanz ≤ 6 ATR): IS-Regel **Long** Top 1 % (keine Short-Seite mehr),
+  Kombi mit Long +45,1 %/J (DD 29,9) → schlechter, keine OOS-Prüfung (laut Protokoll).
+- Sichtprüfung: V9-Linien sehen menschlicher aus (2–4 echte Berührungen, kein Schlusskurs-Bruch); für die
+  Vorhersage der Short-Seite brachten sie aber nichts zusätzlich. Die V7-Merkmale „Linie durch die letzten zwei
+  Pivots“ sind als Lesehilfe unschön, beschreiben für das Netz aber offenbar die jüngste Hoch-/Tief-Abfolge.

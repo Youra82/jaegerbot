@@ -10,7 +10,7 @@ import pandas as pd
 import ta
 
 from jaegerbot.strategy import trade_rules as tr
-from jaegerbot.strategy.human_geometry import human_geometry, NAMES as human_geometry_names
+from jaegerbot.strategy.human_geometry import human_geometry, NAMES as human_geometry_names, clean_lines, LINE_NAMES
 from jaegerbot.strategy.candle_patterns import candle_patterns, NAMES as candle_pattern_names
 
 FEATURES = [
@@ -29,7 +29,12 @@ GEO_WINDOWS, HTF_WINDOWS = tuple(_G['windows']), tuple(_G['htf_windows'])
 _GEO_KEYS = ('drift', 'er', 'pos', 'width', 'tu', 'tl')
 GEO_COLUMNS = [f"geo_{k}_{n}" for n in GEO_WINDOWS for k in _GEO_KEYS]
 HTF_COLUMNS = [f"htf_geo_{k}_{n}" for n in HTF_WINDOWS for k in _GEO_KEYS]
-HUMAN_COLUMNS = ['hg_' + x for x in human_geometry_names] + ['hgd_' + x for x in human_geometry_names]
+if _G['clean_lines']:          # V9: Trendlinien nach fibot-Regeln statt "letzte zwei Pivots"
+    _HN = [x for x in human_geometry_names
+           if x not in ('tlu_slope', 'tlu_dist', 'tll_slope', 'tll_dist', 'converg')] + LINE_NAMES
+else:
+    _HN = list(human_geometry_names)
+HUMAN_COLUMNS = ['hg_' + x for x in _HN] + ['hgd_' + x for x in _HN]
 CANDLE_COLUMNS = ['cp_' + x for x in candle_pattern_names] + ['cpd_' + x for x in candle_pattern_names]
 if tr.GEO_FEATURES:            # Profil 'geo' (forschung/ann_kanaltypen): Kanal-Geometrie als Eingaben
     FEATURES = FEATURES + GEO_COLUMNS
@@ -132,6 +137,8 @@ def compute_features(df: pd.DataFrame) -> pd.DataFrame:
         extra.update(channel_geometry(ha, la, ca, atr_a, GEO_WINDOWS, _G['edge'], 'geo_'))
     if _G['human']:
         extra.update(human_geometry(ha, la, ca, atr_a, k=5, lookback=300, prefix='hg_'))
+        if _G['clean_lines']:
+            extra.update(clean_lines(ha, la, ca, atr_a, k=5, prefix='hg_'))
     if _G['candles']:
         extra.update(candle_patterns(o.to_numpy(float), ha, la, ca, atr_a, 'cp_'))
     if extra:
@@ -159,6 +166,8 @@ def higher_tf_features(df):
     vals = channel_geometry(hd, ld, cd, atr_d, HTF_WINDOWS, _G['edge'], 'htf_geo_')
     if _G['human']:
         vals.update(human_geometry(hd, ld, cd, atr_d, k=3, lookback=150, prefix='hgd_'))
+        if _G['clean_lines']:
+            vals.update(clean_lines(hd, ld, cd, atr_d, k=3, prefix='hgd_'))
     if _G['candles']:
         vals.update(candle_patterns(od, hd, ld, cd, atr_d, 'cpd_'))
     per = pd.DataFrame(vals, index=d.index + period)    # gueltig ab Periodenende
