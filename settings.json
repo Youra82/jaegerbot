@@ -1,7 +1,7 @@
 {
   "live_trading_settings": {
-    "risk_per_trade_pct": 1.0,
-    "max_open_positions": 10,
+    "risk_per_trade_pct": 0.95,
+    "max_open_positions": 20,
     "max_leverage": 20,
     "margin_mode": "isolated",
     "active_strategies": [
@@ -154,6 +154,51 @@
         "symbol": "RSR/USDT:USDT",
         "timeframe": "4h",
         "active": true
+      },
+      {
+        "symbol": "IOST/USDT:USDT",
+        "timeframe": "4h",
+        "active": true
+      },
+      {
+        "symbol": "SHIB/USDT:USDT",
+        "timeframe": "4h",
+        "active": true
+      },
+      {
+        "symbol": "GRAM/USDT:USDT",
+        "timeframe": "4h",
+        "active": true
+      },
+      {
+        "symbol": "ETC/USDT:USDT",
+        "timeframe": "4h",
+        "active": true
+      },
+      {
+        "symbol": "1000XEC/USDT:USDT",
+        "timeframe": "4h",
+        "active": true
+      },
+      {
+        "symbol": "ATOM/USDT:USDT",
+        "timeframe": "4h",
+        "active": true
+      },
+      {
+        "symbol": "ICP/USDT:USDT",
+        "timeframe": "4h",
+        "active": true
+      },
+      {
+        "symbol": "ORDI/USDT:USDT",
+        "timeframe": "4h",
+        "active": true
+      },
+      {
+        "symbol": "ALGO/USDT:USDT",
+        "timeframe": "4h",
+        "active": true
       }
     ]
   },
@@ -218,7 +263,16 @@
       "W",
       "RSR",
       "SEI",
-      "BSP"
+      "BSP",
+      "IOST",
+      "SHIB",
+      "GRAM",
+      "ETC",
+      "1000XEC",
+      "ATOM",
+      "ICP",
+      "ORDI",
+      "ALGO"
     ],
     "timeframes": [
       "1h",

@@ -23,7 +23,7 @@ from jaegerbot.utils.data import load_settings
 from jaegerbot.analysis.backtester import run_portfolio
 from jaegerbot.analysis.optimizer import RULES_FILE, events_for, oos_start
 
-RISK_GRID = np.round(np.arange(0.5, 4.01, 0.25), 2)
+RISK_GRID = np.round(np.arange(0.5, 4.01, 0.05), 2)
 
 
 def main():

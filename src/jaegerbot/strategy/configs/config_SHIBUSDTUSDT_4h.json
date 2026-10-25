@@ -1,0 +1,39 @@
+{
+  "market": {
+    "symbol": "SHIB/USDT:USDT",
+    "timeframe": "4h"
+  },
+  "strategy": {
+    "sides": "L",
+    "quantile": 0.99,
+    "ema_filter": true
+  },
+  "_backtest": {
+    "is_start": "2023-01-01",
+    "oos_start": "2026-04-26",
+    "is": {
+      "start_capital": 100.0,
+      "end_capital": 211.534,
+      "pnl_pct": 111.534,
+      "max_dd_pct": 31.24,
+      "trades": 596.0,
+      "win_rate": 48.826,
+      "avg_R": 0.148,
+      "open_at_end": 0.0
+    },
+    "oos": {
+      "start_capital": 100.0,
+      "end_capital": 154.53,
+      "pnl_pct": 54.53,
+      "max_dd_pct": 7.092,
+      "trades": 101.0,
+      "win_rate": 56.436,
+      "avg_R": 0.498,
+      "open_at_end": 0.0
+    },
+    "risk_pct": 1.0,
+    "confirmed": true,
+    "n_coins": 39,
+    "created": "2026-10-25 12:33"
+  }
+}

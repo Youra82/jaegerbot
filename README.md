@@ -20,9 +20,9 @@ Neu aufgebaut am 25.10.2026. Der alte jaegerbot (v4) verlor live, weil sein Back
 |---|---|
 | Regel | **Long**, nur die stärksten **1 %** der ANN-Vorhersagen, nur wenn EMA20 > EMA50 |
 | Timeframe | **4h** |
-| Coins | 30 etablierte Coins (Bitget-Listing ≥ 1200 Tage) |
+| Coins | 39 etablierte Coins (Bitget-Listing ≥ 1200 Tage, ≥ 1 Mio. USDT Tagesvolumen) |
 | Ausstieg | TP 4 × ATR, SL 2 × ATR (beide hängen an der Einstiegsorder), sonst Zeitausstieg nach 12 Kerzen |
-| Risiko | 1 % des realisierten Kapitals je Trade, max. 10 Positionen, ein Coin nur einmal |
+| Risiko | 0,95 % des realisierten Kapitals je Trade (höchstes Risiko mit Drawdown ≤ 30 % seit 2023), max. 20 Positionen, ein Coin nur einmal |
 | Kosten im Backtest | 0,06 % Gebühr + 0,05 % Schlupf je Seite (0,22 % pro Runde) |
 
 Das aktuelle Team steht in `settings.json` (`active_strategies`), die Regeln mit IS/OOS-Zahlen zeigt `./show_results.sh`.
@@ -37,8 +37,8 @@ Alle Vorhersagen sind **Walk-Forward**: Für jedes Quartal gibt es ein eigenes M
 
 | Messung (Stand 25.10.2026) | Ergebnis |
 |---|---|
-| Portfolio seit 01.01.2023, 1 % Risiko | **+26 %/Jahr, max. Drawdown 25 %**, 543 Trades, +0,18 R je Trade |
-| davon OOS (letzte 26 Wochen, von keiner Auswahl gesehen) | +22 %, Drawdown 6 % |
+| Portfolio seit 01.01.2023, 0,95 % Risiko | **+34,5 %/Jahr, max. Drawdown 30 %**, 698 Trades, +0,20 R je Trade, schlechtestes Jahr −14 % |
+| davon OOS (letzte 26 Wochen, von keiner Auswahl gesehen) | +52 %, Drawdown 7 % |
 | Kontrollgruppe: zufällige Longs im Aufwärtstrend, gleiche Ausstiege | −0,03 R je Trade (ANN-Signale der 4h-Regel +0,23 R) |
 | Gleiche Regel auf jungen Altcoins | ≈ 0 R, deshalb nur etablierte Coins |
 | Shorts | auf großen Coins durchgehend negativ, deshalb nur Long |
@@ -55,7 +55,19 @@ Alle Vorhersagen sind **Walk-Forward**: Für jedes Quartal gibt es ein eigenes M
 
 ![Vorwärts-Test: Regel je Timeframe gegen Auswahl je Coin und fünf Zufalls-Durchläufe](docs/images/methods.png)
 
-Realistische Erwartung: eher die +20–26 %/Jahr über die ganze Zeit als die letzten 26 Wochen. Die Kante ist klein und braucht Aufwärtstrends.
+Realistische Erwartung: eher die rund +35 %/Jahr über die ganze Zeit als die letzten 26 Wochen. Die Kante ist klein und braucht Aufwärtstrends.
+
+**Mehr Rendite nur mit mehr Risiko** (gleiche Regel, gleiche Trades, nur größere Positionen, seit 2023):
+
+| Risiko je Trade | Rendite pro Jahr | max. Drawdown | schlechtestes Jahr |
+|---|---|---|---|
+| **0,95 % (aktiv)** | **+35 %** | **30 %** | **−14 %** |
+| 1,5 % | +54 % | 43 % | −23 % |
+| 2 % | +71 % | 53 % | −30 % |
+| 3 % | +99 % | 69 % | −43 % |
+| 4 % | +119 % | 79 % | −55 % |
+
+Der Drawdown ist auf geschlossene Trades gerechnet; mit Buchverlusten offener Positionen ist er höher. Ändern: `risk_per_trade_pct` in `settings.json` (die Quartals-Pipeline setzt es wieder auf das höchste Risiko mit DD ≤ `max_drawdown_pct`).
 
 ---
 
@@ -91,7 +103,7 @@ Quartalsbeginn ──> auto_optimizer_scheduler.py
                       → Paritätstest → Telegram   (bei Fehler: Rücksicherung + Alarm)
 ```
 
-Geprüft werden jedes Quartal **1h, 2h, 4h, 6h und 1d**. Eine Regel kommt nur dazu, wenn sie im OOS ≥ +10 % bei ≤ 30 % Drawdown und ≥ 10 Trades erreicht und das Portfolio verbessert. Am 25.10.2026 bestanden 1h und 4h; zusammen erhöhten sie nur den Drawdown, deshalb läuft nur 4h.
+Geprüft werden jedes Quartal **1h, 2h, 4h, 6h und 1d**. Eine Regel kommt nur dazu, wenn sie im OOS ≥ +10 % bei ≤ 30 % Drawdown und ≥ 10 Trades erreicht und das Portfolio verbessert. Am 25.10.2026 bestanden 1h und 4h (zusammen 69 bestätigte Coin-Strategien); 1h erhöhte im Portfolio nur den Drawdown, deshalb laufen die 39 Strategien auf 4h.
 
 ![OOS-Ergebnis der Regel je Timeframe: 1h bestätigt, 4h live, 2h/6h/1d abgelehnt](docs/images/timeframes.png)
 
@@ -135,7 +147,7 @@ Cronjob (`crontab -e`):
 */15 * * * * /usr/bin/flock -n /pfad/zu/jaegerbot/jaegerbot.lock /bin/sh -c "cd /pfad/zu/jaegerbot && .venv/bin/python3 master_runner.py >> logs/cron.log 2>&1"
 ```
 
-Das Konto muss im **Hedge-Modus** laufen. Mindestgröße bei Bitget: 5 USDT je Order. Der Stop liegt im Median bei 4,4 % (10 % der Signale über 12 %), eine Order ist bei 1 % Risiko also meist 8–25 % des Kapitals. Gemessen seit 2023: mit 30 USDT Start wären 196 von 648 Signalen an der Mindestgröße gescheitert, mit 50 USDT 56, mit **100 USDT keines**. Der Simulator und der tägliche Selbstcheck rechnen die Mindestgröße genauso mit.
+Das Konto muss im **Hedge-Modus** laufen. Mindestgröße bei Bitget: 5 USDT je Order. Der Stop liegt im Median bei 4,4 % (10 % der Signale über 12 %), eine Order ist bei 0,95 % Risiko also meist 8–22 % des Kapitals. Gemessen seit 2023: mit 30 USDT Start wären 299 Signale an der Mindestgröße gescheitert, mit 50 USDT 139, mit **100 USDT keines**. Der Simulator und der tägliche Selbstcheck rechnen die Mindestgröße genauso mit.
 
 ## Update
 
