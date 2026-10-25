@@ -11,7 +11,7 @@ import os
 import json
 import pandas as pd
 
-from jaegerbot.utils.telegram import send_message
+from jaegerbot.utils.telegram import send_message, send_photo
 from jaegerbot.strategy.features import compute_features, FEATURES, WARMUP_CANDLES
 from jaegerbot.strategy import trade_rules as tr
 from jaegerbot.strategy import model as mdl
@@ -58,8 +58,42 @@ def _notify(telegram, text, logger):
         logger.warning(f"Telegram fehlgeschlagen: {e}")
 
 
-def manage_position(exchange, state, symbol, timeframe, last_ts, telegram, logger):
-    """Prueft die eigene Position. Gibt True zurueck, wenn die Strategie danach flach ist."""
+def _notify_chart(telegram, text, logger, render):
+    """Meldung mit Trade-Chart (render() liefert den PNG-Pfad). Jeder Chart-Fehler -> nur Text; der Handel
+    ist zu diesem Zeitpunkt schon erledigt und wird davon nie beruehrt."""
+    if not (telegram.get('bot_token') and telegram.get('chat_id')):
+        return
+    path = None
+    try:
+        path = render()
+        if send_photo(telegram['bot_token'], telegram['chat_id'], path, text):
+            return
+    except Exception as e:
+        logger.warning(f"Trade-Chart fehlgeschlagen ({e}) -- sende nur Text.")
+    finally:
+        if path and os.path.exists(path):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+    _notify(telegram, text, logger)
+
+
+def _close_chart(df, timeframe, cfg, pos, symbol, reason=None, exit_ts=None, exit_price=None):
+    """Chart zur Schliessung; Ausstieg aus den Kerzen wie im Backtest, falls nicht vorgegeben."""
+    from jaegerbot.utils.trade_chart import render_trade_chart, exit_from_candles
+    feats = compute_features(df)
+    if exit_ts is None:
+        ex = exit_from_candles(feats, timeframe, pos['side'], pos['signal_ts'], pos['sl'], pos['tp'])
+        if ex is not None:
+            exit_ts, exit_price, reason = ex
+    return render_trade_chart(feats, timeframe, cfg, pos['side'], pos['signal_ts'], pos['sl'], pos['tp'], symbol,
+                              exit_ts=exit_ts, exit_price=exit_price, exit_reason=reason)
+
+
+def manage_position(exchange, state, symbol, timeframe, last_ts, telegram, logger, df=None, cfg=None):
+    """Prueft die eigene Position. Gibt True zurueck, wenn die Strategie danach flach ist.
+    df/cfg nur fuer den Telegram-Chart zur Schliessung."""
     pos = state.get('position')
     if not pos:
         return True
@@ -67,7 +101,11 @@ def manage_position(exchange, state, symbol, timeframe, last_ts, telegram, logge
     if not live:
         logger.info(f"Position {pos['side']} geschlossen (SL/TP ausgeloest). Raeume Rest-Orders auf.")
         exchange.cancel_all_orders_for_symbol(symbol)
-        _notify(telegram, f"{BOT} {symbol} {timeframe}: {pos['side']} durch SL/TP geschlossen.", logger)
+        text = f"{BOT} {symbol} {timeframe}: {pos['side']} durch SL/TP geschlossen."
+        if df is not None and cfg is not None:
+            _notify_chart(telegram, text, logger, lambda: _close_chart(df, timeframe, cfg, pos, symbol))
+        else:
+            _notify(telegram, text, logger)
         state['position'] = None
         return True
     due = pd.Timestamp(pos['signal_ts']) + tr.MAX_HOLD[timeframe] * pd.Timedelta(timeframe)
@@ -76,7 +114,13 @@ def manage_position(exchange, state, symbol, timeframe, last_ts, telegram, logge
         logger.info(f"Haltedauer abgelaufen (Kerze {due}) -> schliesse {pos['side']} {amount} per Market.")
         exchange.cancel_all_orders_for_symbol(symbol)
         exchange.close_position_market(symbol, pos['side'], amount)
-        _notify(telegram, f"{BOT} {symbol} {timeframe}: {pos['side']} nach {tr.MAX_HOLD[timeframe]} Kerzen geschlossen (Zeitausstieg).", logger)
+        text = f"{BOT} {symbol} {timeframe}: {pos['side']} nach {tr.MAX_HOLD[timeframe]} Kerzen geschlossen (Zeitausstieg)."
+        if df is not None and cfg is not None:
+            exit_px = float(df['close'].iloc[-1])
+            _notify_chart(telegram, text, logger, lambda: _close_chart(df, timeframe, cfg, pos, symbol, 'time',
+                                                                       df.index[-1], exit_px))
+        else:
+            _notify(telegram, text, logger)
         state['position'] = None
         return True
     return False
@@ -127,7 +171,7 @@ def full_trade_cycle(exchange, config, live_settings, telegram, logger, now=None
         return None
     last_ts = df.index[-1]   # Eroeffnungszeit der letzten GESCHLOSSENEN Kerze
 
-    flat = manage_position(exchange, state, symbol, timeframe, last_ts, telegram, logger)
+    flat = manage_position(exchange, state, symbol, timeframe, last_ts, telegram, logger, df=df, cfg=cfg)
     if manage_only:
         save_state(key, state)
         return df
@@ -198,5 +242,10 @@ def full_trade_cycle(exchange, config, live_settings, telegram, logger, now=None
                          'entry_ref': entry_ref, 'leverage': lev, 'order_id': (order or {}).get('id')}
     save_state(key, state)
     logger.info(f"ERÖFFNET {side} {qty:.6g} @~{close} | SL {sl:.6g} | TP {tp:.6g} | Hebel {lev}x | Equity {equity:.2f}")
-    _notify(telegram, f"{BOT} {symbol} {timeframe}: {side.upper()} eröffnet @~{close:.6g}\n"
-                      f"SL {sl:.6g} | TP {tp:.6g} | Hebel {lev}x | Risiko {risk:.2f} %", logger)
+    text = (f"{BOT} {symbol} {timeframe}: {side.upper()} eröffnet @~{close:.6g}\n"
+            f"SL {sl:.6g} | TP {tp:.6g} | Hebel {lev}x | Risiko {risk:.2f} %")
+
+    def _open_chart():
+        from jaegerbot.utils.trade_chart import render_trade_chart
+        return render_trade_chart(compute_features(df), timeframe, cfg, side, last_ts, sl, tp, symbol)
+    _notify_chart(telegram, text, logger, _open_chart)

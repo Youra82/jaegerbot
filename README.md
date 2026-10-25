@@ -218,7 +218,7 @@ crontab -e                                                   # Zeile unten eintr
 */15 * * * * /usr/bin/flock -n /pfad/zu/jaegerbot/jaegerbot.lock /bin/sh -c "cd /pfad/zu/jaegerbot && .venv/bin/python3 master_runner.py >> logs/cron.log 2>&1"
 ```
 
-Voraussetzungen: Konto im **Hedge-Modus**, mindestens **75–100 USDT**. Eröffnungen erscheinen in Telegram als `jaegerbot …` (Long) bzw. `jaegerbot[mensch] …` (Short).
+Voraussetzungen: Konto im **Hedge-Modus**, mindestens **75–100 USDT**. Eröffnungen erscheinen in Telegram als `jaegerbot …` (Long) bzw. `jaegerbot[mensch] …` (Short). Jede Eröffnung und jede Schließung kommt **mit Chart-Bild**: Kerzen, Einstieg, SL/TP, beim Long EMA20/50, beim Short Trendlinien, Zonen und Kerzenform, darunter die ANN-Wahrscheinlichkeit gegen die Schwelle; beim Schließen zusätzlich Ausstieg und Ergebnis in R. Scheitert das Bild, kommt die Meldung als Text – der Handel selbst wird davon nie berührt.
 
 `./update.sh` behält `secret.json`, das live laufende Team und — falls der VPS selbst nachtrainiert hat — dessen neuere Modelle und Configs beider Seiten.
 
