@@ -8,8 +8,8 @@ echo "1. Sichere secret.json, settings.json, Configs und Modelle ..."
 TMP=$(mktemp -d)
 cp secret.json "$TMP/secret.json"
 [ -f settings.json ] && cp settings.json "$TMP/settings.json"
-[ -d src/jaegerbot/strategy/configs ] && cp -r src/jaegerbot/strategy/configs "$TMP/configs"
-[ -d artifacts/models ] && cp -r artifacts/models "$TMP/models"
+for d in configs configs_mensch; do [ -d src/jaegerbot/strategy/$d ] && cp -r src/jaegerbot/strategy/$d "$TMP/$d"; done
+for d in models models_mensch; do [ -d artifacts/$d ] && cp -r artifacts/$d "$TMP/$d"; done
 
 echo "2. Hole den neuesten Stand von GitHub ..."
 git fetch origin
@@ -34,20 +34,22 @@ def newest_created(folder):
             pass
     return max(stamps) if stamps else ''
 
-vps, repo = newest_created(os.path.join(tmp, 'configs')), newest_created('src/jaegerbot/strategy/configs')
-keep_vps = bool(vps) and vps > repo
-if keep_vps:
-    shutil.rmtree('src/jaegerbot/strategy/configs', ignore_errors=True)
-    shutil.copytree(os.path.join(tmp, 'configs'), 'src/jaegerbot/strategy/configs')
-    print(f'   Configs vom VPS behalten (VPS {vps} neuer als Repo {repo or "-"})')
-if os.path.isdir(os.path.join(tmp, 'models')):
-    # Modelle: fehlende/neuere Quartalsdateien vom VPS zurueck (Repo-Dateien desselben Quartals bleiben, wenn VPS aelter)
-    for f in glob.glob(os.path.join(tmp, 'models', '*', '*.joblib')):
-        rel = os.path.relpath(f, os.path.join(tmp, 'models'))
-        dst = os.path.join('artifacts', 'models', rel)
-        if not os.path.exists(dst) or keep_vps:
-            os.makedirs(os.path.dirname(dst), exist_ok=True)
-            shutil.copy2(f, dst)
+# je Profil (Long: configs/models, Short: configs_mensch/models_mensch)
+for cdir, mdir in (('configs', 'models'), ('configs_mensch', 'models_mensch')):
+    repo_c = os.path.join('src', 'jaegerbot', 'strategy', cdir)
+    vps, repo = newest_created(os.path.join(tmp, cdir)), newest_created(repo_c)
+    keep_vps = bool(vps) and vps > repo
+    if keep_vps:
+        shutil.rmtree(repo_c, ignore_errors=True)
+        shutil.copytree(os.path.join(tmp, cdir), repo_c)
+        print(f'   {cdir}: vom VPS behalten (VPS {vps} neuer als Repo {repo or "-"})')
+    if os.path.isdir(os.path.join(tmp, mdir)):
+        # fehlende/neuere Quartalsmodelle vom VPS zurueck (selbst nachtrainiert)
+        for f in glob.glob(os.path.join(tmp, mdir, '*', '*.joblib')):
+            dst = os.path.join('artifacts', mdir, os.path.relpath(f, os.path.join(tmp, mdir)))
+            if not os.path.exists(dst) or keep_vps:
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                shutil.copy2(f, dst)
 
 old_path = os.path.join(tmp, 'settings.json')
 if os.path.exists(old_path):

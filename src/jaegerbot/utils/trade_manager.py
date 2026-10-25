@@ -18,7 +18,10 @@ from jaegerbot.strategy import model as mdl
 from jaegerbot.utils.data_check import check_candles
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-STATE_DIR = os.path.join(PROJECT_ROOT, 'artifacts', 'db')
+# je Profil eigene Zustaende (trend: artifacts/db, geohtf: artifacts/db_geohtf) -- Long und Short derselben Coin
+# duerfen sich keinen Zustand teilen
+STATE_DIR = tr.profile_dir(os.path.join(PROJECT_ROOT, 'artifacts', 'db'))
+BOT = 'jaegerbot' if tr.PROFILE == 'trend' else f'jaegerbot[{tr.PROFILE}]'
 MAX_SIGNAL_AGE = pd.Timedelta(minutes=20)
 FETCH_CANDLES = WARMUP_CANDLES + 300
 
@@ -64,7 +67,7 @@ def manage_position(exchange, state, symbol, timeframe, last_ts, telegram, logge
     if not live:
         logger.info(f"Position {pos['side']} geschlossen (SL/TP ausgeloest). Raeume Rest-Orders auf.")
         exchange.cancel_all_orders_for_symbol(symbol)
-        _notify(telegram, f"jaegerbot {symbol} {timeframe}: {pos['side']} durch SL/TP geschlossen.", logger)
+        _notify(telegram, f"{BOT} {symbol} {timeframe}: {pos['side']} durch SL/TP geschlossen.", logger)
         state['position'] = None
         return True
     due = pd.Timestamp(pos['signal_ts']) + tr.MAX_HOLD[timeframe] * pd.Timedelta(timeframe)
@@ -73,7 +76,7 @@ def manage_position(exchange, state, symbol, timeframe, last_ts, telegram, logge
         logger.info(f"Haltedauer abgelaufen (Kerze {due}) -> schliesse {pos['side']} {amount} per Market.")
         exchange.cancel_all_orders_for_symbol(symbol)
         exchange.close_position_market(symbol, pos['side'], amount)
-        _notify(telegram, f"jaegerbot {symbol} {timeframe}: {pos['side']} nach {tr.MAX_HOLD[timeframe]} Kerzen geschlossen (Zeitausstieg).", logger)
+        _notify(telegram, f"{BOT} {symbol} {timeframe}: {pos['side']} nach {tr.MAX_HOLD[timeframe]} Kerzen geschlossen (Zeitausstieg).", logger)
         state['position'] = None
         return True
     return False
@@ -100,7 +103,7 @@ def decide_entry(df, timeframe, cfg):
     if ens is None:
         return {'error': f"kein Modell fuer {timeframe} (artifacts/models/{timeframe})"}
     pred = mdl.predict_frame(ens, feats.iloc[[-1]]).iloc[0].to_dict()
-    pred.update(ema20=row['ema20'], ema50=row['ema50'])
+    pred.update(ema20=row['ema20'], ema50=row['ema50'], atr=row['atr'])
     side = tr.entry_signal(pred, cfg)
     sl, tp = tr.levels(float(row['close']), float(row['atr']), side) if side else (None, None)
     return {'side': side, 'sl': sl, 'tp': tp, 'row': row, 'pred': pred}
@@ -195,5 +198,5 @@ def full_trade_cycle(exchange, config, live_settings, telegram, logger, now=None
                          'entry_ref': entry_ref, 'leverage': lev, 'order_id': (order or {}).get('id')}
     save_state(key, state)
     logger.info(f"ERÖFFNET {side} {qty:.6g} @~{close} | SL {sl:.6g} | TP {tp:.6g} | Hebel {lev}x | Equity {equity:.2f}")
-    _notify(telegram, f"jaegerbot {symbol} {timeframe}: {side.upper()} eröffnet @~{close:.6g}\n"
+    _notify(telegram, f"{BOT} {symbol} {timeframe}: {side.upper()} eröffnet @~{close:.6g}\n"
                       f"SL {sl:.6g} | TP {tp:.6g} | Hebel {lev}x | Risiko {risk:.2f} %", logger)

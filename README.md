@@ -1,14 +1,13 @@
-<p align="center">
-  <img src="https://img.shields.io/badge/%F0%9F%9A%A7%20BAUSTELLE-nicht%20live-orange?style=for-the-badge" alt="Baustelle – nicht live">
-</p>
-
-> 🚧 **Baustelle:** Dieser Bot ist aktuell **nicht live** und wird weiterentwickelt.
-
-# JaegerBot v5 — ANN-Ensemble, Live = Backtest
+# JaegerBot v5 — Long + Short, Chart lesen wie ein Mensch
 
 ![JaegerBot v5: Kerzen → Features → ANN-Ensemble → Signal → Order mit SL/TP → Selbstcheck](docs/images/pipeline.png)
 
-Vollautomatischer Futures-Bot für **Bitget**. Ein neuronales Netz (Ensemble aus 3 MLPs je Seite) sagt für jede geschlossene Kerze voraus, ob der Kurs das Gewinnziel (4 × ATR) vor dem Stop (2 × ATR) erreicht. Gehandelt werden nur die stärksten Vorhersagen, im Aufwärtstrend, auf etablierten Coins.
+Vollautomatischer Futures-Bot für **Bitget** mit zwei neuronalen Netzen (Ensembles aus je 3 MLPs). Beide sagen für jede geschlossene 4h-Kerze voraus, ob der Kurs das Gewinnziel (4 × ATR) vor dem Stop (2 × ATR) erreicht:
+
+- **Long-Netz:** 46 Indikator-Merkmale, handelt die stärksten 1 % im Aufwärtstrend.
+- **Short-Netz „Mensch“:** liest den Chart wie ein Trader — Kanäle, Marktstruktur, Trendlinien, Zonen, Ausbruch/Retest und eine Bibliothek von 28 Kerzenformen, jeweils auf 4h **und** Tageschart (158 Merkmale). Handelt die stärksten 1 % Short-Signale.
+
+Gehandelt wird auf etablierten Coins, beide Seiten auf einem Konto, jeder Coin nur einmal.
 
 Neu aufgebaut am 25.10.2026. Der alte jaegerbot (v4) verlor live, weil sein Backtest nicht echt war (siehe [Warum v4 verlor](#warum-v4-verlor)).
 
@@ -18,11 +17,12 @@ Neu aufgebaut am 25.10.2026. Der alte jaegerbot (v4) verlor live, weil sein Back
 
 | | |
 |---|---|
-| Regel | **Long**, nur die stärksten **1 %** der ANN-Vorhersagen, nur wenn EMA20 > EMA50 |
+| Long | Profil `trend`: nur die stärksten **1 %** der Long-Vorhersagen, nur wenn EMA20 > EMA50 |
+| Short | Profil `mensch`: nur die stärksten **1 %** der Short-Vorhersagen (Chart-Geometrie + Kerzenformen auf 4h und Tag) |
 | Timeframe | **4h** |
-| Coins | 39 etablierte Coins (Bitget-Listing ≥ 1200 Tage, ≥ 1 Mio. USDT Tagesvolumen) |
+| Coins | 39 etablierte Coins (Bitget-Listing ≥ 1200 Tage, ≥ 1 Mio. USDT Tagesvolumen), je eine Long- und eine Short-Strategie = 78 |
 | Ausstieg | TP 4 × ATR, SL 2 × ATR (beide hängen an der Einstiegsorder), sonst Zeitausstieg nach 12 Kerzen |
-| Risiko | 0,95 % des realisierten Kapitals je Trade (höchstes Risiko mit Drawdown ≤ 30 % seit 2023), max. 20 Positionen, ein Coin nur einmal |
+| Risiko | 1,40 % des realisierten Kapitals je Trade (höchstes Risiko mit Drawdown ≤ 30 % seit 2023, Long + Short zusammen), max. 20 Positionen, ein Coin nur einmal, Long vor Short |
 | Kosten im Backtest | 0,06 % Gebühr + 0,05 % Schlupf je Seite (0,22 % pro Runde) |
 
 Das aktuelle Team steht in `settings.json` (`active_strategies`), die Regeln mit IS/OOS-Zahlen zeigt `./show_results.sh`.
@@ -37,15 +37,20 @@ Alle Vorhersagen sind **Walk-Forward**: Für jedes Quartal gibt es ein eigenes M
 
 | Messung (Stand 25.10.2026) | Ergebnis |
 |---|---|
-| Portfolio seit 01.01.2023, 0,95 % Risiko | **+34,5 %/Jahr, max. Drawdown 30 %**, 698 Trades, +0,20 R je Trade, schlechtestes Jahr −14 % |
-| davon OOS (letzte 26 Wochen, von keiner Auswahl gesehen) | +52 %, Drawdown 7 % |
+| **Long + Short seit 01.01.2023, 1,40 % Risiko** (Bot-Simulator, 100 USDT) | **+73 %/Jahr, max. Drawdown 29 %**, 1084 Trades; Jahre +67 / +83 / −4 / +177 % (2023–2026) |
+| davon OOS (letzte 26 Wochen, von keiner Auswahl gesehen) | **+110 %, Drawdown 9 %** |
+| zum Vergleich Long allein, 0,95 % Risiko | +34,5 %/Jahr, Drawdown 30 %, 2025: −14 % |
 | Kontrollgruppe: zufällige Longs im Aufwärtstrend, gleiche Ausstiege | −0,03 R je Trade (ANN-Signale der 4h-Regel +0,23 R) |
 | Gleiche Regel auf jungen Altcoins | ≈ 0 R, deshalb nur etablierte Coins |
-| Shorts | auf großen Coins durchgehend negativ, deshalb nur Long |
+| Shorts mit dem Long-Netz | negativ — Shorts kommen deshalb aus dem eigenen „Mensch“-Netz |
+| Short-Netz: Auswahl unter 6 Varianten nur im IS, dann einmal OOS | „Mensch“ IS +51 %/J (Kombi) vs. Tageskanäle allein +36 %, Kerzen allein +21 %; OOS +112 % vs. +77 % |
+| Ein gemeinsames Netz für Long und Short | IS nur +15 %/J — zwei Spezialisten sind klar besser |
 
-![Equity und Drawdown seit 2023, OOS-Zeitraum markiert](docs/images/equity.png)
+![Long + Short gegen Long allein seit 2023, Drawdown, OOS markiert](docs/images/equity_combo.png)
 
-*Die Kurve ist nicht glatt: Gewinne kommen in Trendphasen (Anfang 2024, Ende 2024, Herbst 2026), dazwischen liegen lange Seitwärts- und Rückgangsphasen. Der Drawdown ist auf geschlossene Trades gerechnet.*
+*Die Short-Seite verdient vor allem dort, wo der Long-Bot stillsteht (2025: −4 % statt −14 %). Die Kurve bleibt sprunghaft: ein großer Teil des Ertrags 2026 kommt aus einer Rally im August. Der Drawdown ist auf geschlossene Trades gerechnet; live mit Buchverlusten offener Positionen ist er zwischendurch höher.*
+
+![Long-Seite allein: Equity und Drawdown seit 2023](docs/images/equity.png)
 
 ![ANN-Signale gegen zufällige Longs im Aufwärtstrend, je Timeframe](docs/images/control.png)
 
@@ -55,21 +60,43 @@ Alle Vorhersagen sind **Walk-Forward**: Für jedes Quartal gibt es ein eigenes M
 
 ![Vorwärts-Test: Regel je Timeframe gegen Auswahl je Coin und fünf Zufalls-Durchläufe](docs/images/methods.png)
 
-Realistische Erwartung: eher die rund +35 %/Jahr über die ganze Zeit als die letzten 26 Wochen. Die Kante ist klein und braucht Aufwärtstrends.
+Realistische Erwartung: eher die rund +73 %/Jahr über die ganze Zeit als die +110 % der letzten 26 Wochen.
 
-**Mehr Rendite nur mit mehr Risiko** (gleiche Regel, gleiche Trades, nur größere Positionen, seit 2023):
+**Mehr Rendite nur mit mehr Risiko** (Long + Short, gleiche Trades, nur größere Positionen, seit 2023, 100 USDT):
 
-| Risiko je Trade | Rendite pro Jahr | max. Drawdown | schlechtestes Jahr |
-|---|---|---|---|
-| **0,95 % (aktiv)** | **+35 %** | **30 %** | **−14 %** |
-| 1,5 % | +54 % | 43 % | −23 % |
-| 2 % | +71 % | 53 % | −30 % |
-| 3 % | +99 % | 69 % | −43 % |
-| 4 % | +119 % | 79 % | −55 % |
+| Risiko je Trade | Rendite pro Jahr | max. Drawdown |
+|---|---|---|
+| 0,95 % | +49 % | 21 % |
+| 1,20 % | +62 % | 26 % |
+| **1,40 % (aktiv)** | **+73 %** | **29 %** |
+| 1,50 % | +79 % | 31 % |
 
-Der Drawdown ist auf geschlossene Trades gerechnet; mit Buchverlusten offener Positionen ist er höher. Ändern: `risk_per_trade_pct` in `settings.json` (die Quartals-Pipeline setzt es wieder auf das höchste Risiko mit DD ≤ `max_drawdown_pct`).
+Weiter nach oben lohnt sich nicht: beim Long-Bot allein brach die Rendite ab ~1,5 % Risiko ein (2,5 %: −45 %/Jahr bei 98 % Drawdown), weil tiefe Verlustphasen überproportional schaden. Ändern: `risk_per_trade_pct` in `settings.json`. Beim Kombi-Team lässt die Quartals-Pipeline Regeln, Team und Risiko unverändert und trainiert nur die Modelle nach.
 
 ---
+
+## Short-Seite „Mensch“: Chart lesen wie ein Trader
+
+Zusätzliche Merkmale (Module `strategy/human_geometry.py`, `strategy/candle_patterns.py`, `strategy/features.py`), jeweils auf 4h und auf Tageskerzen (nur abgeschlossene Tage):
+
+| Gruppe | Was das Netz sieht |
+|---|---|
+| Kanäle | Regressions-Kanal über 50 und 150 Kerzen: Steigung relativ zur Breite (flach/steigend/fallend), Geradlinigkeit, Lage im Kanal, Breite/ATR, Berührungen oben/unten |
+| Marktstruktur | höhere/tiefere Hochs und Tiefs aus bestätigten Pivots |
+| Trendlinien | Linien durch die letzten zwei Pivot-Hochs bzw. -Tiefs: Steigung, Abstand, Dreieck/Keil (Konvergenz) |
+| Zonen | horizontale Unterstützungen/Widerstände aus gebündelten Pivots: Abstand und Anzahl Berührungen |
+| Muster | Doppel-Hoch/-Tief, Ausbruch über/unter Zone, Retest |
+| Kerzenformen | Hammer, Shooting Star, Doji-Arten, Marubozu, Pin-Bar, Engulfing, Harami, Piercing, Dark Cloud, Tweezer, Inside/Outside Bar, Kicker, Morgen-/Abendstern, drei Soldaten/Krähen |
+
+Ein Pivot zählt erst, wenn er bestätigt ist (4h: 5 Kerzen später, Tag: 3 Tage) — so wie ein Mensch ihn auch erst dann erkennen kann.
+
+![Echter Short-Trade aus dem OOS mit der Geometrie, die das Netz zum Signalzeitpunkt sieht](docs/images/short_trade.png)
+
+*Ein echter Short aus den letzten 26 Wochen: Trendlinien durch bestätigte Pivots, mehrfach berührte Zonen und die Kerzenform der Signalkerze — das alles bekommt das Netz als Eingabe. Unten seine Short-Wahrscheinlichkeit; gehandelt wird nur über der Schwelle (stärkste 1 %).*
+
+Die Auswahl dieser Variante lief vorregistriert (`forschung/kanal_varianten/PREREG.md`): sechs Varianten **nur im IS** verglichen, danach **einmal** OOS. Kerzenformen allein hätten geschadet; erst zusammen mit der Chart-Geometrie wurde das Netz stark. Ein gemeinsames Netz für Long und Short war deutlich schwächer als zwei Spezialisten.
+
+![Vergleich der Short-Varianten im IS und OOS-Bestätigung](docs/images/variants.png)
 
 ## Wie der Bot sich selbst prüft
 
@@ -90,9 +117,9 @@ Der Drawdown ist auf geschlossene Trades gerechnet; mit Buchverlusten offener Po
 ## Ablauf
 
 ```
-Cron alle 15 Min ──> master_runner.py
-                      ├─ Durchgang 1: Ausstiege aller Strategien (SL/TP ausgelöst? Haltedauer um?)
-                      ├─ Durchgang 2: Einstiege in fester Reihenfolge (wie der Simulator)
+Cron alle 15 Min ──> master_runner.py   (je Profil ein Unterprozess: trend = Long, mensch = Short)
+                      ├─ Durchgang 1: Ausstiege aller Strategien beider Profile (SL/TP ausgelöst? Haltedauer um?)
+                      ├─ Durchgang 2: Einstiege, erst Long, dann Short, in fester Reihenfolge (wie der Simulator)
                       ├─ startet auto_optimizer_scheduler.py (prüft selbst: neues Quartal?)
                       └─ startet daily_self_check.py      (prüft selbst: heute schon gelaufen?)
 
@@ -138,7 +165,7 @@ git clone <repo> jaegerbot && cd jaegerbot
 ./install.sh
 nano secret.json          # {"jaegerbot": [{"name": "...", "apiKey": "...", "secret": "...", "password": "..."}],
                           #  "telegram": {"bot_token": "...", "chat_id": "..."}}
-nohup .venv/bin/python3 download_data.py > logs/download.log 2>&1 &   # einmalig, einige Stunden
+nohup .venv/bin/python3 download_data.py --timeframes 4h > logs/download.log 2>&1 &   # einmalig (Selbstcheck + Quartals-Pipeline)
 ```
 
 Cronjob (`crontab -e`):
@@ -155,16 +182,26 @@ Das Konto muss im **Hedge-Modus** laufen. Mindestgröße bei Bitget: 5 USDT je O
 ./update.sh
 ```
 
-Behält `secret.json`, das live laufende Team und — falls der VPS seit dem letzten Push selbst nachtrainiert hat — dessen neuere Modelle und Configs. **Beim Umstieg von v4 zweimal ausführen** (der erste Lauf ist noch das alte Skript).
+Behält `secret.json`, das live laufende Team und — falls der VPS seit dem letzten Push selbst nachtrainiert hat — dessen neuere Modelle und Configs (Long `configs`/`models` und Short `configs_mensch`/`models_mensch`). **Beim Umstieg von v4 zweimal ausführen** (der erste Lauf ist noch das alte Skript).
+
+### Startklar-Check nach dem Update
+
+```bash
+./update.sh && ./update.sh                                    # zweimal beim Umstieg von v4
+.venv/bin/python3 daily_self_check.py --force --send          # Telegram: "Team 78 (trend, mensch)" und "Paritaet 78/78"
+crontab -e                                                    # Zeile unten eintragen, dann läuft alles automatisch
+```
+
+Erwartet im ersten Telegram-Selbstcheck: **Team 78 (trend, mensch)**, **Parität 78/78**, keine ❗-Zeilen. Danach kommen Eröffnungen als `jaegerbot …` (Long) bzw. `jaegerbot[mensch] …` (Short).
 
 ## Nützliche Befehle
 
 ```bash
 ./show_results.sh                                     # Regeln, Team, Portfolio-Kennzahlen
-./run_tests.sh                                        # Offline-Tests + Paritätstest (keine echten Orders)
+./run_tests.sh                                        # Offline-Tests + Paritätstest für Long und Short (keine echten Orders)
 ./run_pipeline.sh                                     # Quartals-Pipeline sofort (mit Sicherung)
 .venv/bin/python3 daily_self_check.py --force --send  # Selbstcheck sofort
-tail -f logs/cron.log logs/jaegerbot_*_4h.log
+tail -f logs/cron.log logs/jaegerbot_*_4h.log logs/jaegerbot_*_4h_mensch.log
 ```
 
 ---

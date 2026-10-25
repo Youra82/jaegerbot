@@ -1,9 +1,11 @@
 # master_runner.py
 """JaegerBot v5 Master Runner (Cron alle 15 Min, mit flock).
 
-Alle aktiven Strategien in EINEM Prozess, nacheinander in fester Reihenfolge (wie der
-Portfolio-Simulator): Durchgang 1 nur Ausstiege, Durchgang 2 Einstiege. Parallele Prozesse
-koennten sonst gleichzeitig die max. Positionszahl oder dasselbe Symbol belegen.
+Strategien koennen zu verschiedenen Profilen gehoeren (settings: active_strategies[].profile, Standard 'trend';
+'geohtf' = Short-Regel mit Tageskanaelen). Ein Profil = eigenes Modell/Features -> eigener Unterprozess.
+Reihenfolge wie im Kombi-Backtest: Durchgang 1 Ausstiege ALLER Profile, Durchgang 2 Einstiege, Profil 'trend'
+(Long) vor den anderen, innerhalb eines Profils nach Strategie-Schluessel. Ein Coin ist nur einmal belegt
+(trade_manager prueft offene Positionen des ganzen Kontos).
 """
 import os
 import sys
@@ -12,11 +14,6 @@ import subprocess
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(PROJECT_ROOT, 'src'))
-
-from jaegerbot.utils.exchange import Exchange
-from jaegerbot.utils.telegram import send_message
-from jaegerbot.utils.trade_manager import full_trade_cycle, strategy_key
-from jaegerbot.strategy.run import setup_logging, load_config
 
 
 def start_background(script, log_name):
@@ -28,58 +25,72 @@ def start_background(script, log_name):
                      stderr=subprocess.STDOUT)
 
 
+def load_json(name):
+    with open(os.path.join(PROJECT_ROOT, name), 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+
+def profiles_in(strategies):
+    names = {s.get('profile', 'trend') for s in strategies if s.get('active', True)}
+    return sorted(names, key=lambda p: (p != 'trend', p))
+
+
+def run_child(profile, phase):
+    """Unterprozess: eine Phase fuer alle Strategien eines Profils (JAEGER_PROFILE ist gesetzt)."""
+    from jaegerbot.strategy import trade_rules as tr
+    from jaegerbot.utils.exchange import Exchange
+    from jaegerbot.utils.telegram import send_message
+    from jaegerbot.utils.trade_manager import full_trade_cycle, strategy_key
+    from jaegerbot.strategy.run import setup_logging, load_config
+    assert tr.PROFILE == profile, f"Profil {tr.PROFILE} != {profile}"
+    live = load_json('settings.json')['live_trading_settings']
+    secrets = load_json('secret.json')
+    telegram = secrets.get('telegram', {})
+    team = sorted((s for s in live.get('active_strategies', [])
+                   if s.get('active', True) and s.get('profile', 'trend') == profile),
+                  key=lambda s: strategy_key(s['symbol'], s['timeframe']))
+    exchange = Exchange(secrets['jaegerbot'][0])
+    if not exchange.markets:
+        print(f"[{profile}] Fehler: Maerkte nicht geladen.")
+        return
+    for s in team:
+        logger = setup_logging(s['symbol'], s['timeframe'])
+        try:
+            config = load_config(s['symbol'], s['timeframe'])
+            full_trade_cycle(exchange, config, live, telegram, logger, manage_only=(phase == 'ausstiege'))
+        except Exception as e:
+            logger.critical(f"Fehler ({phase}): {e}", exc_info=True)
+            try:
+                send_message(telegram.get('bot_token'), telegram.get('chat_id'),
+                             f"🚨 jaegerbot[{profile}] {s['symbol']} {s['timeframe']}: Fehler ({phase})\n{e}")
+            except Exception:
+                pass
+    print(f"[{profile}] {phase}: {len(team)} Strategien")
+
+
 def main():
+    if len(sys.argv) == 4 and sys.argv[1] == '--child':
+        run_child(sys.argv[2], sys.argv[3])
+        return
     print("=======================================================")
-    print("JaegerBot Master Runner v5 (ANN-Ensemble, Live = Backtest)")
+    print("JaegerBot Master Runner v5 (ANN-Ensembles, Live = Backtest)")
     print("=======================================================")
     start_background('auto_optimizer_scheduler.py', 'auto_optimizer_trigger.log')
     start_background('daily_self_check.py', 'daily_self_check.log')
-
-    with open(os.path.join(PROJECT_ROOT, 'settings.json'), 'r', encoding='utf-8') as f:
-        live_settings = json.load(f)['live_trading_settings']
-    with open(os.path.join(PROJECT_ROOT, 'secret.json'), 'r', encoding='utf-8') as f:
-        secrets = json.load(f)
-    accounts = secrets.get('jaegerbot') or []
-    telegram = secrets.get('telegram', {})
-    if not accounts:
+    secrets = load_json('secret.json')
+    if not secrets.get('jaegerbot'):
         print("Fehler: Kein 'jaegerbot'-Account in secret.json.")
         return
-
-    strategies = sorted((s for s in live_settings.get('active_strategies', []) if s.get('active', True)),
-                        key=lambda s: strategy_key(s['symbol'], s['timeframe']))
-    if not strategies:
+    profiles = profiles_in(load_json('settings.json')['live_trading_settings'].get('active_strategies', []))
+    if not profiles:
         print("Keine aktiven Strategien in settings.json.")
         return
-
-    exchange = Exchange(accounts[0])
-    if not exchange.markets:
-        print("Fehler: Maerkte nicht geladen.")
-        return
-
-    jobs = []
-    for s in strategies:
-        try:
-            jobs.append((load_config(s['symbol'], s['timeframe']), setup_logging(s['symbol'], s['timeframe'])))
-        except FileNotFoundError:
-            print(f"Warnung: Config fehlt fuer {s['symbol']} {s['timeframe']} -- uebersprungen.")
-
-    candles = {}
     for phase in ('ausstiege', 'einstiege'):
-        for config, logger in jobs:
-            key = strategy_key(config['market']['symbol'], config['market']['timeframe'])
-            try:
-                df = full_trade_cycle(exchange, config, live_settings, telegram, logger,
-                                      df=candles.get(key), manage_only=(phase == 'ausstiege'))
-                if phase == 'ausstiege' and df is not None:
-                    candles[key] = df
-            except Exception as e:
-                logger.critical(f"Fehler ({phase}): {e}", exc_info=True)
-                try:
-                    send_message(telegram.get('bot_token'), telegram.get('chat_id'),
-                                 f"🚨 jaegerbot {key}: Fehler ({phase})\n{e}")
-                except Exception:
-                    pass
-    print(f"Lauf fertig: {len(jobs)} Strategien.")
+        for profile in profiles:
+            env = {**os.environ, 'JAEGER_PROFILE': profile, 'PYTHONPATH': os.path.join(PROJECT_ROOT, 'src')}
+            subprocess.run([sys.executable, os.path.abspath(__file__), '--child', profile, phase],
+                           cwd=PROJECT_ROOT, env=env)
+    print(f"Lauf fertig: Profile {', '.join(profiles)}.")
 
 
 if __name__ == '__main__':

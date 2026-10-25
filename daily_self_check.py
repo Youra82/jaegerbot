@@ -15,6 +15,8 @@ import sys
 import json
 import time
 import argparse
+import pickle
+import subprocess
 
 import ccxt
 import pandas as pd
@@ -145,31 +147,30 @@ def main():
     team = [x for x in lt.get('active_strategies', []) if x.get('active', True)]
     lines, warn = [f"🩺 jaegerbot Selbstcheck {now:%d.%m.%Y %H:%M} UTC"], []
 
-    # 1+2 Daten und Modell
-    for tf in sorted({x['timeframe'] for x in team}):
-        q = mdl.quarter_starts(now, now)[0]
-        if q not in mdl.available_cutoffs(tf) and now > q + pd.Timedelta(days=2):
-            warn.append(f"❗ Kein Modell fuer {tf} im laufenden Quartal (ab {q:%d.%m.}) -- Quartals-Pipeline pruefen")
-    strategies = []
-    for x in team:
-        coin, tf = x['symbol'].split('/')[0], x['timeframe']
-        df = update_cache(x['symbol'], tf)
-        problems = check_candles(df, tf, max_age=pd.Timedelta(hours=1) + pd.Timedelta(tf))
-        if problems:
-            warn.append(f"❗ Daten {coin} {tf}: {'; '.join(problems)}")
-        refresh_predictions(coin, tf)
-        try:
-            strategies.append({'coin': coin, 'timeframe': tf, 'cfg': load_config(x['symbol'], tf)['strategy'],
-                               'symbol': x['symbol']})
-        except FileNotFoundError:
-            warn.append(f"❗ Config fehlt: {coin} {tf}")
+    # 1+2 Daten, Modell, Backtest-Signale und Mini-Paritaet je Profil (Profil gilt je Prozess -> Unterprozess)
+    since = now - pd.Timedelta(days=a.days)
+    profiles = sorted({x.get('profile', 'trend') for x in team}, key=lambda p: (p != 'trend', p))
+    events, n_strat, n_bad = [], 0, 0
+    for prio, prof in enumerate(profiles):
+        out = os.path.join(PROJECT_ROOT, 'artifacts', 'db', f'.selfcheck_{prof}.pkl')
+        env = {**os.environ, 'JAEGER_PROFILE': prof, 'PYTHONPATH': os.path.join(PROJECT_ROOT, 'src')}
+        rc = subprocess.call([sys.executable, os.path.abspath(__file__), '--dump', prof, out, since.isoformat(), str(prio)],
+                             cwd=PROJECT_ROOT, env=env)
+        if rc != 0 or not os.path.exists(out):
+            warn.append(f"❗ Selbstcheck-Teil {prof} fehlgeschlagen (rc={rc})")
+            continue
+        with open(out, 'rb') as f:
+            d = pickle.load(f)
+        warn += d['warn']
+        events += d['events']
+        n_strat += d['n']
+        n_bad += d['parity_bad']
 
     # 3 Live vs Backtest
-    since = now - pd.Timedelta(days=a.days)
     acc, tg = _secrets()
     live, open_pos, plans, equity = fetch_live(acc, since)
-    sim = run_portfolio(strategies, max(equity, 1.0), lt['risk_per_trade_pct'], lt['max_open_positions'],
-                        lt['max_leverage'], start=since)
+    sim = run_portfolio([], max(equity, 1.0), lt['risk_per_trade_pct'], lt['max_open_positions'],
+                        lt['max_leverage'], events=events)
     st = sim['trades']
     sim_rows = [dict(symbol=r['coin'] + 'USDT', side=r['side'], time=r['time'], exit_time=r['exit_time'], tf=r['timeframe'])
                 for _, r in st.iterrows()] if len(st) else []
@@ -191,7 +192,7 @@ def main():
                 t['exit_time'] is not None and abs(t['exit_time'] - r['exit_time']) > tol):
             warn.append(f"⚠ Ausstieg {r['symbol']} {r['side']}: live {t['exit_time']} / BT {r['exit_time']}")
     extra = [f"{t['symbol']} {t['side']} {t['entry_time']:%d.%m %H:%M}" for k, t in enumerate(live) if k not in used]
-    lines.append(f"Konto {equity:.2f} USDT | Team {len(strategies)} | {a.days} Tage: {matched} gleich, "
+    lines.append(f"Konto {equity:.2f} USDT | Team {n_strat} ({', '.join(profiles)}) | {a.days} Tage: {matched} gleich, "
                  f"{len(missing)} fehlen live, {len(extra)} nur live")
     if missing:
         warn.append("⚠ Fehlt live: " + ', '.join(missing[:8]))
@@ -203,20 +204,22 @@ def main():
 
     # 4 Schutz und Waisen
     warn += positions_without_sl(open_pos, plans)
-    owned = {strategy_key(x['symbol'], x['timeframe']): x['symbol'].replace('/USDT:USDT', 'USDT') for x in team}
-    claimed = {owned[k] for k in owned if (load_state(k).get('position'))}
+    claimed = set()
+    for x in team:
+        prof = x.get('profile', 'trend')
+        sdir = os.path.join(PROJECT_ROOT, 'artifacts', 'db' + ('' if prof == 'trend' else f'_{prof}'))
+        try:
+            with open(os.path.join(sdir, f"state_{strategy_key(x['symbol'], x['timeframe'])}.json"), encoding='utf-8') as f:
+                if json.load(f).get('position'):
+                    claimed.add(x['symbol'].replace('/USDT:USDT', 'USDT'))
+        except (FileNotFoundError, json.JSONDecodeError):
+            pass
     for p_ in open_pos:
         if p_['symbol'] not in claimed:
             warn.append(f"❗ Position {p_['symbol']} {p_['holdSide']} gehoert keiner Strategie (Waise)")
 
-    # 5 Mini-Paritaet
-    bad = 0
-    for x in strategies:
-        diff = mini_parity(x['coin'], x['timeframe'], x['cfg'])
-        if diff:
-            bad += 1
-            warn.append(f"❗ Paritaet {x['coin']} {x['timeframe']}: {diff[0]}")
-    lines.append(f"Paritaet Live-Code = Backtest: {len(strategies) - bad}/{len(strategies)}")
+    # 5 Mini-Paritaet (in den Profil-Unterprozessen gerechnet)
+    lines.append(f"Paritaet Live-Code = Backtest: {n_strat - n_bad}/{n_strat}")
 
     lines += warn if warn else ["✅ Keine Auffaelligkeiten."]
     text = '\n'.join(lines)
@@ -232,5 +235,45 @@ def main():
             f.write(today)
 
 
+def dump_profile(profile, out, since, prio):
+    """Unterprozess (JAEGER_PROFILE gesetzt): Teil des Selbstchecks fuer die Strategien eines Profils."""
+    from jaegerbot.strategy import trade_rules as tr
+    assert tr.PROFILE == profile, f"Profil {tr.PROFILE} != {profile}"
+    now = pd.Timestamp.now(tz='UTC')
+    team = [x for x in load_settings()['live_trading_settings'].get('active_strategies', [])
+            if x.get('active', True) and x.get('profile', 'trend') == profile]
+    warn, events, bad = [], [], 0
+    tag = '' if profile == 'trend' else f' [{profile}]'
+    for tf in sorted({x['timeframe'] for x in team}):
+        q = mdl.quarter_starts(now, now)[0]
+        if q not in mdl.available_cutoffs(tf) and now > q + pd.Timedelta(days=2):
+            warn.append(f"❗ Kein Modell fuer {tf}{tag} im laufenden Quartal (ab {q:%d.%m.}) -- Quartals-Pipeline pruefen")
+    for x in team:
+        coin, tf = x['symbol'].split('/')[0], x['timeframe']
+        df = update_cache(x['symbol'], tf)
+        problems = check_candles(df, tf, max_age=pd.Timedelta(hours=1) + pd.Timedelta(tf))
+        if problems:
+            warn.append(f"❗ Daten {coin} {tf}: {'; '.join(problems)}")
+        refresh_predictions(coin, tf)
+        try:
+            cfg = load_config(x['symbol'], tf)['strategy']
+        except FileNotFoundError:
+            warn.append(f"❗ Config fehlt{tag}: {coin} {tf}")
+            continue
+        for e in signal_events(coin, tf, cfg, start=pd.Timestamp(since)):
+            e['key'] = f"{coin}_{tf}" + ('' if profile == 'trend' else f'_{profile}')
+            e['prio'] = int(prio)
+            events.append(e)
+        diff = mini_parity(coin, tf, cfg, n=12)
+        if diff:
+            bad += 1
+            warn.append(f"❗ Paritaet{tag} {coin} {tf}: {diff[0]}")
+    with open(out, 'wb') as f:
+        pickle.dump({'warn': warn, 'events': events, 'n': len(team), 'parity_bad': bad}, f)
+
+
 if __name__ == '__main__':
-    main()
+    if len(sys.argv) >= 6 and sys.argv[1] == '--dump':
+        dump_profile(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5])
+    else:
+        main()

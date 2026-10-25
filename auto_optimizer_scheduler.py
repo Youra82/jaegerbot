@@ -50,20 +50,37 @@ def _telegram(text):
         _log(f"Telegram fehlgeschlagen: {e}")
 
 
+def live_profiles(settings):
+    """Profile des Live-Teams mit ihren Timeframes; 'trend' zuerst."""
+    out = {}
+    for x in settings['live_trading_settings'].get('active_strategies', []):
+        if x.get('active', True):
+            out.setdefault(x.get('profile', 'trend'), set()).add(x['timeframe'])
+    return dict(sorted(out.items(), key=lambda kv: (kv[0] != 'trend', kv[0])))
+
+
+def _model_file(profile, tf, cutoff):
+    base = os.path.join(PROJECT_ROOT, 'artifacts', 'models' + ('' if profile == 'trend' else f'_{profile}'))
+    return os.path.join(base, tf, f"ensemble_{cutoff:%Y-%m-%d}.joblib")
+
+
 def is_due(settings):
     now = pd.Timestamp.now(tz='UTC')
     q = mdl.quarter_starts(now, now)[0]
     if now < q + pd.Timedelta(days=1):
         return False
-    return any(q not in mdl.available_cutoffs(tf) for tf in settings['research']['timeframes'])
+    profiles = live_profiles(settings)
+    tfs = {'trend': set(settings['research']['timeframes'])} if list(profiles) == ['trend'] else profiles
+    return any(not os.path.exists(_model_file(pr, tf, q)) for pr, ts in tfs.items() for tf in ts)
 
 
-def run(cmd, name):
-    _log(f"START {name}: {' '.join(cmd)}")
+def run(cmd, name, profile='trend'):
+    _log(f"START {name} [{profile}]: {' '.join(cmd)}")
     t = time.time()
     with open(os.path.join(LOG_DIR, f"pipeline_{name}.log"), 'a', encoding='utf-8') as out:
         rc = subprocess.call(cmd, cwd=PROJECT_ROOT, stdout=out, stderr=subprocess.STDOUT,
-                             env={**os.environ, 'PYTHONPATH': os.path.join(PROJECT_ROOT, 'src')})
+                             env={**os.environ, 'PYTHONPATH': os.path.join(PROJECT_ROOT, 'src'),
+                                  'JAEGER_PROFILE': profile})
     _log(f"ENDE {name}: rc={rc} ({time.time() - t:.0f}s)")
     if rc != 0:
         raise RuntimeError(f"{name} fehlgeschlagen (rc={rc}), siehe logs/pipeline_{name}.log")
@@ -85,6 +102,10 @@ def main():
     py = sys.executable
     backup = make_backup()
     _log(f"Sicherung: {backup}")
+    profiles = live_profiles(s)
+    if list(profiles) != ['trend']:
+        multi_profile_pipeline(s, profiles, backup, t0, py)
+        return
     try:
         _telegram("jaegerbot: Quartals-Pipeline gestartet (Daten, Modell, Configs, Portfolio). Sicherung angelegt.")
         run([py, 'download_data.py'], 'download')
@@ -108,9 +129,34 @@ def main():
         os.remove(LOCK_FILE)
 
 
+def multi_profile_pipeline(s, profiles, backup, t0, py):
+    """Kombi-Team (z. B. Long 'trend' + Short 'mensch'): je Profil neues Quartalsmodell + Vorhersagen, Modell- und
+    Paritaetspruefung. Regeln, Team und Risiko bleiben FEST -- die Kombination wurde unter Vorregistrierung gewaehlt
+    (forschung/kanal_varianten) und soll nicht still automatisch umgestellt werden."""
+    try:
+        _telegram(f"jaegerbot: Quartals-Pipeline (Kombi-Team {', '.join(profiles)}) gestartet. Sicherung angelegt.")
+        run([py, 'download_data.py', '--timeframes', *sorted({tf for ts in profiles.values() for tf in ts})], 'download')
+        for prof, tfs in profiles.items():
+            run([py, '-m', 'jaegerbot.analysis.walkforward', '--only-new', '--timeframes', *sorted(tfs)],
+                f'walkforward_{prof}', prof)
+            run([py, os.path.abspath(__file__), '--check-models', prof, *sorted(tfs)], f'check_{prof}', prof)
+            run([py, os.path.join('tests', 'parity_check.py'), '--candles', '30'], f'parity_{prof}', prof)
+        _telegram(f"jaegerbot: Quartals-Pipeline fertig ({(time.time() - t0) / 60:.0f} min). Neue Quartalsmodelle "
+                  f"fuer {', '.join(profiles)} aktiv, Paritaet bestanden. Regeln/Team/Risiko unveraendert -- "
+                  f"Neubewertung der Kombination von Hand empfohlen.")
+    except Exception as e:
+        _log(f"FEHLER: {e} -- spiele Sicherung {backup} zurueck")
+        restore_backup(backup)
+        _telegram(f"🚨 jaegerbot: Quartals-Pipeline fehlgeschlagen ({e}). Alter Stand zurueckgespielt; "
+                  f"der Bot handelt weiter mit den Vorquartal-Modellen.")
+    finally:
+        os.remove(LOCK_FILE)
+
+
 BACKUP_ROOT = os.path.join(PROJECT_ROOT, 'artifacts', 'backups')
-BACKUP_ITEMS = [os.path.join('artifacts', 'models'), os.path.join('src', 'jaegerbot', 'strategy', 'configs'),
-                'settings.json']
+BACKUP_ITEMS = [os.path.join('artifacts', 'models'), os.path.join('artifacts', 'models_mensch'),
+                os.path.join('src', 'jaegerbot', 'strategy', 'configs'),
+                os.path.join('src', 'jaegerbot', 'strategy', 'configs_mensch'), 'settings.json']
 KEEP_BACKUPS = 6
 
 
@@ -139,11 +185,11 @@ def restore_backup(src):
             shutil.copy2(b, live)
 
 
-def check_models(settings):
+def check_models(settings, timeframes=None):
     """Neue Quartalsmodelle plausibel? Schwellen geordnet in (0,1), Vorhersagen nicht konstant."""
     now = pd.Timestamp.now(tz='UTC')
     q = mdl.quarter_starts(now, now)[0]
-    for tf in settings['research']['timeframes']:
+    for tf in (timeframes or settings['research']['timeframes']):
         if q not in mdl.available_cutoffs(tf):
             raise RuntimeError(f"Modell {tf} {q:%Y-%m-%d} fehlt nach dem Training")
         ens = mdl.load(tf, q)
@@ -156,4 +202,10 @@ def check_models(settings):
 
 
 if __name__ == '__main__':
-    main()
+    if len(sys.argv) >= 3 and sys.argv[1] == '--check-models':     # Unterprozess mit JAEGER_PROFILE
+        from jaegerbot.strategy import trade_rules as _tr
+        assert _tr.PROFILE == sys.argv[2], f"Profil {_tr.PROFILE} != {sys.argv[2]}"
+        check_models(load_settings(), sys.argv[3:])
+        print(f"Modelle {sys.argv[2]} {sys.argv[3:]} in Ordnung")
+    else:
+        main()

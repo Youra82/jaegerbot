@@ -1,6 +1,6 @@
 {
   "live_trading_settings": {
-    "risk_per_trade_pct": 0.95,
+    "risk_per_trade_pct": 1.4,
     "max_open_positions": 20,
     "max_leverage": 20,
     "margin_mode": "isolated",
@@ -199,8 +199,243 @@
         "symbol": "ALGO/USDT:USDT",
         "timeframe": "4h",
         "active": true
+      },
+      {
+        "symbol": "BTC/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "ETH/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "SOL/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "XRP/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "NEAR/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "DOGE/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "SUI/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "ADA/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "PEPE/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "LINK/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "UNI/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "BNB/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "QNT/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "FIL/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "AVAX/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "XLM/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "DOT/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "BCH/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "HBAR/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "ARB/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "AAVE/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "FET/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "CRV/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "BLUR/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "APT/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "LTC/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "INJ/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "OP/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "BAT/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "RSR/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "IOST/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "SHIB/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "GRAM/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "ETC/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "1000XEC/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "ATOM/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "ICP/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "ORDI/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
+      },
+      {
+        "symbol": "ALGO/USDT:USDT",
+        "timeframe": "4h",
+        "profile": "mensch",
+        "active": true
       }
-    ]
+    ],
+    "_info": "Long = Profil trend (ANN, Top 1 %, Aufwaertstrend). Short = Profil mensch (ANN mit Chart-Geometrie + Kerzenformen auf 4h und Tag, Top 1 %). Ein Konto, ein Coin nur einmal, Long vor Short. Risiko 1,40 % = hoechstes mit DD <= 30 % seit 2023 (Bot-Simulator, 100 und 1000 USDT); forschung/kanal_varianten."
   },
   "research": {
     "_info": "Gepooltes ANN je Timeframe ueber das ganze Universum, vierteljaehrlich nur auf Vergangenheit nachtrainiert. Gehandelt nur etablierte Coins (Listing >= min_listing_days). OOS = letzte oos_weeks Wochen.",

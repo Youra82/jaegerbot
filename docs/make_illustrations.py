@@ -92,9 +92,9 @@ def pipeline():
     fig = plt.figure(figsize=(12, 4.2), facecolor=SURFACE)
     ax = fig.add_axes([0, 0, 1, 1]); ax.set_xlim(0, 12); ax.set_ylim(0, 4.2); ax.axis('off')
     ax.text(0.3, 3.85, 'JaegerBot v5', fontsize=22, fontweight='bold', color=INK, va='top')
-    ax.text(0.3, 3.3, 'ANN-Ensemble · Walk-Forward · eine Logik für Live und Backtest', fontsize=11, color=INK2, va='top')
-    steps = [('Kerzen', 'Bitget 4h\nDatenprüfung', BLUE), ('46 Features', 'Rolling-Fenster\nlive = Backtest', BLUE),
-             ('ANN-Ensemble', '3 MLPs je Seite\nQuartalsmodell', VIOLET), ('Signal', 'Top 1 % + Trend\nnur Long', AQUA),
+    ax.text(0.3, 3.3, 'Long + Short · Walk-Forward-ANN · Chart lesen wie ein Mensch · eine Logik für Live und Backtest', fontsize=11, color=INK2, va='top')
+    steps = [('Kerzen', 'Bitget 4h + Tag\nDatenprüfung', BLUE), ('Chart lesen', 'Indikatoren, Kanäle,\nZonen, Kerzenformen', BLUE),
+             ('Zwei ANN', 'Long-Netz +\nShort-Netz „Mensch“', VIOLET), ('Signal', 'je Seite Top 1 %\nein Coin nur einmal', AQUA),
              ('Order', 'Market + SL/TP\nan der Order', ORANGE), ('Selbstcheck', 'täglich Telegram\nLive vs. Backtest', ORANGE)]
     w, gap, y = 1.62, 0.33, 0.55
     for i, (t, s, c) in enumerate(steps):
@@ -330,6 +330,159 @@ def safety():
 
 ALL = {'pipeline': pipeline, 'trade': trade, 'equity': equity, 'control': control, 'methods': methods,
        'timeframes': timeframes, 'safety': safety}
+
+
+
+# --- 8 Long + Short (Kombi) -------------------------------------------------
+def combo():
+    """Braucht die Signal-Dateien aus forschung (dump-trend + Short-Profil mensch) in %TMP%."""
+    import pickle
+    from jaegerbot.analysis.backtester import run_portfolio
+    from jaegerbot.analysis.optimizer import oos_start
+    T = os.environ.get('TMP', '/tmp')
+    L = pickle.load(open(os.path.join(T, 'jaeger_trend_events.pkl'), 'rb'))['events']
+    S = pickle.load(open(os.path.join(T, 'jaeger_mensch_events.pkl'), 'rb'))
+    for e in L:
+        e['prio'] = 0
+    lt = _team()
+    risk = lt['risk_per_trade_pct']
+    ob = oos_start()
+    fig, (ax, ax2) = _fig(12, 6.2, rows=2, gridspec_kw={'height_ratios': [3, 1.1], 'hspace': 0.1}, sharex=True)
+    fig.subplots_adjust(top=0.84, bottom=0.08, left=0.07, right=0.97)
+    for a in (ax, ax2):
+        a.axvspan(ob, pd.Timestamp.now(tz='UTC'), color=AQUA, alpha=0.10, linewidth=0)
+    stats = {}
+    for name, ev, r, col in (('Long allein (0,95 %)', L, 0.95, MUTED), (f'Long + Short ({risk:.2f} %)'.replace('.', ','), L + S, risk, BLUE)):
+        res = run_portfolio([], 100, r, 20, 20, events=[dict(e) for e in ev])
+        t = res['trades'].sort_values('exit_time')
+        eq = pd.concat([pd.Series([100.0], index=[START]), t.set_index('exit_time')['equity_after']])
+        ax.step(eq.index, eq.values, where='post', color=col, linewidth=2.2 if col == BLUE else 1.6, label=name)
+        ax.annotate(f"{eq.iloc[-1]:.0f}", (eq.index[-1], eq.iloc[-1]), xytext=(4, 0), textcoords='offset points',
+                    color=INK if col == BLUE else INK2, fontweight='bold', va='center')
+        dd = (eq / eq.cummax() - 1) * 100
+        if col == BLUE:
+            ax2.fill_between(dd.index, dd.values, 0, step='post', color=CRITICAL, alpha=0.55, linewidth=0)
+            ax2.annotate(f"max {dd.min():.0f} %", (dd.idxmin(), dd.min()), xytext=(6, 2), textcoords='offset points',
+                         color=INK2, fontsize=9)
+        yrs = (eq.index[-1] - START).days / 365.25
+        stats[name] = ((eq.iloc[-1] / 100) ** (1 / yrs) - 1) * 100
+    ax.set_yscale('log')
+    ticks = [t for t in (50, 100, 200, 400, 800, 1600, 3200) if t <= ax.get_ylim()[1] * 1.05 and t >= ax.get_ylim()[0] * 0.95]
+    ax.set_yticks(ticks, [str(t) for t in ticks])
+    ax.yaxis.set_minor_locator(matplotlib.ticker.NullLocator())
+    ax.set_ylabel('Kapital (Start 100, log. Skala)')
+    ax.legend(loc='upper left', frameon=False, labelcolor=INK2)
+    ax2.set_ylabel('Drawdown %')
+    k = list(stats)
+    _title(fig, f"Long + Short „Mensch“: {stats[k[1]]:+.0f} % pro Jahr statt {stats[k[0]]:+.0f} %",
+           'Echter Bot-Simulator mit Mindestorder und Margin · gleiches Drawdown-Limit 30 % · grüner Bereich = OOS')
+    _save(fig, 'equity_combo.png')
+
+
+ALL['combo'] = combo
+
+
+# --- 9 Echter Short-Trade "Mensch" mit erkannter Geometrie --------------------
+def short_trade():
+    """Braucht %TMP%/jaeger_mensch_events.pkl (forschung) und data/predictions_mensch."""
+    import pickle
+    from jaegerbot.utils.data import load_data
+    from jaegerbot.strategy.human_geometry import pivots, _zones
+    from jaegerbot.strategy.candle_patterns import candle_patterns
+    from jaegerbot.analysis.optimizer import oos_start
+    S = pickle.load(open(os.path.join(os.environ.get('TMP', '/tmp'), 'jaeger_mensch_events.pkl'), 'rb'))
+    ob = oos_start()
+    cand = [e for e in S if e['reason'] == 'tp' and e['time'] >= ob]
+    e = sorted(cand, key=lambda x: x['time'])[-1]
+    df = load_data(f"{e['coin']}/USDT:USDT", '4h')
+    import ta
+    df['atr'] = ta.volatility.AverageTrueRange(df['high'], df['low'], df['close'], 14).average_true_range()
+    tf = pd.Timedelta('4h')
+    i0 = df.index.get_loc(e['time'] - tf)
+    i1 = df.index.get_loc(e['exit_time'] - tf)
+    lo_i = max(0, i0 - 70)
+    win = df.iloc[lo_i: i1 + 6]
+    o, h, l, c, atr = (df[k].to_numpy(float) for k in ('open', 'high', 'low', 'close', 'atr'))
+    # Geometrie zum Signalzeitpunkt: nur bestaetigte Pivots (k = 5), Rueckblick 300
+    ph, pl = pivots(h[:i0 + 1], 5, 'high'), pivots(l[:i0 + 1], 5, 'low')
+    ph, pl = ph[(ph <= i0 - 5) & (ph >= i0 - 300)], pl[(pl <= i0 - 5) & (pl >= i0 - 300)]
+    pred = pd.read_csv(os.path.join(ROOT, 'data', 'predictions_mensch', '4h', f"{e['coin']}.csv"), index_col=0, parse_dates=True)
+    pred.index = pd.to_datetime(pred.index, utc=True)
+    fig, (ax, ax2) = _fig(12, 6.6, rows=2, gridspec_kw={'height_ratios': [3, 1.1], 'hspace': 0.08}, sharex=True)
+    fig.subplots_adjust(top=0.84, bottom=0.08, left=0.08, right=0.97)
+    x = np.arange(len(win))
+    pos = lambda j: j - lo_i
+    up = win['close'] >= win['open']
+    ax.vlines(x, win['low'], win['high'], color=MUTED, linewidth=1)
+    ax.bar(x, (win['close'] - win['open']).abs(), bottom=np.minimum(win['open'], win['close']), width=0.62,
+           color=np.where(up, '#5b5a55', '#3a3936'), edgecolor=np.where(up, INK2, MUTED), linewidth=0.6)
+    # Zonen (gebuendelte Pivots) zum Signalzeitpunkt
+    for z, t in _zones(np.concatenate([h[ph], l[pl]]), 0.5 * atr[i0]):
+        if t >= 2 and win['low'].min() <= z <= win['high'].max():
+            ax.axhline(z, color=WARNING, linewidth=1, linestyle=':', alpha=0.8)
+            ax.text(len(win) - 0.5, z, f" Zone ({t}×)", color=WARNING, fontsize=8, va='bottom', ha='right')
+    # Trendlinien durch die letzten zwei Pivot-Hochs / -Tiefs
+    for P, arr, col, lab in ((ph, h, ORANGE, 'Trendlinie Hochs'), (pl, l, AQUA, 'Trendlinie Tiefs')):
+        if len(P) >= 2 and P[-2] >= lo_i:
+            a_, b_ = P[-2], P[-1]
+            slope = (arr[b_] - arr[a_]) / (b_ - a_)
+            xs = np.array([pos(a_), pos(i0) + 3])
+            ax.plot(xs, arr[a_] + slope * (xs + lo_i - a_), color=col, linewidth=1.8, label=lab)
+            ax.scatter([pos(a_), pos(b_)], [arr[a_], arr[b_]], color=col, s=40, zorder=4)
+    ax.hlines(e['sl'], pos(i0), pos(i1), color=CRITICAL, linewidth=2, linestyles='--')
+    ax.hlines(e['tp'], pos(i0), pos(i1), color=GOOD, linewidth=2, linestyles='--')
+    ax.text(len(win) + 0.3, e['sl'], f"SL {_px(e['sl'])}", color=CRITICAL, ha='left', va='center', fontsize=9, fontweight='bold')
+    ax.text(len(win) + 0.3, e['tp'], f"TP {_px(e['tp'])}", color=GOOD, ha='left', va='center', fontsize=9, fontweight='bold')
+    ax.scatter([pos(i0)], [e['signal_close']], s=130, marker='v', color=VIOLET, edgecolor=SURFACE, linewidth=2, zorder=5)
+    ax.scatter([pos(i1)], [e['tp']], s=110, marker='o', color=GOOD, edgecolor=SURFACE, linewidth=2, zorder=5)
+    cp = candle_patterns(o[:i0 + 1], h[:i0 + 1], l[:i0 + 1], c[:i0 + 1], atr[:i0 + 1], '')
+    found = [k.replace('_', ' ') for k, v in cp.items() if v[-1] > 0]
+    ax.annotate(f"Short-Einstieg {_px(e['signal_close'])}" + (f"\nKerze: {', '.join(found)}" if found else ''),
+                (pos(i0), e['signal_close']), xytext=(-150, -70), textcoords='offset points', ha='right', color=INK, fontsize=9,
+                arrowprops=dict(arrowstyle='-', color=MUTED, lw=1), bbox=dict(boxstyle='round,pad=0.3', facecolor=SURFACE, edgecolor=GRID))
+    ax.legend(loc='lower left', frameon=False, labelcolor=INK2, fontsize=9)
+    ax.set_ylabel('Preis (USDT)')
+    ax.set_xlim(-1, len(win) + 9)
+    pw = pred.reindex(win.index)
+    ax2.plot(x, pw['pS'].to_numpy(), color=VIOLET, linewidth=2, label='Short-Netz „Mensch“: Wahrscheinlichkeit')
+    ax2.plot(x, pw['thrS_990'].to_numpy(), color=WARNING, linewidth=1.5, linestyle=':', label='Schwelle (Top 1 %)')
+    ax2.legend(loc='upper left', frameon=False, labelcolor=INK2, fontsize=8.5, ncol=2)
+    ax2.set_ylabel('ANN')
+    ax2.set_xticks(x[::12], [f"{d:%d.%m}" for d in win.index[::12]])
+    R = (e['signal_close'] - e['tp']) / (e['sl'] - e['signal_close'])
+    _title(fig, f"Echter Short-Trade aus dem OOS: {e['coin']} 4h — Ziel erreicht (+{R:.1f} R brutto)",
+           f"Signal {e['time'] - tf:%d.%m.%Y %H:%M} UTC · eingezeichnet: was das Netz zum Signalzeitpunkt „sieht“ "
+           "(bestätigte Pivots, Trendlinien, Zonen, Kerzenform)")
+    _save(fig, 'short_trade.png')
+
+
+# --- 10 Variantenvergleich (forschung/kanal_varianten) --------------------------
+def variants():
+    data = [('Tageskanäle\n(B0)', 35.7, '#5b5a55'), ('kürzere\nKanäle (V1)', 31.5, '#5b5a55'),
+            ('Wochen-\nkanäle (V5)', 37.6, '#5b5a55'), ('nur Kerzen-\nformen (V8)', 20.6, '#5b5a55'),
+            ('„Mensch“\n(V7)', 51.4, AQUA), ('ein Netz für\nLong+Short', 15.0, '#5b5a55')]
+    fig, ax = _fig(11, 5.4)
+    fig.subplots_adjust(top=0.78, bottom=0.18, left=0.08, right=0.97)
+    x = np.arange(len(data))
+    ax.bar(x, [d[1] for d in data], 0.6, color=[d[2] for d in data])
+    ax.axhline(34.5, color=BLUE, linewidth=1.2, linestyle=':')
+    ax.text(len(data) - 0.5, 35.3, 'Long allein +34,5 %/J', color=BLUE, ha='right', fontsize=9)
+    for i, (_, v, col) in enumerate(data):
+        ax.text(i, v + 1, f"+{v:.1f} %", ha='center', va='bottom', color=INK if col == AQUA else INK2,
+                fontweight='bold' if col == AQUA else 'normal', zorder=5,
+                bbox=dict(boxstyle='round,pad=0.15', facecolor=SURFACE, edgecolor='none'))   # verdeckt die Long-Linie
+    ax.set_xticks(x, [d[0] for d in data], fontsize=9)
+    ax.set_ylabel('IS: Long + Short bei DD ≤ 30 % (%/Jahr)')
+    ax.set_ylim(0, 62)
+    ax.text(4, 58, 'OOS danach einmalig: +112 % (DD 9)\nTageskanäle (B0): +77 % (DD 16)', ha='center', color=AQUA, fontsize=9)
+    _title(fig, 'Welches Short-Netz? Ausgewählt nur im IS, dann einmal OOS',
+           'Je Variante genau eine Änderung · Long-Seite immer die Live-Regel · vorregistriert (forschung/kanal_varianten)')
+    _save(fig, 'variants.png')
+
+
+ALL['short_trade'] = short_trade
+ALL['variants'] = variants
+
 
 if __name__ == '__main__':
     for name in (sys.argv[1:] or ALL):

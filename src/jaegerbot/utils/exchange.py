@@ -112,8 +112,10 @@ class Exchange:
 
         # IMMER zuerst Live-API versuchen!
         try:
-            effective_limit = min(limit, 1000)
-            data = self.exchange.fetch_ohlcv(symbol, timeframe, limit=effective_limit)
+            # Bitget liefert je Abruf hoechstens 1000 Kerzen; mehr (jaegerbot-Profil geohtf: 1300) kommt
+            # unten ueber den Historien-Download dazu.
+            effective_limit = limit
+            data = self.exchange.fetch_ohlcv(symbol, timeframe, limit=min(limit, 1000))
 
             if data:
                 df = pd.DataFrame(data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])

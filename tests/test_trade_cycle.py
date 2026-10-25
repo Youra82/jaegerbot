@@ -55,7 +55,8 @@ class FakeExchange:
 
 
 def _active_config_with_signal():
-    for path in sorted(glob.glob(os.path.join(PROJECT_ROOT, 'src', 'jaegerbot', 'strategy', 'configs', 'config_*.json'))):
+    cdir = tr.profile_dir(os.path.join(PROJECT_ROOT, 'src', 'jaegerbot', 'strategy', 'configs'))   # Configs des aktiven Profils
+    for path in sorted(glob.glob(os.path.join(cdir, 'config_*.json'))):
         with open(path, encoding='utf-8') as f:
             c = json.load(f)
         coin, tf = c['market']['symbol'].split('/')[0], c['market']['timeframe']

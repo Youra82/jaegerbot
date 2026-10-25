@@ -20,9 +20,10 @@ from jaegerbot.utils.data import load_data, symbol_of, load_settings
 from jaegerbot.utils.data_check import check_candles
 from jaegerbot.strategy.features import compute_features, FEATURES, WARMUP_CANDLES
 from jaegerbot.strategy import model as mdl
+from jaegerbot.strategy import trade_rules as tr
 
-PRED_DIR = os.path.join(PROJECT_ROOT, 'data', 'predictions')
-FEAT_DIR = os.path.join(PROJECT_ROOT, 'data', 'features')
+PRED_DIR = tr.profile_dir(os.path.join(PROJECT_ROOT, 'data', 'predictions'))
+FEAT_DIR = tr.profile_dir(os.path.join(PROJECT_ROOT, 'data', 'features'))
 MAX_TRAIN_ROWS = 400_000
 logger = logging.getLogger(__name__)
 

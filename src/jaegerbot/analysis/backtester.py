@@ -15,8 +15,8 @@ sys.path.insert(0, os.path.join(PROJECT_ROOT, 'src'))
 
 from jaegerbot.strategy import trade_rules as tr
 
-FEAT_DIR = os.path.join(PROJECT_ROOT, 'data', 'features')
-PRED_DIR = os.path.join(PROJECT_ROOT, 'data', 'predictions')
+FEAT_DIR = tr.profile_dir(os.path.join(PROJECT_ROOT, 'data', 'features'))
+PRED_DIR = tr.profile_dir(os.path.join(PROJECT_ROOT, 'data', 'predictions'))
 _frames = {}
 _NEVER = pd.Timestamp('2262-01-01', tz='UTC')
 
@@ -56,7 +56,7 @@ def signal_events(coin, timeframe, cfg, start=None, end=None):
         m &= np.asarray(idx + tf >= pd.Timestamp(start))
     if end is not None:
         m &= np.asarray(idx + tf <= pd.Timestamp(end))
-    cols = ['pL', 'pS', 'ema20', 'ema50', tr.thr_col('L', cfg['quantile']), tr.thr_col('S', cfg['quantile'])]
+    cols = ['pL', 'pS', 'ema20', 'ema50', 'atr', tr.thr_col('L', cfg['quantile']), tr.thr_col('S', cfg['quantile'])]
     sub = df.loc[m, cols]
     events = []
     pos = np.flatnonzero(m)
@@ -92,7 +92,8 @@ def run_portfolio(strategies, start_capital=100.0, risk_pct=1.0, max_open=10, ma
                 if 'risk_pct' in s['cfg']:
                     e['risk_pct'] = s['cfg']['risk_pct']
                 events.append(e)
-    events.sort(key=lambda e: (e['time'], e['key']))
+    # wie live (master_runner): zum gleichen Kerzenschluss erst Profil 'trend' (prio 0), dann weitere Profile
+    events.sort(key=lambda e: (e['time'], e.get('prio', 0), e['key']))
 
     equity = start_capital
     peak, max_dd = equity, 0.0

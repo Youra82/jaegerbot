@@ -1,0 +1,39 @@
+{
+  "market": {
+    "symbol": "BLUR/USDT:USDT",
+    "timeframe": "4h"
+  },
+  "strategy": {
+    "sides": "S",
+    "quantile": 0.99,
+    "ema_filter": false
+  },
+  "_backtest": {
+    "is_start": "2023-01-01",
+    "oos_start": "2026-04-26",
+    "is": {
+      "start_capital": 100.0,
+      "end_capital": 118.548,
+      "pnl_pct": 18.548,
+      "max_dd_pct": 5.831,
+      "trades": 356.0,
+      "win_rate": 48.315,
+      "avg_R": 0.101,
+      "open_at_end": 0.0
+    },
+    "oos": {
+      "start_capital": 100.0,
+      "end_capital": 106.162,
+      "pnl_pct": 6.162,
+      "max_dd_pct": 2.271,
+      "trades": 31.0,
+      "win_rate": 61.29,
+      "avg_R": 0.392,
+      "open_at_end": 0.0
+    },
+    "risk_pct": 0.5,
+    "confirmed": false,
+    "n_coins": 39,
+    "created": "2026-10-25 15:15"
+  }
+}

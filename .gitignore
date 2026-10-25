@@ -93,3 +93,10 @@ cython_debug/
 *.db
 *.csv
 jaegerbot.lock
+/artifacts/models_*/
+/src/jaegerbot/strategy/configs_range/
+/src/jaegerbot/strategy/configs_geo/
+/src/jaegerbot/strategy/configs_geohtf/
+/src/jaegerbot/strategy/configs_kv*/
+/artifacts/db_*/
+!/artifacts/models_mensch/

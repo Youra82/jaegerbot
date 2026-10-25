@@ -24,7 +24,9 @@ from jaegerbot.analysis.optimizer import CONFIG_DIR
 
 def load_configs(all_configs, keys):
     out = []
-    active = {(s['symbol'], s['timeframe']) for s in load_settings()['live_trading_settings'].get('active_strategies', [])}
+    from jaegerbot.strategy import trade_rules as tr
+    active = {(s['symbol'], s['timeframe']) for s in load_settings()['live_trading_settings'].get('active_strategies', [])
+              if s.get('profile', 'trend') == tr.PROFILE}
     for path in sorted(glob.glob(os.path.join(CONFIG_DIR, 'config_*.json'))):
         with open(path, 'r', encoding='utf-8') as f:
             c = json.load(f)

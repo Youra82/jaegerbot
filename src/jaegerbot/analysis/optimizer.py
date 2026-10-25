@@ -30,8 +30,8 @@ from jaegerbot.utils.data_check import enough_history_for_config
 from jaegerbot.analysis.backtester import run_portfolio, signal_events, strategy_frame
 from jaegerbot.strategy import trade_rules as tr
 
-CONFIG_DIR = os.path.join(PROJECT_ROOT, 'src', 'jaegerbot', 'strategy', 'configs')
-RULES_FILE = os.path.join(PROJECT_ROOT, 'artifacts', 'results', 'rules.json')
+CONFIG_DIR = tr.profile_dir(os.path.join(PROJECT_ROOT, 'src', 'jaegerbot', 'strategy', 'configs'))
+RULES_FILE = tr.profile_dir(os.path.join(PROJECT_ROOT, 'artifacts', 'results', 'rules')) + '.json'
 GRID = [{'sides': s, 'quantile': q, 'ema_filter': e}
         for s, q, e in itertools.product(('L', 'S', 'LS'), tr.QUANTILE_LEVELS, (False, True))]
 MIN_IS_TRADES = 100

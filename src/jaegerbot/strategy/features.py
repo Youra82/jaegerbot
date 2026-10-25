@@ -9,6 +9,10 @@ import numpy as np
 import pandas as pd
 import ta
 
+from jaegerbot.strategy import trade_rules as tr
+from jaegerbot.strategy.human_geometry import human_geometry, NAMES as human_geometry_names
+from jaegerbot.strategy.candle_patterns import candle_patterns, NAMES as candle_pattern_names
+
 FEATURES = [
     'bb_width', 'bb_pband', 'rsi', 'macd_diff', 'macd', 'atr_normalized', 'adx', 'adx_pos', 'adx_neg',
     'volume_ratio', 'mfi', 'cmf', 'price_to_ema20', 'price_to_ema50', 'stoch_k', 'stoch_d', 'williams_r',
@@ -20,8 +24,25 @@ FEATURES = [
     'buying_pressure', 'selling_pressure',
 ]
 
-# Kerzen Vorlauf, bis alle Features eingeschwungen sind (EMA50/ADX/MACD klingen nach ~4x Fenster ab)
-WARMUP_CANDLES = 300
+_G = tr.GEO_CFG
+GEO_WINDOWS, HTF_WINDOWS = tuple(_G['windows']), tuple(_G['htf_windows'])
+_GEO_KEYS = ('drift', 'er', 'pos', 'width', 'tu', 'tl')
+GEO_COLUMNS = [f"geo_{k}_{n}" for n in GEO_WINDOWS for k in _GEO_KEYS]
+HTF_COLUMNS = [f"htf_geo_{k}_{n}" for n in HTF_WINDOWS for k in _GEO_KEYS]
+HUMAN_COLUMNS = ['hg_' + x for x in human_geometry_names] + ['hgd_' + x for x in human_geometry_names]
+CANDLE_COLUMNS = ['cp_' + x for x in candle_pattern_names] + ['cpd_' + x for x in candle_pattern_names]
+if tr.GEO_FEATURES:            # Profil 'geo' (forschung/ann_kanaltypen): Kanal-Geometrie als Eingaben
+    FEATURES = FEATURES + GEO_COLUMNS
+if tr.HTF_FEATURES:            # Profil 'geohtf': dieselbe Geometrie auf dem uebergeordneten Timeframe
+    FEATURES = FEATURES + HTF_COLUMNS
+if _G['human']:                # Variante 'Mensch': Struktur, Trendlinien, Zonen, Ausbruch/Retest (4h + Tag)
+    FEATURES = FEATURES + HUMAN_COLUMNS
+if _G['candles']:              # Kerzenformen-Bibliothek (4h + Tag)
+    FEATURES = FEATURES + CANDLE_COLUMNS
+
+# Kerzen Vorlauf, bis alle Features eingeschwungen sind (EMA50/ADX/MACD klingen nach ~4x Fenster ab);
+# mit uebergeordneten Kanaelen entsprechend mehr (Profil-Einstellung warmup)
+WARMUP_CANDLES = int(_G['warmup']) if tr.HTF_FEATURES else 300
 
 
 def compute_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -103,4 +124,82 @@ def compute_features(df: pd.DataFrame) -> pd.DataFrame:
     df['volume_direction'] = df['candle_direction'] * df['volume_ratio']
     df['buying_pressure'] = df['close_to_low'] * df['volume_ratio']
     df['selling_pressure'] = df['close_to_high'] * df['volume_ratio']
+    ha, la, ca, atr_a = h.to_numpy(float), l.to_numpy(float), c.to_numpy(float), df['atr'].to_numpy(float)
+    extra = {}
+    if tr.HTF_FEATURES:
+        extra.update(higher_tf_features(df))
+    if tr.GEO_FEATURES:
+        extra.update(channel_geometry(ha, la, ca, atr_a, GEO_WINDOWS, _G['edge'], 'geo_'))
+    if _G['human']:
+        extra.update(human_geometry(ha, la, ca, atr_a, k=5, lookback=300, prefix='hg_'))
+    if _G['candles']:
+        extra.update(candle_patterns(o.to_numpy(float), ha, la, ca, atr_a, 'cp_'))
+    if extra:
+        df = pd.concat([df, pd.DataFrame(extra, index=df.index)], axis=1)
     return df
+
+
+def higher_tf_features(df):
+    """Merkmale des uebergeordneten Timeframes (Tag oder Woche, aus den Kerzen von df gebildet). Eine Kerze sieht nur
+    Perioden, die zu ihrem Schluss abgeschlossen sind; angeschnittene erste Periode wird verworfen.
+    ATR = einfacher 14-Perioden-Mittelwert der True Range (exakt gleich live/Backtest)."""
+    rule = _G['htf']
+    period = pd.Timedelta('7D') if rule == '1W' else pd.Timedelta('1D')
+    norm = df.index.normalize()
+    key = norm - pd.to_timedelta(df.index.dayofweek, unit='D') if rule == '1W' else norm
+    g = df[['open', 'high', 'low', 'close']].groupby(key)
+    d = pd.DataFrame({'open': g['open'].first(), 'high': g['high'].max(), 'low': g['low'].min(),
+                      'close': g['close'].last()})
+    if df.index[0] > d.index[0]:
+        d = d.iloc[1:]                                  # erste Periode angeschnitten
+    prev = d['close'].shift(1)
+    trange = pd.concat([d['high'] - d['low'], (d['high'] - prev).abs(), (d['low'] - prev).abs()], axis=1).max(axis=1)
+    atr_d = trange.rolling(14).mean().to_numpy(float)
+    hd, ld, cd, od = (d[x].to_numpy(float) for x in ('high', 'low', 'close', 'open'))
+    vals = channel_geometry(hd, ld, cd, atr_d, HTF_WINDOWS, _G['edge'], 'htf_geo_')
+    if _G['human']:
+        vals.update(human_geometry(hd, ld, cd, atr_d, k=3, lookback=150, prefix='hgd_'))
+    if _G['candles']:
+        vals.update(candle_patterns(od, hd, ld, cd, atr_d, 'cpd_'))
+    per = pd.DataFrame(vals, index=d.index + period)    # gueltig ab Periodenende
+    tf = df.index[1] - df.index[0] if len(df) > 1 else pd.Timedelta('4h')
+    close_time = pd.DataFrame({'t': df.index + tf})
+    m = pd.merge_asof(close_time, per.rename_axis('t').reset_index(), on='t', direction='backward')
+    return {col: m[col].to_numpy() for col in per.columns}
+
+
+def _touches(mask):
+    n, last = 0, -10
+    for k in np.flatnonzero(mask):
+        if k - last >= 3:
+            n += 1
+            last = k
+    return n
+
+
+def channel_geometry(h, l, c, atr, windows, edge, prefix):
+    """Reine Kursgeometrie je Kerze i aus den Kerzen i-N+1..i (nur Vergangenheit): Regressions-Mittellinie,
+    Huelle der Hochs/Tiefs als Kanal, Drift/Breite, Geradlinigkeit, Lage im Kanal, Breite/ATR, Beruehrungen."""
+    n = len(c)
+    out = {f"{prefix}{k}_{N}": np.full(n, np.nan) for N in windows for k in _GEO_KEYS}
+    for N in windows:
+        x = np.arange(N, dtype=float) - (N - 1) / 2
+        sxx = (x ** 2).sum()
+        for i in range(N - 1, n):
+            s = slice(i - N + 1, i + 1)
+            cc = c[s]
+            m = (x * (cc - cc.mean())).sum() / sxx
+            center = cc.mean() + m * x
+            up = center + (h[s] - center).max()
+            lo = center + (l[s] - center).min()
+            W = up[-1] - lo[-1]
+            if W <= 0 or not np.isfinite(atr[i]) or atr[i] <= 0:
+                continue
+            path = np.abs(np.diff(cc)).sum()
+            out[f"{prefix}drift_{N}"][i] = m * N / W
+            out[f"{prefix}er_{N}"][i] = abs(cc[-1] - cc[0]) / path if path > 0 else 0.0
+            out[f"{prefix}pos_{N}"][i] = (cc[-1] - lo[-1]) / W
+            out[f"{prefix}width_{N}"][i] = W / atr[i]
+            out[f"{prefix}tu_{N}"][i] = _touches(h[s] >= up - edge * W)
+            out[f"{prefix}tl_{N}"][i] = _touches(l[s] <= lo + edge * W)
+    return out

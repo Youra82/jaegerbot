@@ -1,0 +1,62 @@
+{
+  "rule": {
+    "sides": "L",
+    "quantile": 0.975,
+    "ema_filter": true
+  },
+  "criteria": {
+    "k1": true,
+    "k4": true,
+    "k2": 1.0,
+    "k3a": 1.0,
+    "k3b": false,
+    "k3": false
+  },
+  "passed": false,
+  "is": {
+    "start_capital": 100.0,
+    "end_capital": 148.079,
+    "pnl_pct": 48.079,
+    "max_dd_pct": 35.893,
+    "trades": 1003.0,
+    "win_rate": 52.841,
+    "avg_R": 0.053,
+    "open_at_end": 0.0
+  },
+  "oos": {
+    "start_capital": 100.0,
+    "end_capital": 118.104,
+    "pnl_pct": 18.104,
+    "max_dd_pct": 8.891,
+    "trades": 155.0,
+    "win_rate": 53.548,
+    "avg_R": 0.115,
+    "open_at_end": 0.0
+  },
+  "control": {
+    "ann": 0.042136186307256504,
+    "random": -0.08570380163409515,
+    "t": 5.35997809060023
+  },
+  "sideways": {
+    "trend": -10.676434614517927,
+    "combined": -4.683276162270634
+  },
+  "best": {
+    "Trend": [
+      0.95,
+      34.51727884366906,
+      29.922634902413282
+    ],
+    "Trend+Range": [
+      0.65,
+      26.343601500257673,
+      28.353584141515398
+    ],
+    "Range": [
+      0.8,
+      13.049499614158112,
+      29.72642464974552
+    ]
+  }
+}

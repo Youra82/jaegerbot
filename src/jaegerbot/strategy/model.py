@@ -18,7 +18,7 @@ from jaegerbot.strategy.features import FEATURES
 from jaegerbot.strategy import trade_rules as tr
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-MODEL_DIR = os.path.join(PROJECT_ROOT, 'artifacts', 'models')
+MODEL_DIR = tr.profile_dir(os.path.join(PROJECT_ROOT, 'artifacts', 'models'))
 
 
 def labels(df, timeframe):

@@ -13,10 +13,11 @@ sys.path.insert(0, os.path.join(PROJECT_ROOT, 'src'))
 from jaegerbot.utils.exchange import Exchange
 from jaegerbot.utils.telegram import send_message
 from jaegerbot.utils.trade_manager import full_trade_cycle, strategy_key
+from jaegerbot.strategy import trade_rules as tr
 
 
 def setup_logging(symbol, timeframe):
-    key = strategy_key(symbol, timeframe)
+    key = strategy_key(symbol, timeframe) + ('' if tr.PROFILE == 'trend' else f'_{tr.PROFILE}')
     os.makedirs(os.path.join(PROJECT_ROOT, 'logs'), exist_ok=True)
     logger = logging.getLogger(f'jaegerbot_{key}')
     logger.setLevel(logging.INFO)
@@ -33,7 +34,7 @@ def setup_logging(symbol, timeframe):
 
 
 def load_config(symbol, timeframe):
-    path = os.path.join(PROJECT_ROOT, 'src', 'jaegerbot', 'strategy', 'configs',
+    path = os.path.join(tr.profile_dir(os.path.join(PROJECT_ROOT, 'src', 'jaegerbot', 'strategy', 'configs')),
                         f"config_{strategy_key(symbol, timeframe)}.json")
     with open(path, 'r', encoding='utf-8') as f:
         return json.load(f)

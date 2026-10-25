@@ -6,10 +6,48 @@ Der Ausstieg ist genau das, was das ANN gelernt hat (Label): TP = RR x SL vor SL
 Zeitausstieg nach MAX_HOLD Kerzen.
 """
 import math
+import os
 
-SL_ATR_MULT = 2.0
-RISK_REWARD = 2.0
-MAX_HOLD = {'1h': 16, '2h': 16, '4h': 12, '6h': 12, '1d': 8}
+# Profil (Umgebungsvariable JAEGER_PROFILE): 'trend' = Live-Standard. 'range' = Forschung Seitwaertsmarkt
+# (forschung/seitwaerts/PREREG.md): symmetrisches, kurzes Ziel. Andere Profile nutzen eigene Ordner
+# (profile_dir), damit sie Live-Modelle/-Configs nie ueberschreiben.
+PROFILE = os.environ.get('JAEGER_PROFILE', 'trend')
+_PROFILES = {
+    'trend': {'sl': 2.0, 'rr': 2.0, 'hold': {'1h': 16, '2h': 16, '4h': 12, '6h': 12, '1d': 8}},
+    'range': {'sl': 1.5, 'rr': 1.0, 'hold': {'1h': 8, '2h': 8, '4h': 8, '6h': 6, '1d': 4}},
+    # Forschung forschung/ann_kanaltypen: wie trend, zusaetzlich Kanal-Geometrie als ANN-Eingaben
+    'geo': {'sl': 2.0, 'rr': 2.0, 'hold': {'1h': 16, '2h': 16, '4h': 12, '6h': 12, '1d': 8}, 'geo_features': True},
+    # Variante B: zusaetzlich Kanal-Geometrie der Tageskerzen (uebergeordneter Timeframe)
+    'geohtf': {'sl': 2.0, 'rr': 2.0, 'hold': {'1h': 16, '2h': 16, '4h': 12, '6h': 12, '1d': 8},
+               'geo_features': True, 'htf_features': True},
+}
+# Kanal-Varianten (forschung/kanal_varianten/PREREG.md): je eine Aenderung gegenueber geohtf
+_GEO_VARIANTS = {
+    'kv1': {'windows': (20, 80), 'htf_windows': (20, 80)},
+    'kv2': {'windows': (100, 300), 'htf_windows': (100, 300), 'warmup': 2000},
+    'kv3': {'edge': 0.08},
+    'kv4': {'edge': 0.25},
+    'kv5': {'htf': '1W', 'htf_windows': (20, 50), 'warmup': 2800},
+    'kv6': {'warmup': 2000},                       # Basis-Timeframe 2h (Lauf mit --timeframes 2h)
+    'kv7': {'human': True, 'candles': True},       # Chart-Geometrie + Kerzenformen ("wie ein Mensch")
+    'kv8': {'candles': True},                      # nur Kerzenformen
+}
+# Live-Name der in forschung/kanal_varianten bestaetigten Variante V7 (Chart-Geometrie + Kerzenformen, Short-Seite)
+_GEO_VARIANTS['mensch'] = _GEO_VARIANTS['kv7']
+for _name, _cfg in _GEO_VARIANTS.items():
+    _PROFILES[_name] = {**_PROFILES['geohtf'], 'geo_cfg': _cfg}
+GEO_FEATURES = bool(_PROFILES[PROFILE].get('geo_features'))
+HTF_FEATURES = bool(_PROFILES[PROFILE].get('htf_features'))
+GEO_CFG = {'windows': (50, 150), 'htf': '1D', 'htf_windows': (50, 150), 'edge': 0.15, 'warmup': 1000,
+           'human': False, 'candles': False, **_PROFILES[PROFILE].get('geo_cfg', {})}
+SL_ATR_MULT = _PROFILES[PROFILE]['sl']
+RISK_REWARD = _PROFILES[PROFILE]['rr']
+MAX_HOLD = _PROFILES[PROFILE]['hold']
+
+
+def profile_dir(path):
+    """Ordner des aktiven Profils: Trend nutzt die Live-Ordner, andere Profile '<ordner>_<profil>'."""
+    return path if PROFILE == 'trend' else f"{path.rstrip(os.sep)}_{PROFILE}"
 
 FEE_PCT = 0.0006       # Bitget Taker je Seite
 SLIPPAGE_PCT = 0.0005  # Markt-/Stop-Ausfuehrung je Seite
@@ -17,6 +55,7 @@ MIN_NOTIONAL_USDT = 5.0
 LIQ_SAFETY = 0.8       # Hebel so, dass die Liquidation erst nach 1/0.8 SL-Abstand kommt
 
 QUANTILE_LEVELS = (0.9, 0.95, 0.975, 0.99)
+SIDEWAYS_SPREAD_ATR = 0.5   # Seitwaerts: |EMA20 - EMA50| < 0,5 x ATR (forschung/seitwaerts PREREG v2)
 
 
 def thr_col(side, q):
@@ -24,7 +63,7 @@ def thr_col(side, q):
 
 
 def entry_signal(row, cfg):
-    """row: Mapping mit pL, pS, thrL_*/thrS_*, ema20, ema50. Liefert 'long', 'short' oder None."""
+    """row: Mapping mit pL, pS, thrL_*/thrS_*, ema20, ema50 (+ atr bei regime=sideways). Liefert 'long', 'short' oder None."""
     q = cfg['quantile']
     sides = cfg['sides']
     cand = []
@@ -35,6 +74,8 @@ def entry_signal(row, cfg):
     if not cand:
         return None
     side = max(cand, key=lambda x: x[1])[0]
+    if cfg.get('regime') == 'sideways' and not abs(row['ema20'] - row['ema50']) < SIDEWAYS_SPREAD_ATR * row['atr']:
+        return None
     if cfg.get('ema_filter'):
         if side == 'long' and not row['ema20'] > row['ema50']:
             return None

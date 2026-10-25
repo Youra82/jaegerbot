@@ -1,0 +1,44 @@
+{
+  "rule": {
+    "sides": "S",
+    "quantile": 0.975,
+    "ema_filter": true
+  },
+  "criteria_1_4": {
+    "k1": false,
+    "k2": 0.0,
+    "k3": 1.0,
+    "k4": 1.0
+  },
+  "is": {
+    "start_capital": 100.0,
+    "end_capital": 153.338,
+    "pnl_pct": 53.338,
+    "max_dd_pct": 50.333,
+    "trades": 1081.0,
+    "win_rate": 47.364,
+    "avg_R": 0.075,
+    "open_at_end": 0.0
+  },
+  "oos": {
+    "start_capital": 100.0,
+    "end_capital": 94.899,
+    "pnl_pct": -5.101,
+    "max_dd_pct": 24.239,
+    "trades": 165.0,
+    "win_rate": 40.606,
+    "avg_R": -0.013,
+    "open_at_end": 8.0
+  },
+  "cagr_trend": 34.51727884366906,
+  "cagr_geo": 7.5260809969903475,
+  "oos_trend": 51.177163073840376,
+  "oos_geo": -5.100866321065894,
+  "side_trend": -8.706813201414718,
+  "side_geo": 93.5313550679555,
+  "control": {
+    "ann": 0.06332941950121349,
+    "random": -0.023789275156650767,
+    "t": 4.288220423028305
+  }
+}

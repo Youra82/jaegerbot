@@ -1,0 +1,63 @@
+{
+  "rule": {
+    "sides": "S",
+    "quantile": 0.99,
+    "ema_filter": false,
+    "regime": "sideways"
+  },
+  "criteria": {
+    "k1": false,
+    "k4": false,
+    "k2": 0.0,
+    "k3a": 1.0,
+    "k3b": true,
+    "k3": true
+  },
+  "passed": false,
+  "is": {
+    "start_capital": 100.0,
+    "end_capital": 108.824,
+    "pnl_pct": 8.824,
+    "max_dd_pct": 9.57,
+    "trades": 159.0,
+    "win_rate": 54.088,
+    "avg_R": 0.06,
+    "open_at_end": 0.0
+  },
+  "oos": {
+    "start_capital": 100.0,
+    "end_capital": 95.798,
+    "pnl_pct": -4.202,
+    "max_dd_pct": 5.284,
+    "trades": 10.0,
+    "win_rate": 40.0,
+    "avg_R": -0.424,
+    "open_at_end": 0.0
+  },
+  "control": {
+    "ann": -0.011036265053356661,
+    "random": -0.035607974824100615,
+    "t": 0.4348201156782948
+  },
+  "sideways": {
+    "trend": -10.676434614517927,
+    "combined": 2.271952085271045
+  },
+  "best": {
+    "Trend": [
+      0.95,
+      34.51727884366906,
+      29.922634902413282
+    ],
+    "Trend+Range": [
+      1.0,
+      37.20566324237933,
+      29.748848168372398
+    ],
+    "Range": [
+      2.25,
+      1.5929234317523244,
+      21.27235266074722
+    ]
+  }
+}
