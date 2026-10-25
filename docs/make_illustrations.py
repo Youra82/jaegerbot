@@ -422,14 +422,28 @@ def short_trade():
         if t >= 2 and win['low'].min() <= z <= win['high'].max():
             ax.axhline(z, color=WARNING, linewidth=1, linestyle=':', alpha=0.8)
             ax.text(len(win) - 0.5, z, f" Zone ({t}×)", color=WARNING, fontsize=8, va='bottom', ha='right')
-    # Trendlinien durch die letzten zwei Pivot-Hochs / -Tiefs
-    for P, arr, col, lab in ((ph, h, ORANGE, 'Trendlinie Hochs'), (pl, l, AQUA, 'Trendlinie Tiefs')):
+    # Saubere Trendlinien nach fibot-Regeln (Lesehilfe, durchgezogen, Beruehrungen als Punkte)
+    from jaegerbot.strategy.human_geometry import best_line
+    ph_all, pl_all = pivots(h[:i0 + 1], 5, 'high'), pivots(l[:i0 + 1], 5, 'low')
+    for side, piv, arr, col, lab in (('res', ph_all, h, ORANGE, 'Widerstand'), ('sup', pl_all, l, AQUA, 'Unterstützung')):
+        ln = best_line(i0, piv, arr, c, atr[i0], 5, side)
+        if ln is None:
+            continue
+        p1, p2, slope, icpt, touches = ln
+        a0 = max(p1, lo_i)
+        xs = np.array([pos(a0), pos(i0) + 3])
+        ax.plot(xs, icpt + slope * (xs + lo_i), color=col, linewidth=2.2, label=f"{lab} ({touches} Berührungen)")
+        cand = piv[(piv >= p1) & (piv <= i0 - 5)]
+        hit = cand[np.abs(arr[cand] - (icpt + slope * cand)) <= 0.3 * atr[i0]]
+        hit = hit[hit >= lo_i]
+        ax.scatter(pos(hit), arr[hit], color=col, s=40, zorder=4)
+    # Eingabe des Netzes: jüngste Hoch-/Tief-Abfolge (Linie durch die letzten zwei bestätigten Pivots, gestrichelt)
+    for P, arr, col, lab in ((ph, h, ORANGE, 'Netz-Eingabe: jüngste Hochs'), (pl, l, AQUA, 'Netz-Eingabe: jüngste Tiefs')):
         if len(P) >= 2 and P[-2] >= lo_i:
             a_, b_ = P[-2], P[-1]
             slope = (arr[b_] - arr[a_]) / (b_ - a_)
             xs = np.array([pos(a_), pos(i0) + 3])
-            ax.plot(xs, arr[a_] + slope * (xs + lo_i - a_), color=col, linewidth=1.8, label=lab)
-            ax.scatter([pos(a_), pos(b_)], [arr[a_], arr[b_]], color=col, s=40, zorder=4)
+            ax.plot(xs, arr[a_] + slope * (xs + lo_i - a_), color=col, linewidth=1.3, linestyle='--', alpha=0.85, label=lab)
     ax.hlines(e['sl'], pos(i0), pos(i1), color=CRITICAL, linewidth=2, linestyles='--')
     ax.hlines(e['tp'], pos(i0), pos(i1), color=GOOD, linewidth=2, linestyles='--')
     ax.text(len(win) + 0.3, e['sl'], f"SL {_px(e['sl'])}", color=CRITICAL, ha='left', va='center', fontsize=9, fontweight='bold')
@@ -452,8 +466,8 @@ def short_trade():
     ax2.set_xticks(x[::12], [f"{d:%d.%m}" for d in win.index[::12]])
     R = (e['signal_close'] - e['tp']) / (e['sl'] - e['signal_close'])
     _title(fig, f"Echter Short-Trade aus dem OOS: {e['coin']} 4h — Ziel erreicht (+{R:.1f} R brutto)",
-           f"Signal {e['time'] - tf:%d.%m.%Y %H:%M} UTC · eingezeichnet: was das Netz zum Signalzeitpunkt „sieht“ "
-           "(bestätigte Pivots, Trendlinien, Zonen, Kerzenform)")
+           f"Signal {e['time'] - tf:%d.%m.%Y %H:%M} UTC · durchgezogen: Trendlinien (fibot-Regeln) · "
+           "gestrichelt: Netz-Eingabe Hoch-/Tief-Abfolge · Zonen, Kerzenform")
     _save(fig, 'short_trade.png')
 
 

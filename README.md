@@ -131,6 +131,8 @@ Ein Pivot zählt erst, wenn er bestätigt ist (4h: 5 Kerzen später, Tag: 3 Tage
 
 ![Echter Short-Trade aus dem OOS mit der Geometrie, die das Netz zum Signalzeitpunkt sieht](docs/images/short_trade.png)
 
+*Ein echter Short aus den letzten 26 Wochen: fallender Kanal mit drei Berührungen am Widerstand, mehrfach berührte Zonen, Inside Bar als Signalkerze. Durchgezogene Linien sind die Trendlinien, wie ein Mensch sie zeichnet (fibot-Regeln, Punkte = Berührungen); gestrichelt ist, was das Netz als Eingabe bekommt (jüngste Hoch-/Tief-Abfolge). Unten die Short-Wahrscheinlichkeit des Netzes — gehandelt wird nur über der Schwelle (stärkste 1 %).*
+
 **Wie „Mensch“ ausgewählt wurde** (vorregistriert, `forschung/kanal_varianten/PREREG.md`): sechs Varianten mit je einer Änderung, nur im IS verglichen (Long-Seite immer die Live-Regel), danach einmal OOS. Kerzenformen allein schadeten; erst zusammen mit der Chart-Geometrie wurde das Netz stark. Ein gemeinsames Netz für Long und Short war deutlich schwächer.
 
 ![Vergleich der Short-Varianten im IS und OOS-Bestätigung](docs/images/variants.png)
