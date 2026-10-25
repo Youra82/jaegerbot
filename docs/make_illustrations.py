@@ -305,12 +305,12 @@ def timeframes():
 def safety():
     fig = plt.figure(figsize=(12, 4.6), facecolor=SURFACE)
     ax = fig.add_axes([0, 0, 1, 1]); ax.set_xlim(0, 12); ax.set_ylim(0, 4.6); ax.axis('off')
-    ax.text(0.3, 4.3, 'Quartals-Pipeline: gesichert und selbst geprüft', fontsize=15, fontweight='bold', color=INK, va='top')
+    ax.text(0.3, 4.3, 'Quartals-Pipeline: neue Modelle, gesichert und selbst geprüft', fontsize=15, fontweight='bold', color=INK, va='top')
     ax.text(0.3, 3.85, 'Jeder Schritt muss bestehen, sonst wird automatisch der alte Stand zurückgespielt',
             fontsize=10, color=INK2, va='top')
     steps = [('Sicherung', 'Modelle, Configs,\nsettings.json', BLUE), ('Daten', 'Lücken? veraltet?\nzu kurz?', BLUE),
-             ('Neues Modell', 'nur Vergangenheit\nPlausibilität', VIOLET), ('Regeln', 'IS-Wahl\nOOS-Bestätigung', VIOLET),
-             ('Paritätstest', 'Live-Code =\nBacktest', AQUA), ('Live', 'neues Team\n+ Telegram', GOOD)]
+             ('Neue Modelle', 'Long + Short\nnur Vergangenheit', VIOLET), ('Modellprüfung', 'Schwellen, Labels\nplausibel?', VIOLET),
+             ('Paritätstest', 'Live-Code =\nBacktest (je Profil)', AQUA), ('Live', 'Regeln/Team/Risiko\nfest + Telegram', GOOD)]
     w, gap, y = 1.62, 0.33, 1.75
     for i, (t, s, c) in enumerate(steps):
         x = 0.3 + i * (w + gap)
@@ -320,7 +320,7 @@ def safety():
     # Ruecksicherungs-Pfad
     ax.add_patch(FancyBboxPatch((1.3, 0.35), 9.5, 0.8, boxstyle='round,pad=0.02,rounding_size=0.06',
                                 facecolor='#2a1d1d', edgecolor=CRITICAL, linewidth=2))
-    ax.text(6.02, 0.75, '✖ Fehler in einem Schritt  →  Rücksicherung + Telegram-Alarm  →  Bot handelt mit Vorquartal-Modell weiter',
+    ax.text(6.02, 0.75, '✖ Fehler in einem Schritt  →  Rücksicherung + Telegram-Alarm  →  Bot handelt mit den Vorquartal-Modellen weiter',
             ha='center', va='center', color=INK, fontsize=10)
     for i in range(1, 5):
         xm = 0.3 + i * (w + gap) + w / 2
@@ -328,7 +328,7 @@ def safety():
     _save(fig, 'safety.png')
 
 
-ALL = {'pipeline': pipeline, 'trade': trade, 'equity': equity, 'control': control, 'methods': methods,
+ALL = {'pipeline': pipeline, 'trade': trade, 'control': control, 'methods': methods,
        'timeframes': timeframes, 'safety': safety}
 
 
@@ -380,6 +380,7 @@ def combo():
 
 
 ALL['combo'] = combo
+OPTIONAL = {'equity': equity}       # nur Long-Kurve, nicht mehr in der README
 
 
 # --- 9 Echter Short-Trade "Mensch" mit erkannter Geometrie --------------------
@@ -606,6 +607,65 @@ def examples():
 ALL['examples'] = examples
 
 
+# --- 12 Beispielrechnung: 100 USDT ab 01.05.2026 ----------------------------------------------------------------
+def start_100(start='2026-05-01'):
+    """Braucht %TMP%/jaeger_trend_events.pkl und jaeger_mensch_events.pkl (forschung)."""
+    import pickle
+    from jaegerbot.analysis.backtester import run_portfolio
+    T = os.environ.get('TMP', '/tmp')
+    L = pickle.load(open(os.path.join(T, 'jaeger_trend_events.pkl'), 'rb'))['events']
+    S = pickle.load(open(os.path.join(T, 'jaeger_mensch_events.pkl'), 'rb'))
+    for e in L:
+        e['prio'] = 0
+    lt = _team()
+    t0 = pd.Timestamp(start, tz='UTC')
+    fig, (ax, ax2) = _fig(12, 6.6, rows=2, gridspec_kw={'height_ratios': [2.2, 1.2], 'hspace': 0.35})
+    fig.subplots_adjust(top=0.84, bottom=0.08, left=0.07, right=0.97)
+    res = {}
+    for name, ev, risk, col in ((f"Long + Short (live, {lt['risk_per_trade_pct']:.2f} %)".replace('.', ','), L + S,
+                                 lt['risk_per_trade_pct'], BLUE), ('nur Long (0,95 %)', L, 0.95, MUTED)):
+        r = run_portfolio([], 100, risk, lt['max_open_positions'], lt['max_leverage'],
+                          events=[dict(e) for e in ev if e['time'] >= t0])
+        t = r['trades'].sort_values('exit_time')
+        eq = pd.concat([pd.Series([100.0], index=[t0]), t.set_index('exit_time')['equity_after']])
+        ax.step(eq.index, eq.values, where='post', color=col, lw=2.4 if col == BLUE else 1.6, label=name)
+        ax.annotate(f"{eq.iloc[-1]:.0f} USDT", (eq.index[-1], eq.iloc[-1]), xytext=(6, 0), textcoords='offset points',
+                    color=INK if col == BLUE else INK2, fontweight='bold', va='center')
+        m = eq.resample('ME').last().ffill()
+        res[name] = (m, r['stats'], eq)
+    ax.axhline(100, color=GRID, lw=1)
+    ax.set_ylabel('Kontostand (USDT)')
+    ax.legend(loc='upper left', frameon=False, labelcolor=INK2)
+    ax.set_xlim(t0, pd.Timestamp.now(tz='UTC') + pd.Timedelta(days=12))
+    k = list(res)
+    m_c, m_l = res[k[0]][0], res[k[1]][0]
+    prev_c, prev_l = 100.0, 100.0
+    labels, vc, vl = [], [], []
+    for ts in m_c.index:
+        labels.append(f"{ts:%b}".replace('May', 'Mai').replace('Oct', 'Okt'))
+        vc.append((m_c[ts] / prev_c - 1) * 100); prev_c = m_c[ts]
+        lv = m_l.get(ts, prev_l); vl.append((lv / prev_l - 1) * 100); prev_l = lv
+    x = np.arange(len(labels))
+    ax2.bar(x - 0.2, vc, 0.38, color=[BLUE if v >= 0 else CRITICAL for v in vc], label=k[0])
+    ax2.bar(x + 0.2, vl, 0.38, color=['#5b5a55' if v >= 0 else '#7a3a3a' for v in vl], label=k[1])
+    for i, v in enumerate(vc):
+        ax2.text(i - 0.2, v + (2 if v >= 0 else -2), f"{v:+.0f} %", ha='center', va='bottom' if v >= 0 else 'top',
+                 color=INK, fontsize=9)
+    ax2.axhline(0, color=MUTED, lw=1)
+    ax2.set_xticks(x, labels)
+    ax2.set_ylabel('Monat (%)')
+    lo, hi = ax2.get_ylim()
+    ax2.set_ylim(min(lo, -8), hi + 8)
+    st_c, st_l = res[k[0]][1], res[k[1]][1]
+    _title(fig, f"100 USDT ab {t0:%d.%m.%Y}: {st_c['end_capital']:.0f} USDT heute ({st_c['pnl_pct']:+.0f} %)",
+           f"Echter Bot-Simulator (Mindestorder, Margin, Kosten) · nur ungesehene Daten (OOS) · {st_c['trades']} Trades, "
+           f"größter Rückgang {st_c['max_dd_pct']:.1f} % · nur Long: {st_l['end_capital']:.0f} USDT".replace('.', ','))
+    _save(fig, 'start_100.png')
+
+
+ALL['start_100'] = start_100
+
+
 if __name__ == '__main__':
     for name in (sys.argv[1:] or ALL):
-        ALL[name]()
+        {**ALL, **OPTIONAL}[name]()
