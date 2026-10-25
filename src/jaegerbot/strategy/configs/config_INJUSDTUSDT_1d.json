@@ -1,31 +1,39 @@
 {
-    "_meta": {
-        "pnl_pct": 446.6,
-        "pnl_pct_oos": 446.6,
-        "pnl_pct_train": 24444.15,
-        "wfv": "70/30"
+  "market": {
+    "symbol": "INJ/USDT:USDT",
+    "timeframe": "1d"
+  },
+  "strategy": {
+    "sides": "L",
+    "quantile": 0.975,
+    "ema_filter": true
+  },
+  "_backtest": {
+    "is_start": "2023-01-01",
+    "oos_start": "2026-04-26",
+    "is": {
+      "start_capital": 100.0,
+      "end_capital": 128.135,
+      "pnl_pct": 28.135,
+      "max_dd_pct": 12.428,
+      "trades": 108.0,
+      "win_rate": 50.926,
+      "avg_R": 0.249,
+      "open_at_end": 0.0
     },
-    "market": {
-        "symbol": "INJ/USDT:USDT",
-        "timeframe": "1d"
+    "oos": {
+      "start_capital": 100.0,
+      "end_capital": 99.784,
+      "pnl_pct": -0.216,
+      "max_dd_pct": 4.112,
+      "trades": 21.0,
+      "win_rate": 33.333,
+      "avg_R": -0.005,
+      "open_at_end": 0.0
     },
-    "strategy": {
-        "prediction_threshold": 0.6,
-        "min_signal_score": 5.39
-    },
-    "risk": {
-        "margin_mode": "isolated",
-        "risk_per_trade_pct": 4.51,
-        "risk_reward_ratio": 1.62,
-        "leverage": 11,
-        "trailing_stop_activation_rr": 0.95,
-        "trailing_stop_callback_rate_pct": 1.43,
-        "atr_multiplier_sl": 2.95,
-        "min_sl_pct": 0.3,
-        "max_sl_pct": 0.92
-    },
-    "behavior": {
-        "use_longs": true,
-        "use_shorts": true
-    }
+    "risk_pct": 1.0,
+    "confirmed": false,
+    "n_coins": 29,
+    "created": "2026-10-25 11:56"
+  }
 }

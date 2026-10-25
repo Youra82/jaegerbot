@@ -1,157 +1,86 @@
 # master_runner.py
+"""JaegerBot v5 Master Runner (Cron alle 15 Min, mit flock).
+
+Alle aktiven Strategien in EINEM Prozess, nacheinander in fester Reihenfolge (wie der
+Portfolio-Simulator): Durchgang 1 nur Ausstiege, Durchgang 2 Einstiege. Parallele Prozesse
+koennten sonst gleichzeitig die max. Positionszahl oder dasselbe Symbol belegen.
+"""
+import os
+import sys
 import json
 import subprocess
-import sys
-import os
-import time
 
-# Pfad anpassen, damit die utils importiert werden können
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = SCRIPT_DIR
-sys.path.append(os.path.join(PROJECT_ROOT, 'src'))
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(PROJECT_ROOT, 'src'))
 
 from jaegerbot.utils.exchange import Exchange
+from jaegerbot.utils.telegram import send_message
+from jaegerbot.utils.trade_manager import full_trade_cycle, strategy_key
+from jaegerbot.strategy.run import setup_logging, load_config
+
+
+def start_background(script, log_name):
+    path = os.path.join(PROJECT_ROOT, script)
+    if not os.path.exists(path):
+        return
+    os.makedirs(os.path.join(PROJECT_ROOT, 'logs'), exist_ok=True)
+    subprocess.Popen([sys.executable, path], stdout=open(os.path.join(PROJECT_ROOT, 'logs', log_name), 'a'),
+                     stderr=subprocess.STDOUT)
+
 
 def main():
-    """
-    Der Master Runner für den JaegerBot (Voll-Dynamisches Kapital).
-    - Liest die settings.json, um den Modus (Autopilot/Manuell) zu bestimmen.
-    - Startet für jede als "active" markierte Strategie einen separaten run.py Prozess
-      innerhalb der korrekten virtuellen Umgebung.
-    """
-    settings_file = os.path.join(SCRIPT_DIR, 'settings.json')
-    optimization_results_file = os.path.join(SCRIPT_DIR, 'artifacts', 'results', 'optimization_results.json')
-    bot_runner_script = os.path.join(SCRIPT_DIR, 'src', 'jaegerbot', 'strategy', 'run.py')
-    secret_file = os.path.join(SCRIPT_DIR, 'secret.json')
+    print("=======================================================")
+    print("JaegerBot Master Runner v5 (ANN-Ensemble, Live = Backtest)")
+    print("=======================================================")
+    start_background('auto_optimizer_scheduler.py', 'auto_optimizer_trigger.log')
+    start_background('daily_self_check.py', 'daily_self_check.log')
 
-    # Finde den exakten Pfad zum Python-Interpreter in der virtuellen Umgebung
-    python_executable = os.path.join(SCRIPT_DIR, '.venv', 'bin', 'python3')
-    if not os.path.exists(python_executable):
-        print(f"Fehler: Python-Interpreter in der venv nicht gefunden unter {python_executable}")
+    with open(os.path.join(PROJECT_ROOT, 'settings.json'), 'r', encoding='utf-8') as f:
+        live_settings = json.load(f)['live_trading_settings']
+    with open(os.path.join(PROJECT_ROOT, 'secret.json'), 'r', encoding='utf-8') as f:
+        secrets = json.load(f)
+    accounts = secrets.get('jaegerbot') or []
+    telegram = secrets.get('telegram', {})
+    if not accounts:
+        print("Fehler: Kein 'jaegerbot'-Account in secret.json.")
         return
 
-    print("=======================================================")
-    print("JaegerBot Master Runner v3.3 (final)")
-    print("=======================================================")
+    strategies = sorted((s for s in live_settings.get('active_strategies', []) if s.get('active', True)),
+                        key=lambda s: strategy_key(s['symbol'], s['timeframe']))
+    if not strategies:
+        print("Keine aktiven Strategien in settings.json.")
+        return
 
-    try:
-        with open(settings_file, 'r') as f:
-            settings = json.load(f)
+    exchange = Exchange(accounts[0])
+    if not exchange.markets:
+        print("Fehler: Maerkte nicht geladen.")
+        return
 
-        with open(secret_file, 'r') as f:
-            secrets = json.load(f)
-        
-        if not secrets.get('jaegerbot'):
-            print("Fehler: Kein 'jaegerbot'-Account in secret.json gefunden.")
-            return
-        main_account_config = secrets['jaegerbot'][0]
+    jobs = []
+    for s in strategies:
+        try:
+            jobs.append((load_config(s['symbol'], s['timeframe']), setup_logging(s['symbol'], s['timeframe'])))
+        except FileNotFoundError:
+            print(f"Warnung: Config fehlt fuer {s['symbol']} {s['timeframe']} -- uebersprungen.")
 
-        print(f"Frage Kontostand für Account '{main_account_config.get('name', 'Standard')}' ab...")
-        # (Kapitalabfrage wird hier nicht mehr benötigt, da sie in run.py stattfindet)
-        
-        live_settings = settings.get('live_trading_settings', {})
-        use_autopilot = live_settings.get('use_auto_optimizer_results', False)
-        
-        strategy_list = []
-        if use_autopilot:
-            print("Modus: Autopilot. Lese Strategien aus den Optimierungs-Ergebnissen...")
-            if os.path.exists(optimization_results_file):
-                with open(optimization_results_file, 'r') as f:
-                    strategy_config = json.load(f)
-                strategy_list = strategy_config.get('optimal_portfolio', [])
-            else:
-                print("  → Keine Optimierungsdatei gefunden. Falle auf manuellen Modus zurück.")
-                strategy_list = live_settings.get('active_strategies', [])
-        else:
-            print("Modus: Manuell. Lese Strategien aus den manuellen Einstellungen...")
-            strategy_list = live_settings.get('active_strategies', [])
-
-        if not strategy_list:
-            print("Keine aktiven Strategien zum Ausführen gefunden.")
-            return
-
-        # Sicherheitscheck: pro Symbol darf nur EIN Timeframe gleichzeitig laufen.
-        # Bei Duplikaten wird der erste aktive Eintrag behalten.
-        seen_symbols = {}
-        filtered_list = []
-        for s in strategy_list:
-            sym = s.get('symbol') if isinstance(s, dict) else s
-            if sym in seen_symbols:
-                tf_existing = seen_symbols[sym]
-                tf_new = s.get('timeframe', '?') if isinstance(s, dict) else '?'
-                print(f"WARNUNG: {sym} bereits als ({tf_existing}) registriert — überspringe ({tf_new}). Nur ein Timeframe pro Symbol erlaubt!")
-                continue
-            seen_symbols[sym] = s.get('timeframe', '?') if isinstance(s, dict) else '?'
-            filtered_list.append(s)
-        strategy_list = filtered_list
-            
-        print("=======================================================")
-
-        for strategy_info in strategy_list:
-            if isinstance(strategy_info, dict) and not strategy_info.get("active", True):
-                symbol = strategy_info.get('symbol', 'N/A')
-                timeframe = strategy_info.get('timeframe', 'N/A')
-                print(f"\n--- Überspringe inaktive Strategie: {symbol} ({timeframe}) ---")
-                continue
-
-            symbol, timeframe, use_macd = None, None, None
-
-            if use_autopilot and isinstance(strategy_info, str):
+    candles = {}
+    for phase in ('ausstiege', 'einstiege'):
+        for config, logger in jobs:
+            key = strategy_key(config['market']['symbol'], config['market']['timeframe'])
+            try:
+                df = full_trade_cycle(exchange, config, live_settings, telegram, logger,
+                                      df=candles.get(key), manage_only=(phase == 'ausstiege'))
+                if phase == 'ausstiege' and df is not None:
+                    candles[key] = df
+            except Exception as e:
+                logger.critical(f"Fehler ({phase}): {e}", exc_info=True)
                 try:
-                    use_macd = '_macd' in strategy_info
-                    base_name = strategy_info.replace('config_', '').replace('.json', '').replace('_macd', '')
-                    parts = base_name.split('_')
-                    timeframe = parts[-1]
-                    symbol_base = parts[0].replace('USDTUSDT', '')
-                    symbol = f"{symbol_base}/USDT:USDT"
-                except Exception as e:
-                    print(f"Warnung: Konnte Autopilot-Strategie '{strategy_info}' nicht verarbeiten. Fehler: {e}")
-                    continue
-            
-            elif isinstance(strategy_info, dict):
-                symbol = strategy_info.get('symbol')
-                timeframe = strategy_info.get('timeframe')
-                use_macd = strategy_info.get('use_macd_filter', False)
-            
-            if not all([symbol, timeframe, use_macd is not None]):
-                print(f"Warnung: Unvollständige Strategie-Info: {strategy_info}. Überspringe.")
-                continue
+                    send_message(telegram.get('bot_token'), telegram.get('chat_id'),
+                                 f"🚨 jaegerbot {key}: Fehler ({phase})\n{e}")
+                except Exception:
+                    pass
+    print(f"Lauf fertig: {len(jobs)} Strategien.")
 
-            print(f"\n--- Starte Bot für: {symbol} ({timeframe}) ---")
-            print(f"    - MACD-Filter-Version: {'JA' if use_macd else 'NEIN'}")
-            
-            # --- HIER IST DIE FINALE KORREKTUR ---
-            # Der --use_macd Parameter wird jetzt korrekt an den Befehl übergeben
-            command = [
-                python_executable,
-                bot_runner_script,
-                "--symbol", symbol,
-                "--timeframe", timeframe,
-                "--use_macd", str(use_macd) 
-            ]
-            
-            subprocess.Popen(command)
-            time.sleep(2)
 
-        # --- Auto-Optimizer im Hintergrund starten ---
-        auto_opt_script = os.path.join(SCRIPT_DIR, 'auto_optimizer_scheduler.py')
-        if os.path.exists(auto_opt_script):
-            print("[Auto-Optimizer] Prüfe ob Optimierung fällig...")
-            logs_dir = os.path.join(SCRIPT_DIR, 'logs')
-            os.makedirs(logs_dir, exist_ok=True)
-            # Stdout + Stderr in das Trigger-Log umleiten, damit Trainer-/Optimizer-
-            # Ausgabe (inkl. Fortschrittsbalken) per "tail -f logs/auto_optimizer_trigger.log"
-            # verfolgt werden kann.
-            subprocess.Popen(
-                [sys.executable, auto_opt_script],
-                stdout=open(os.path.join(logs_dir, 'auto_optimizer_trigger.log'), 'a'),
-                stderr=subprocess.STDOUT,
-            )
-
-    except FileNotFoundError as e:
-        print(f"Fehler: Eine wichtige Datei wurde nicht gefunden: {e}")
-    except Exception as e:
-        print(f"Ein unerwarteter Fehler im Master Runner ist aufgetreten: {e}")
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

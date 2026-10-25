@@ -1,31 +1,39 @@
 {
-    "_meta": {
-        "pnl_pct": 74.15,
-        "pnl_pct_oos": 74.15,
-        "pnl_pct_train": 266.87,
-        "wfv": "70/30"
+  "market": {
+    "symbol": "SOL/USDT:USDT",
+    "timeframe": "4h"
+  },
+  "strategy": {
+    "sides": "L",
+    "quantile": 0.99,
+    "ema_filter": true
+  },
+  "_backtest": {
+    "is_start": "2023-01-01",
+    "oos_start": "2026-04-26",
+    "is": {
+      "start_capital": 100.0,
+      "end_capital": 198.452,
+      "pnl_pct": 98.452,
+      "max_dd_pct": 25.045,
+      "trades": 468.0,
+      "win_rate": 49.786,
+      "avg_R": 0.163,
+      "open_at_end": 0.0
     },
-    "market": {
-        "symbol": "SOL/USDT:USDT",
-        "timeframe": "4h"
+    "oos": {
+      "start_capital": 100.0,
+      "end_capital": 122.238,
+      "pnl_pct": 22.238,
+      "max_dd_pct": 5.909,
+      "trades": 75.0,
+      "win_rate": 50.667,
+      "avg_R": 0.293,
+      "open_at_end": 0.0
     },
-    "strategy": {
-        "prediction_threshold": 0.6,
-        "min_signal_score": 5.36
-    },
-    "risk": {
-        "margin_mode": "isolated",
-        "risk_per_trade_pct": 2.12,
-        "risk_reward_ratio": 6.68,
-        "leverage": 13,
-        "trailing_stop_activation_rr": 1.0,
-        "trailing_stop_callback_rate_pct": 0.34,
-        "atr_multiplier_sl": 3.85,
-        "min_sl_pct": 0.3,
-        "max_sl_pct": 2.61
-    },
-    "behavior": {
-        "use_longs": true,
-        "use_shorts": true
-    }
+    "risk_pct": 1.0,
+    "confirmed": true,
+    "n_coins": 30,
+    "created": "2026-10-25 11:56"
+  }
 }

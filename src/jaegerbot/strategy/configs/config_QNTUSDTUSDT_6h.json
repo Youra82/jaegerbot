@@ -1,0 +1,39 @@
+{
+  "market": {
+    "symbol": "QNT/USDT:USDT",
+    "timeframe": "6h"
+  },
+  "strategy": {
+    "sides": "L",
+    "quantile": 0.99,
+    "ema_filter": true
+  },
+  "_backtest": {
+    "is_start": "2023-01-01",
+    "oos_start": "2026-04-26",
+    "is": {
+      "start_capital": 100.0,
+      "end_capital": 161.746,
+      "pnl_pct": 61.746,
+      "max_dd_pct": 12.747,
+      "trades": 250.0,
+      "win_rate": 53.2,
+      "avg_R": 0.208,
+      "open_at_end": 0.0
+    },
+    "oos": {
+      "start_capital": 100.0,
+      "end_capital": 109.638,
+      "pnl_pct": 9.638,
+      "max_dd_pct": 6.099,
+      "trades": 22.0,
+      "win_rate": 63.636,
+      "avg_R": 0.437,
+      "open_at_end": 0.0
+    },
+    "risk_pct": 1.0,
+    "confirmed": false,
+    "n_coins": 30,
+    "created": "2026-10-25 11:56"
+  }
+}

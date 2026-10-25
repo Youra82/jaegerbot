@@ -1,0 +1,39 @@
+{
+  "market": {
+    "symbol": "HBAR/USDT:USDT",
+    "timeframe": "1d"
+  },
+  "strategy": {
+    "sides": "L",
+    "quantile": 0.975,
+    "ema_filter": true
+  },
+  "_backtest": {
+    "is_start": "2023-01-01",
+    "oos_start": "2026-04-26",
+    "is": {
+      "start_capital": 100.0,
+      "end_capital": 128.135,
+      "pnl_pct": 28.135,
+      "max_dd_pct": 12.428,
+      "trades": 108.0,
+      "win_rate": 50.926,
+      "avg_R": 0.249,
+      "open_at_end": 0.0
+    },
+    "oos": {
+      "start_capital": 100.0,
+      "end_capital": 99.784,
+      "pnl_pct": -0.216,
+      "max_dd_pct": 4.112,
+      "trades": 21.0,
+      "win_rate": 33.333,
+      "avg_R": -0.005,
+      "open_at_end": 0.0
+    },
+    "risk_pct": 1.0,
+    "confirmed": false,
+    "n_coins": 29,
+    "created": "2026-10-25 11:56"
+  }
+}

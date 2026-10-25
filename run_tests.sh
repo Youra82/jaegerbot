@@ -1,36 +1,6 @@
 #!/bin/bash
-echo "--- Starte JaegerBot-Sicherheitsnetz ---"
-
-if [ ! -f ".venv/bin/activate" ]; then
-    echo "Fehler: Virtuelle Umgebung nicht gefunden. Bitte install.sh ausführen."
-    exit 1
-fi
-source .venv/bin/activate
-
-# Standard-Defaults: Notional 5 USDT, Margin Mode isolated
-export JAEGER_PEPE_NOTIONAL_USDT=${JAEGER_PEPE_NOTIONAL_USDT:-5}
-export JAEGER_MARGIN_MODE=${JAEGER_MARGIN_MODE:-isolated}
-
-echo "-> Test-Umgebungsvariablen: JAEGER_PEPE_NOTIONAL_USDT=${JAEGER_PEPE_NOTIONAL_USDT}, JAEGER_MARGIN_MODE=${JAEGER_MARGIN_MODE}"
-
-echo "Führe Pytest aus (inkl. Live-Workflow-Test)..."
-# Ensure tests can import the package from the src directory
-export PYTHONPATH=${PYTHONPATH:-src}
-if python3 -m pytest -v -s; then
-    echo "Pytest erfolgreich durchgelaufen. Alle Tests bestanden."
-    EXIT_CODE=0
-else
-    PYTEST_EXIT_CODE=$?
-    if [ $PYTEST_EXIT_CODE -eq 5 ]; then
-        echo "Pytest beendet: Keine Tests zum Ausführen gefunden."
-        EXIT_CODE=0
-    else
-        echo "Pytest fehlgeschlagen (Exit Code: $PYTEST_EXIT_CODE)."
-        EXIT_CODE=$PYTEST_EXIT_CODE
-    fi
-fi
-
-deactivate
-
-echo "--- Sicherheitscheck abgeschlossen ---"
-exit $EXIT_CODE
+# Offline-Tests (keine echten Orders): Regeln, Datenpruefung, Live-Zyklus gegen Schein-Boerse, Paritaet
+cd "$(dirname "$0")"
+PY=.venv/bin/python3; [ -x "$PY" ] || PY=$(command -v python3 || command -v python)
+export PYTHONPATH=src
+$PY -m pytest -q tests && $PY tests/parity_check.py --candles 60

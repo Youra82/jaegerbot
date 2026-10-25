@@ -1,115 +1,243 @@
 {
   "live_trading_settings": {
-    "use_auto_optimizer_results": true,
-    "top_n_strategies_to_trade": 15,
+    "risk_per_trade_pct": 1.0,
+    "max_open_positions": 10,
+    "max_leverage": 20,
+    "margin_mode": "isolated",
     "active_strategies": [
       {
-        "symbol": "INJ/USDT:USDT",
+        "symbol": "BTC/USDT:USDT",
         "timeframe": "4h",
-        "use_macd_filter": false,
         "active": true
       },
       {
-        "symbol": "LINK/USDT:USDT",
-        "timeframe": "6h",
-        "use_macd_filter": false,
+        "symbol": "ETH/USDT:USDT",
+        "timeframe": "4h",
         "active": true
       },
       {
-        "symbol": "DOT/USDT:USDT",
+        "symbol": "SOL/USDT:USDT",
         "timeframe": "4h",
-        "use_macd_filter": false,
         "active": true
       },
       {
         "symbol": "XRP/USDT:USDT",
-        "timeframe": "6h",
-        "use_macd_filter": false,
+        "timeframe": "4h",
         "active": true
       },
       {
-        "symbol": "AVAX/USDT:USDT",
-        "timeframe": "6h",
-        "use_macd_filter": false,
+        "symbol": "NEAR/USDT:USDT",
+        "timeframe": "4h",
         "active": true
       },
       {
-        "symbol": "BTC/USDT:USDT",
-        "timeframe": "6h",
-        "use_macd_filter": false,
+        "symbol": "DOGE/USDT:USDT",
+        "timeframe": "4h",
+        "active": true
+      },
+      {
+        "symbol": "SUI/USDT:USDT",
+        "timeframe": "4h",
+        "active": true
+      },
+      {
+        "symbol": "ADA/USDT:USDT",
+        "timeframe": "4h",
+        "active": true
+      },
+      {
+        "symbol": "PEPE/USDT:USDT",
+        "timeframe": "4h",
+        "active": true
+      },
+      {
+        "symbol": "LINK/USDT:USDT",
+        "timeframe": "4h",
         "active": true
       },
       {
         "symbol": "UNI/USDT:USDT",
         "timeframe": "4h",
-        "use_macd_filter": false,
         "active": true
       },
       {
         "symbol": "BNB/USDT:USDT",
-        "timeframe": "2h",
-        "use_macd_filter": false,
+        "timeframe": "4h",
         "active": true
       },
       {
-        "symbol": "ADA/USDT:USDT",
-        "timeframe": "1h",
-        "use_macd_filter": false,
+        "symbol": "QNT/USDT:USDT",
+        "timeframe": "4h",
         "active": true
       },
       {
-        "symbol": "ETH/USDT:USDT",
-        "timeframe": "2h",
-        "use_macd_filter": false,
+        "symbol": "FIL/USDT:USDT",
+        "timeframe": "4h",
         "active": true
       },
       {
-        "symbol": "SUI/USDT:USDT",
-        "timeframe": "1h",
-        "use_macd_filter": false,
+        "symbol": "AVAX/USDT:USDT",
+        "timeframe": "4h",
+        "active": true
+      },
+      {
+        "symbol": "XLM/USDT:USDT",
+        "timeframe": "4h",
+        "active": true
+      },
+      {
+        "symbol": "DOT/USDT:USDT",
+        "timeframe": "4h",
+        "active": true
+      },
+      {
+        "symbol": "BCH/USDT:USDT",
+        "timeframe": "4h",
+        "active": true
+      },
+      {
+        "symbol": "HBAR/USDT:USDT",
+        "timeframe": "4h",
+        "active": true
+      },
+      {
+        "symbol": "ARB/USDT:USDT",
+        "timeframe": "4h",
+        "active": true
+      },
+      {
+        "symbol": "AAVE/USDT:USDT",
+        "timeframe": "4h",
+        "active": true
+      },
+      {
+        "symbol": "FET/USDT:USDT",
+        "timeframe": "4h",
+        "active": true
+      },
+      {
+        "symbol": "CRV/USDT:USDT",
+        "timeframe": "4h",
+        "active": true
+      },
+      {
+        "symbol": "BLUR/USDT:USDT",
+        "timeframe": "4h",
+        "active": true
+      },
+      {
+        "symbol": "APT/USDT:USDT",
+        "timeframe": "4h",
         "active": true
       },
       {
         "symbol": "LTC/USDT:USDT",
-        "timeframe": "2h",
-        "use_macd_filter": false,
+        "timeframe": "4h",
         "active": true
       },
       {
-        "symbol": "NEAR/USDT:USDT",
-        "timeframe": "2h",
-        "use_macd_filter": false,
+        "symbol": "INJ/USDT:USDT",
+        "timeframe": "4h",
+        "active": true
+      },
+      {
+        "symbol": "OP/USDT:USDT",
+        "timeframe": "4h",
+        "active": true
+      },
+      {
+        "symbol": "BAT/USDT:USDT",
+        "timeframe": "4h",
+        "active": true
+      },
+      {
+        "symbol": "RSR/USDT:USDT",
+        "timeframe": "4h",
         "active": true
       }
     ]
   },
+  "research": {
+    "_info": "Gepooltes ANN je Timeframe ueber das ganze Universum, vierteljaehrlich nur auf Vergangenheit nachtrainiert. Gehandelt nur etablierte Coins (Listing >= min_listing_days). OOS = letzte oos_weeks Wochen.",
+    "universe": [
+      "BTC",
+      "ETH",
+      "SOL",
+      "ZEC",
+      "XRP",
+      "NEAR",
+      "HYPE",
+      "DOGE",
+      "WAL",
+      "SUI",
+      "STRK",
+      "ADA",
+      "ENA",
+      "PEPE",
+      "LINK",
+      "WLD",
+      "UNI",
+      "BNB",
+      "ONDO",
+      "PUMP",
+      "QNT",
+      "FIL",
+      "NIL",
+      "TRUMP",
+      "AVAX",
+      "XLM",
+      "DOT",
+      "PYTH",
+      "BCH",
+      "SIREN",
+      "AKE",
+      "ZK",
+      "Q",
+      "HBAR",
+      "ARB",
+      "TAO",
+      "PONS",
+      "XPL",
+      "AAVE",
+      "FET",
+      "CRV",
+      "ARC",
+      "BLUR",
+      "APT",
+      "AVA",
+      "BE",
+      "LTC",
+      "INJ",
+      "OP",
+      "TIA",
+      "PENGU",
+      "US",
+      "BAT",
+      "RENDER",
+      "NXPC",
+      "W",
+      "RSR",
+      "SEI",
+      "BSP"
+    ],
+    "timeframes": [
+      "1h",
+      "2h",
+      "4h",
+      "6h",
+      "1d"
+    ],
+    "history_start": "2021-01-01",
+    "oos_weeks": 26,
+    "ensemble_seeds": 3,
+    "min_listing_days": 1200,
+    "first_trade_date": "2023-01-01"
+  },
   "optimization_settings": {
-    "enabled": true,
-    "_info": "symbols_to_optimize/timeframes_to_optimize: 'auto' liest active_strategies aus, oder explizite Liste wie ['BTC', 'ETH']",
-    "symbols_to_optimize": "auto",
-    "timeframes_to_optimize": "auto",
-    "lookback_days": "auto",
-    "start_capital": 15,
-    "num_trials": 500,
-    "cpu_cores": -1,
-    "mode": "strict",
-    "top_n": 5,
-    "auto_clear_cache_days": 30,
-    "send_telegram_on_completion": true,
-    "constraints": {
-      "max_drawdown_pct": 30,
-      "min_win_rate_pct": 45,
-      "min_pnl_pct": 0
-    },
-    "schedule": {
-      "_info": "day_of_week: 0=Montag, 6=Sonntag | hour: 0-23 (24h Format)",
-      "day_of_week": 6,
-      "hour": 23,
-      "minute": 0,
-      "interval": {
-        "value": 7,
-        "unit": "days"
-      }
-    }
+    "_info": "Regel je Timeframe: IS-Wahl nach Erwartungswert, bestaetigt wenn IS > 0, OOS >= min_oos_pnl_pct, OOS-DD <= max_drawdown_pct, OOS-Trades >= min_oos_trades. Portfolio: Timeframe-Kombination + Risiko mit max. Endkapital bei DD <= max_drawdown_pct seit first_trade_date.",
+    "min_oos_pnl_pct": 10,
+    "max_drawdown_pct": 30,
+    "min_oos_trades": 10,
+    "send_telegram_on_completion": true
   }
 }

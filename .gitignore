@@ -2,10 +2,11 @@
 # JaegerBot Spezifische Ausschlüsse
 # ===============================================
 # Modelle & Daten (groß, lokal generiert)
-/artifacts/models/
+# Modelle werden committet (Live = Backtest-Datei); nur Rohdaten/Ergebnisse ignorieren
 /artifacts/db/
 /artifacts/results/
 /artifacts/charts/
+/artifacts/backups/
 /data/
 /logs/
 # Credentials & lokale Einstellungen
@@ -91,3 +92,4 @@ cython_debug/
 .idea/
 *.db
 *.csv
+jaegerbot.lock

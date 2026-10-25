@@ -1,5 +1,4 @@
 *.db filter=lfs diff=lfs merge=lfs -text
-*.h5 filter=lfs diff=lfs merge=lfs -text
 
 # Alle Textdateien mit LF (Linux/Mac kompatibel)
 * text=auto eol=lf
@@ -13,3 +12,6 @@
 *.md   text eol=lf
 *.yml  text eol=lf
 *.yaml text eol=lf
+
+# Modelle (joblib) binaer -- keine Zeilenende-Umwandlung
+*.joblib binary

@@ -1,31 +1,39 @@
 {
-    "_meta": {
-        "pnl_pct": 127.36,
-        "pnl_pct_oos": 127.36,
-        "pnl_pct_train": 80.3,
-        "wfv": "70/30"
+  "market": {
+    "symbol": "SUI/USDT:USDT",
+    "timeframe": "4h"
+  },
+  "strategy": {
+    "sides": "L",
+    "quantile": 0.99,
+    "ema_filter": true
+  },
+  "_backtest": {
+    "is_start": "2023-01-01",
+    "oos_start": "2026-04-26",
+    "is": {
+      "start_capital": 100.0,
+      "end_capital": 198.452,
+      "pnl_pct": 98.452,
+      "max_dd_pct": 25.045,
+      "trades": 468.0,
+      "win_rate": 49.786,
+      "avg_R": 0.163,
+      "open_at_end": 0.0
     },
-    "market": {
-        "symbol": "SUI/USDT:USDT",
-        "timeframe": "4h"
+    "oos": {
+      "start_capital": 100.0,
+      "end_capital": 122.238,
+      "pnl_pct": 22.238,
+      "max_dd_pct": 5.909,
+      "trades": 75.0,
+      "win_rate": 50.667,
+      "avg_R": 0.293,
+      "open_at_end": 0.0
     },
-    "strategy": {
-        "prediction_threshold": 0.6,
-        "min_signal_score": 8.37
-    },
-    "risk": {
-        "margin_mode": "isolated",
-        "risk_per_trade_pct": 1.58,
-        "risk_reward_ratio": 4.31,
-        "leverage": 11,
-        "trailing_stop_activation_rr": 0.8,
-        "trailing_stop_callback_rate_pct": 0.74,
-        "atr_multiplier_sl": 1.27,
-        "min_sl_pct": 0.3,
-        "max_sl_pct": 1.98
-    },
-    "behavior": {
-        "use_longs": true,
-        "use_shorts": true
-    }
+    "risk_pct": 1.0,
+    "confirmed": true,
+    "n_coins": 30,
+    "created": "2026-10-25 11:56"
+  }
 }

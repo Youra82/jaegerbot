@@ -1,0 +1,39 @@
+{
+  "market": {
+    "symbol": "BAT/USDT:USDT",
+    "timeframe": "2h"
+  },
+  "strategy": {
+    "sides": "S",
+    "quantile": 0.99,
+    "ema_filter": true
+  },
+  "_backtest": {
+    "is_start": "2023-01-01",
+    "oos_start": "2026-04-26",
+    "is": {
+      "start_capital": 100.0,
+      "end_capital": 149.109,
+      "pnl_pct": 49.109,
+      "max_dd_pct": 24.217,
+      "trades": 744.0,
+      "win_rate": 45.699,
+      "avg_R": 0.081,
+      "open_at_end": 0.0
+    },
+    "oos": {
+      "start_capital": 100.0,
+      "end_capital": 84.328,
+      "pnl_pct": -15.672,
+      "max_dd_pct": 29.943,
+      "trades": 164.0,
+      "win_rate": 42.683,
+      "avg_R": -0.077,
+      "open_at_end": 1.0
+    },
+    "risk_pct": 1.0,
+    "confirmed": false,
+    "n_coins": 30,
+    "created": "2026-10-25 11:56"
+  }
+}

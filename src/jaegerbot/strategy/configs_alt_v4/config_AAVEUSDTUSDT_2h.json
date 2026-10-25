@@ -1,0 +1,31 @@
+{
+    "_meta": {
+        "pnl_pct": 12.59,
+        "pnl_pct_oos": 12.59,
+        "pnl_pct_train": 57.8,
+        "wfv": "70/30"
+    },
+    "market": {
+        "symbol": "AAVE/USDT:USDT",
+        "timeframe": "2h"
+    },
+    "strategy": {
+        "prediction_threshold": 0.6,
+        "min_signal_score": 8.26
+    },
+    "risk": {
+        "margin_mode": "isolated",
+        "risk_per_trade_pct": 1.15,
+        "risk_reward_ratio": 2.97,
+        "leverage": 31,
+        "trailing_stop_activation_rr": 0.8,
+        "trailing_stop_callback_rate_pct": 0.5,
+        "atr_multiplier_sl": 1.83,
+        "min_sl_pct": 0.3,
+        "max_sl_pct": 1.86
+    },
+    "behavior": {
+        "use_longs": true,
+        "use_shorts": true
+    }
+}

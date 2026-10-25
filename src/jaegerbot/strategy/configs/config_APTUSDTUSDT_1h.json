@@ -1,0 +1,39 @@
+{
+  "market": {
+    "symbol": "APT/USDT:USDT",
+    "timeframe": "1h"
+  },
+  "strategy": {
+    "sides": "L",
+    "quantile": 0.99,
+    "ema_filter": true
+  },
+  "_backtest": {
+    "is_start": "2023-01-01",
+    "oos_start": "2026-04-26",
+    "is": {
+      "start_capital": 100.0,
+      "end_capital": 137.413,
+      "pnl_pct": 37.413,
+      "max_dd_pct": 37.537,
+      "trades": 1166.0,
+      "win_rate": 45.626,
+      "avg_R": 0.043,
+      "open_at_end": 0.0
+    },
+    "oos": {
+      "start_capital": 100.0,
+      "end_capital": 121.395,
+      "pnl_pct": 21.395,
+      "max_dd_pct": 18.751,
+      "trades": 193.0,
+      "win_rate": 45.596,
+      "avg_R": 0.129,
+      "open_at_end": 0.0
+    },
+    "risk_pct": 1.0,
+    "confirmed": true,
+    "n_coins": 30,
+    "created": "2026-10-25 11:55"
+  }
+}
